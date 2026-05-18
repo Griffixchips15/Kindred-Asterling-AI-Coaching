@@ -1,22 +1,31 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Kindred Coach API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: morning
+    description: Morning baseline logs
+  - name: scans
+    description: Interval body scans
+  - name: evening
+    description: Evening reports
+  - name: habits
+    description: Goals and habit tracking
+  - name: dashboard
+    description: Dashboard summaries
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +33,283 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /morning-logs:
+    get:
+      operationId: listMorningLogs
+      tags: [morning]
+      summary: List morning baseline logs
+      responses:
+        "200":
+          description: List of morning logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MorningLog"
+    post:
+      operationId: createMorningLog
+      tags: [morning]
+      summary: Create a morning baseline log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MorningLogInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MorningLog"
+
+  /morning-logs/{id}:
+    get:
+      operationId: getMorningLog
+      tags: [morning]
+      summary: Get a morning log by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Morning log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MorningLog"
+        "404":
+          description: Not found
+
+  /body-scans:
+    get:
+      operationId: listBodyScans
+      tags: [scans]
+      summary: List body scans
+      responses:
+        "200":
+          description: List of body scans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BodyScan"
+    post:
+      operationId: createBodyScan
+      tags: [scans]
+      summary: Log a body scan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BodyScanInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BodyScan"
+
+  /evening-reports:
+    get:
+      operationId: listEveningReports
+      tags: [evening]
+      summary: List evening reports
+      responses:
+        "200":
+          description: List of evening reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EveningReport"
+    post:
+      operationId: createEveningReport
+      tags: [evening]
+      summary: Create an evening report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EveningReportInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EveningReport"
+
+  /habits:
+    get:
+      operationId: listHabits
+      tags: [habits]
+      summary: List habits
+      responses:
+        "200":
+          description: List of habits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Habit"
+    post:
+      operationId: createHabit
+      tags: [habits]
+      summary: Create a new habit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HabitInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Habit"
+
+  /habits/{id}:
+    patch:
+      operationId: updateHabit
+      tags: [habits]
+      summary: Update a habit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HabitUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Habit"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteHabit
+      tags: [habits]
+      summary: Delete a habit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /habits/{id}/entries:
+    get:
+      operationId: listHabitEntries
+      tags: [habits]
+      summary: Get entries for a habit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of habit entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HabitEntry"
+    post:
+      operationId: logHabitEntry
+      tags: [habits]
+      summary: Log a habit entry for today
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HabitEntryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HabitEntry"
+
+  /dashboard/today:
+    get:
+      operationId: getTodaySummary
+      tags: [dashboard]
+      summary: Get today's progress summary
+      responses:
+        "200":
+          description: Today's summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TodaySummary"
+
+  /dashboard/streaks:
+    get:
+      operationId: getStreaks
+      tags: [dashboard]
+      summary: Get habit streaks
+      responses:
+        "200":
+          description: Habit streaks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HabitStreak"
+
+  /dashboard/mood-trend:
+    get:
+      operationId: getMoodTrend
+      tags: [dashboard]
+      summary: Get mood/mental load trend for the past 7 days
+      responses:
+        "200":
+          description: Mood trend data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MoodTrendPoint"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +320,231 @@ components:
       required:
         - status
 
+    MorningLog:
+      type: object
+      required: [id, date, mentalLoadLevel, miniGoals, createdAt]
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        mentalLoadLevel:
+          type: string
+        miniGoals:
+          type: array
+          items:
+            type: string
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    MorningLogInput:
+      type: object
+      required: [date, mentalLoadLevel, miniGoals]
+      properties:
+        date:
+          type: string
+        mentalLoadLevel:
+          type: string
+        miniGoals:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+
+    BodyScan:
+      type: object
+      required: [id, scannedAt, feelings, energyLevel, createdAt]
+      properties:
+        id:
+          type: integer
+        scannedAt:
+          type: string
+        feelings:
+          type: array
+          items:
+            type: string
+        energyLevel:
+          type: integer
+        physicalSensations:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    BodyScanInput:
+      type: object
+      required: [feelings, energyLevel]
+      properties:
+        scannedAt:
+          type: string
+        feelings:
+          type: array
+          items:
+            type: string
+        energyLevel:
+          type: integer
+        physicalSensations:
+          type: string
+        notes:
+          type: string
+
+    EveningReport:
+      type: object
+      required: [id, date, medicationEffectiveness, createdAt]
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        medicationEffectiveness:
+          type: integer
+        overallMood:
+          type: ["string", "null"]
+        wins:
+          type: ["string", "null"]
+        challenges:
+          type: ["string", "null"]
+        tomorrowIntent:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    EveningReportInput:
+      type: object
+      required: [date, medicationEffectiveness]
+      properties:
+        date:
+          type: string
+        medicationEffectiveness:
+          type: integer
+        overallMood:
+          type: string
+        wins:
+          type: string
+        challenges:
+          type: string
+        tomorrowIntent:
+          type: string
+
+    Habit:
+      type: object
+      required: [id, name, targetDays, startDate, completedCount, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        targetDays:
+          type: integer
+        startDate:
+          type: string
+        completedCount:
+          type: integer
+        createdAt:
+          type: string
+
+    HabitInput:
+      type: object
+      required: [name, targetDays]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        targetDays:
+          type: integer
+        startDate:
+          type: string
+
+    HabitUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        targetDays:
+          type: integer
+
+    HabitEntry:
+      type: object
+      required: [id, habitId, date, completed, createdAt]
+      properties:
+        id:
+          type: integer
+        habitId:
+          type: integer
+        date:
+          type: string
+        completed:
+          type: boolean
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    HabitEntryInput:
+      type: object
+      required: [date, completed]
+      properties:
+        date:
+          type: string
+        completed:
+          type: boolean
+        notes:
+          type: string
+
+    TodaySummary:
+      type: object
+      required: [date, morningDone, eveningDone, bodyScansCount, habitsCompletedToday, totalHabits]
+      properties:
+        date:
+          type: string
+        morningDone:
+          type: boolean
+        eveningDone:
+          type: boolean
+        bodyScansCount:
+          type: integer
+        habitsCompletedToday:
+          type: integer
+        totalHabits:
+          type: integer
+        currentMentalLoad:
+          type: ["string", "null"]
+
+    HabitStreak:
+      type: object
+      required: [habitId, habitName, currentStreak, longestStreak, completedCount, targetDays]
+      properties:
+        habitId:
+          type: integer
+        habitName:
+          type: string
+        currentStreak:
+          type: integer
+        longestStreak:
+          type: integer
+        completedCount:
+          type: integer
+        targetDays:
+          type: integer
+
+    MoodTrendPoint:
+      type: object
+      required: [date, mentalLoadLevel, bodyScansCount]
+      properties:
+        date:
+          type: string
+        mentalLoadLevel:
+          type: ["string", "null"]
+        bodyScansCount:
+          type: integer
+        medicationEffectiveness:
+          type: ["integer", "null"]
