@@ -13,7 +13,7 @@ router.get("/evening-reports", async (_req, res): Promise<void> => {
     .select()
     .from(eveningReportsTable)
     .orderBy(desc(eveningReportsTable.createdAt));
-  res.json(ListEveningReportsResponse.parse(reports));
+  res.json(ListEveningReportsResponse.parse(JSON.parse(JSON.stringify(reports))));
 });
 
 router.post("/evening-reports", async (req, res): Promise<void> => {
@@ -33,7 +33,7 @@ router.post("/evening-reports", async (req, res): Promise<void> => {
       tomorrowIntent: parsed.data.tomorrowIntent ?? null,
     })
     .returning();
-  res.status(201).json(report);
+  res.status(201).json(JSON.parse(JSON.stringify(report)));
 });
 
 export default router;

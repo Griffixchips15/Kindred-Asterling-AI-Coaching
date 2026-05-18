@@ -15,7 +15,7 @@ router.get("/morning-logs", async (_req, res): Promise<void> => {
     .select()
     .from(morningLogsTable)
     .orderBy(desc(morningLogsTable.createdAt));
-  res.json(ListMorningLogsResponse.parse(logs));
+  res.json(ListMorningLogsResponse.parse(JSON.parse(JSON.stringify(logs))));
 });
 
 router.post("/morning-logs", async (req, res): Promise<void> => {
@@ -33,7 +33,7 @@ router.post("/morning-logs", async (req, res): Promise<void> => {
       notes: parsed.data.notes ?? null,
     })
     .returning();
-  res.status(201).json(GetMorningLogResponse.parse(log));
+  res.status(201).json(GetMorningLogResponse.parse(JSON.parse(JSON.stringify(log))));
 });
 
 router.get("/morning-logs/:id", async (req, res): Promise<void> => {
@@ -50,7 +50,7 @@ router.get("/morning-logs/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Morning log not found" });
     return;
   }
-  res.json(GetMorningLogResponse.parse(log));
+  res.json(GetMorningLogResponse.parse(JSON.parse(JSON.stringify(log))));
 });
 
 export default router;

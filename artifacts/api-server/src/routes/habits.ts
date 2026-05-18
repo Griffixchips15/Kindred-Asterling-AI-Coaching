@@ -37,7 +37,7 @@ router.get("/habits", async (_req, res): Promise<void> => {
     })
   );
 
-  res.json(ListHabitsResponse.parse(withCounts));
+  res.json(ListHabitsResponse.parse(JSON.parse(JSON.stringify(withCounts))));
 });
 
 router.post("/habits", async (req, res): Promise<void> => {
@@ -56,7 +56,7 @@ router.post("/habits", async (req, res): Promise<void> => {
       startDate: parsed.data.startDate ?? today,
     })
     .returning();
-  res.status(201).json({ ...habit, completedCount: 0 });
+  res.status(201).json(JSON.parse(JSON.stringify({ ...habit, completedCount: 0 })));
 });
 
 router.patch("/habits/:id", async (req, res): Promise<void> => {
@@ -88,7 +88,7 @@ router.patch("/habits/:id", async (req, res): Promise<void> => {
         eq(habitEntriesTable.completed, true)
       )
     );
-  res.json(UpdateHabitResponse.parse({ ...habit, completedCount: count ?? 0 }));
+  res.json(UpdateHabitResponse.parse(JSON.parse(JSON.stringify({ ...habit, completedCount: count ?? 0 }))));
 });
 
 router.delete("/habits/:id", async (req, res): Promise<void> => {
@@ -119,7 +119,7 @@ router.get("/habits/:id/entries", async (req, res): Promise<void> => {
     .from(habitEntriesTable)
     .where(eq(habitEntriesTable.habitId, params.data.id))
     .orderBy(desc(habitEntriesTable.date));
-  res.json(entries);
+  res.json(JSON.parse(JSON.stringify(entries)));
 });
 
 router.post("/habits/:id/entries", async (req, res): Promise<void> => {
@@ -142,7 +142,7 @@ router.post("/habits/:id/entries", async (req, res): Promise<void> => {
       notes: parsed.data.notes ?? null,
     })
     .returning();
-  res.status(201).json(entry);
+  res.status(201).json(JSON.parse(JSON.stringify(entry)));
 });
 
 export default router;

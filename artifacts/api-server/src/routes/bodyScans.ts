@@ -13,7 +13,7 @@ router.get("/body-scans", async (_req, res): Promise<void> => {
     .select()
     .from(bodyScansTable)
     .orderBy(desc(bodyScansTable.scannedAt));
-  res.json(ListBodyScansResponse.parse(scans));
+  res.json(ListBodyScansResponse.parse(JSON.parse(JSON.stringify(scans))));
 });
 
 router.post("/body-scans", async (req, res): Promise<void> => {
@@ -32,7 +32,7 @@ router.post("/body-scans", async (req, res): Promise<void> => {
       notes: parsed.data.notes ?? null,
     })
     .returning();
-  res.status(201).json(scan);
+  res.status(201).json(JSON.parse(JSON.stringify(scan)));
 });
 
 export default router;

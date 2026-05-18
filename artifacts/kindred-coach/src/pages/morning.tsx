@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -122,7 +123,7 @@ export default function Morning() {
               />
 
               <div className="space-y-4">
-                <FormLabel className="text-base font-medium block">What are 1-3 tiny things you can accomplish today?</FormLabel>
+                <Label className="text-base font-medium block">What are 1-3 tiny things you can accomplish today?</Label>
                 <FormField
                   control={form.control}
                   name="goal1"
