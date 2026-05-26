@@ -12,16 +12,18 @@ import {
   ListHabitsResponse,
   UpdateHabitResponse,
 } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-router.get("/habits", async (_req, res): Promise<void> => {
+router.get("/habits", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
   const habits = await db
     .select()
     .from(habitsTable)
+    .where(eq(habitsTable.userId, userId))
     .orderBy(desc(habitsTable.createdAt));
 
-  // Attach completedCount for each habit
   const withCounts = await Promise.all(
     habits.map(async (habit) => {
       const [{ count }] = await db
@@ -40,7 +42,8 @@ router.get("/habits", async (_req, res): Promise<void> => {
   res.json(ListHabitsResponse.parse(JSON.parse(JSON.stringify(withCounts))));
 });
 
-router.post("/habits", async (req, res): Promise<void> => {
+router.post("/habits", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
   const parsed = CreateHabitBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -50,6 +53,7 @@ router.post("/habits", async (req, res): Promise<void> => {
   const [habit] = await db
     .insert(habitsTable)
     .values({
+      userId,
       name: parsed.data.name,
       description: parsed.data.description ?? null,
       targetDays: parsed.data.targetDays ?? 90,
@@ -59,7 +63,8 @@ router.post("/habits", async (req, res): Promise<void> => {
   res.status(201).json(JSON.parse(JSON.stringify({ ...habit, completedCount: 0 })));
 });
 
-router.patch("/habits/:id", async (req, res): Promise<void> => {
+router.patch("/habits/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
   const params = UpdateHabitParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -73,7 +78,7 @@ router.patch("/habits/:id", async (req, res): Promise<void> => {
   const [habit] = await db
     .update(habitsTable)
     .set(parsed.data)
-    .where(eq(habitsTable.id, params.data.id))
+    .where(and(eq(habitsTable.id, params.data.id), eq(habitsTable.userId, userId)))
     .returning();
   if (!habit) {
     res.status(404).json({ error: "Habit not found" });
@@ -91,7 +96,8 @@ router.patch("/habits/:id", async (req, res): Promise<void> => {
   res.json(UpdateHabitResponse.parse(JSON.parse(JSON.stringify({ ...habit, completedCount: count ?? 0 }))));
 });
 
-router.delete("/habits/:id", async (req, res): Promise<void> => {
+router.delete("/habits/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
   const params = DeleteHabitParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -99,7 +105,7 @@ router.delete("/habits/:id", async (req, res): Promise<void> => {
   }
   const [habit] = await db
     .delete(habitsTable)
-    .where(eq(habitsTable.id, params.data.id))
+    .where(and(eq(habitsTable.id, params.data.id), eq(habitsTable.userId, userId)))
     .returning();
   if (!habit) {
     res.status(404).json({ error: "Habit not found" });
@@ -108,10 +114,20 @@ router.delete("/habits/:id", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-router.get("/habits/:id/entries", async (req, res): Promise<void> => {
+router.get("/habits/:id/entries", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
   const params = ListHabitEntriesParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+  // Verify the habit belongs to this user
+  const [habit] = await db
+    .select()
+    .from(habitsTable)
+    .where(and(eq(habitsTable.id, params.data.id), eq(habitsTable.userId, userId)));
+  if (!habit) {
+    res.status(404).json({ error: "Habit not found" });
     return;
   }
   const entries = await db
@@ -122,7 +138,8 @@ router.get("/habits/:id/entries", async (req, res): Promise<void> => {
   res.json(JSON.parse(JSON.stringify(entries)));
 });
 
-router.post("/habits/:id/entries", async (req, res): Promise<void> => {
+router.post("/habits/:id/entries", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
   const params = LogHabitEntryParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -131,6 +148,15 @@ router.post("/habits/:id/entries", async (req, res): Promise<void> => {
   const parsed = LogHabitEntryBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  // Verify the habit belongs to this user
+  const [habit] = await db
+    .select()
+    .from(habitsTable)
+    .where(and(eq(habitsTable.id, params.data.id), eq(habitsTable.userId, userId)));
+  if (!habit) {
+    res.status(404).json({ error: "Habit not found" });
     return;
   }
   const [entry] = await db

@@ -1,40 +1,50 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { db, morningLogsTable, eveningReportsTable, bodyScansTable, habitsTable, habitEntriesTable } from "@workspace/db";
+import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-router.get("/dashboard/today", async (_req, res): Promise<void> => {
+router.get("/dashboard/today", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
   const today = new Date().toISOString().split("T")[0];
 
   const [morningLog] = await db
     .select()
     .from(morningLogsTable)
-    .where(eq(morningLogsTable.date, today))
+    .where(and(eq(morningLogsTable.userId, userId), eq(morningLogsTable.date, today)))
     .limit(1);
 
   const [eveningReport] = await db
     .select()
     .from(eveningReportsTable)
-    .where(eq(eveningReportsTable.date, today))
+    .where(and(eq(eveningReportsTable.userId, userId), eq(eveningReportsTable.date, today)))
     .limit(1);
 
   const scansToday = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(bodyScansTable)
-    .where(sql`DATE(scanned_at) = ${today}::date`);
+    .where(and(eq(bodyScansTable.userId, userId), sql`DATE(scanned_at) = ${today}::date`));
 
-  const allHabits = await db.select().from(habitsTable);
+  const allHabits = await db
+    .select()
+    .from(habitsTable)
+    .where(eq(habitsTable.userId, userId));
 
-  const completedToday = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(habitEntriesTable)
-    .where(
-      and(
-        eq(habitEntriesTable.date, today),
-        eq(habitEntriesTable.completed, true)
-      )
-    );
+  const habitIds = allHabits.map((h) => h.id);
+  const completedToday =
+    habitIds.length > 0
+      ? await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(habitEntriesTable)
+          .where(
+            and(
+              eq(habitEntriesTable.date, today),
+              eq(habitEntriesTable.completed, true),
+              sql`habit_id = ANY(${sql.raw(`ARRAY[${habitIds.join(",")}]`)})`
+            )
+          )
+      : [{ count: 0 }];
 
   res.json({
     date: today,
@@ -47,8 +57,12 @@ router.get("/dashboard/today", async (_req, res): Promise<void> => {
   });
 });
 
-router.get("/dashboard/streaks", async (_req, res): Promise<void> => {
-  const habits = await db.select().from(habitsTable);
+router.get("/dashboard/streaks", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
+  const habits = await db
+    .select()
+    .from(habitsTable)
+    .where(eq(habitsTable.userId, userId));
 
   const streaks = await Promise.all(
     habits.map(async (habit) => {
@@ -63,12 +77,10 @@ router.get("/dashboard/streaks", async (_req, res): Promise<void> => {
         )
         .orderBy(desc(habitEntriesTable.date));
 
-      // Calculate current streak
       let currentStreak = 0;
       let longestStreak = 0;
       let tempStreak = 0;
       const today = new Date();
-
       const completedDates = entries.map((e) => e.date);
 
       for (let i = 0; i < 90; i++) {
@@ -99,7 +111,8 @@ router.get("/dashboard/streaks", async (_req, res): Promise<void> => {
   res.json(streaks);
 });
 
-router.get("/dashboard/mood-trend", async (_req, res): Promise<void> => {
+router.get("/dashboard/mood-trend", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
   const results = [];
   const today = new Date();
 
@@ -111,18 +124,18 @@ router.get("/dashboard/mood-trend", async (_req, res): Promise<void> => {
     const [morningLog] = await db
       .select()
       .from(morningLogsTable)
-      .where(eq(morningLogsTable.date, ds))
+      .where(and(eq(morningLogsTable.userId, userId), eq(morningLogsTable.date, ds)))
       .limit(1);
 
     const [{ count: scansCount }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(bodyScansTable)
-      .where(sql`DATE(scanned_at) = ${ds}::date`);
+      .where(and(eq(bodyScansTable.userId, userId), sql`DATE(scanned_at) = ${ds}::date`));
 
     const [eveningReport] = await db
       .select()
       .from(eveningReportsTable)
-      .where(eq(eveningReportsTable.date, ds))
+      .where(and(eq(eveningReportsTable.userId, userId), eq(eveningReportsTable.date, ds)))
       .limit(1);
 
     results.push({

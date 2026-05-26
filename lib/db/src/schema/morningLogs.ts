@@ -1,9 +1,10 @@
-import { pgTable, serial, text, date, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, date, timestamp, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const morningLogsTable = pgTable("morning_logs", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id"),
   date: date("date").notNull(),
   mentalLoadLevel: text("mental_load_level").notNull(),
   miniGoals: text("mini_goals").array().notNull().default([]),

@@ -1,22 +1,26 @@
 import { Router, type IRouter } from "express";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db, eveningReportsTable } from "@workspace/db";
 import {
   CreateEveningReportBody,
   ListEveningReportsResponse,
 } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-router.get("/evening-reports", async (_req, res): Promise<void> => {
+router.get("/evening-reports", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
   const reports = await db
     .select()
     .from(eveningReportsTable)
+    .where(eq(eveningReportsTable.userId, userId))
     .orderBy(desc(eveningReportsTable.createdAt));
   res.json(ListEveningReportsResponse.parse(JSON.parse(JSON.stringify(reports))));
 });
 
-router.post("/evening-reports", async (req, res): Promise<void> => {
+router.post("/evening-reports", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
   const parsed = CreateEveningReportBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -25,6 +29,7 @@ router.post("/evening-reports", async (req, res): Promise<void> => {
   const [report] = await db
     .insert(eveningReportsTable)
     .values({
+      userId,
       date: parsed.data.date,
       medicationEffectiveness: parsed.data.medicationEffectiveness,
       overallMood: parsed.data.overallMood ?? null,

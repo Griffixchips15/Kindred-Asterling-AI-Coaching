@@ -1,9 +1,10 @@
-import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const bodyScansTable = pgTable("body_scans", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id"),
   scannedAt: timestamp("scanned_at").defaultNow().notNull(),
   feelings: text("feelings").array().notNull().default([]),
   energyLevel: integer("energy_level").notNull(),

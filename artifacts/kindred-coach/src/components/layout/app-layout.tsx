@@ -1,7 +1,8 @@
 import { Link, useLocation } from "wouter";
-import { Home, Sunrise, ScanLine, Sunset, ListTodo } from "lucide-react";
+import { Home, Sunrise, ScanLine, Sunset, ListTodo, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ReactNode } from "react";
+import { useAuth } from "@workspace/replit-auth-web";
 
 const navItems = [
   { icon: Home, label: "Dashboard", href: "/" },
@@ -13,6 +14,7 @@ const navItems = [
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
+  const { user, logout } = useAuth();
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
@@ -45,6 +47,21 @@ export function AppLayout({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
+
+        <div className="p-4 border-t border-border">
+          {user && (
+            <p className="text-xs text-muted-foreground px-3 mb-2 truncate">
+              {user.firstName ?? user.email ?? ""}
+            </p>
+          )}
+          <button
+            onClick={logout}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium w-full text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <LogOut className="w-5 h-5 text-muted-foreground" strokeWidth={2} />
+            Log out
+          </button>
+        </div>
       </aside>
 
       {/* Main Content */}
@@ -75,6 +92,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
+          <button
+            onClick={logout}
+            className="flex flex-col items-center gap-1 p-2 min-w-[4rem] rounded-lg transition-colors text-muted-foreground hover:text-foreground"
+          >
+            <LogOut className="w-5 h-5" strokeWidth={2} />
+            <span className="text-[10px] font-medium tracking-wide">Log out</span>
+          </button>
         </div>
       </nav>
     </div>

@@ -1,22 +1,26 @@
 import { Router, type IRouter } from "express";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db, bodyScansTable } from "@workspace/db";
 import {
   CreateBodyScanBody,
   ListBodyScansResponse,
 } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-router.get("/body-scans", async (_req, res): Promise<void> => {
+router.get("/body-scans", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
   const scans = await db
     .select()
     .from(bodyScansTable)
+    .where(eq(bodyScansTable.userId, userId))
     .orderBy(desc(bodyScansTable.scannedAt));
   res.json(ListBodyScansResponse.parse(JSON.parse(JSON.stringify(scans))));
 });
 
-router.post("/body-scans", async (req, res): Promise<void> => {
+router.post("/body-scans", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
   const parsed = CreateBodyScanBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -25,6 +29,7 @@ router.post("/body-scans", async (req, res): Promise<void> => {
   const [scan] = await db
     .insert(bodyScansTable)
     .values({
+      userId,
       scannedAt: parsed.data.scannedAt ? new Date(parsed.data.scannedAt) : new Date(),
       feelings: parsed.data.feelings ?? [],
       energyLevel: parsed.data.energyLevel,
