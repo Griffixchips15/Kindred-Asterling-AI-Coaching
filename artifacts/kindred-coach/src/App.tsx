@@ -10,6 +10,7 @@ import Evening from "@/pages/evening";
 import Habits from "@/pages/habits";
 import NotFound from "@/pages/not-found";
 import { useAuth } from "@workspace/replit-auth-web";
+import { ThemeProvider } from "@/hooks/use-theme";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -69,6 +70,7 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <AuthGate>
@@ -77,6 +79,7 @@ function App() {
         </WouterRouter>
         <Toaster />
       </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

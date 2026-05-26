@@ -1,8 +1,79 @@
 import { Link, useLocation } from "wouter";
-import { Home, Sunrise, ScanLine, Sunset, ListTodo, LogOut } from "lucide-react";
+import { Home, Sunrise, ScanLine, Sunset, ListTodo, LogOut, Palette, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ReactNode } from "react";
 import { useAuth } from "@workspace/replit-auth-web";
+import { useTheme, THEME_OPTIONS, type ThemeName } from "@/hooks/use-theme";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+function ThemePicker({ variant = "sidebar" }: { variant?: "sidebar" | "mobile" }) {
+  const { theme, setTheme } = useTheme();
+  const current = THEME_OPTIONS.find((t) => t.value === theme);
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {variant === "sidebar" ? (
+          <button
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium w-full text-sidebar-foreground hover:bg-sidebar-accent"
+            data-testid="theme-picker-trigger"
+          >
+            <Palette className="w-5 h-5 text-muted-foreground" strokeWidth={2} />
+            <span className="flex-1 text-left">Theme</span>
+            <span className="flex gap-1">
+              {current?.swatches.map((c) => (
+                <span
+                  key={c}
+                  className="w-3 h-3 rounded-full border border-border"
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </span>
+          </button>
+        ) : (
+          <button
+            className="flex flex-col items-center gap-1 p-2 min-w-[4rem] rounded-lg transition-colors text-muted-foreground hover:text-foreground"
+            data-testid="theme-picker-trigger-mobile"
+          >
+            <Palette className="w-5 h-5" strokeWidth={2} />
+            <span className="text-[10px] font-medium tracking-wide">Theme</span>
+          </button>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="top" className="w-56">
+        <DropdownMenuLabel>Color theme</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {THEME_OPTIONS.map((opt) => (
+          <DropdownMenuItem
+            key={opt.value}
+            onClick={() => setTheme(opt.value as ThemeName)}
+            className="flex items-center gap-3 cursor-pointer"
+            data-testid={`theme-option-${opt.value}`}
+          >
+            <span className="flex gap-1">
+              {opt.swatches.map((c) => (
+                <span
+                  key={c}
+                  className="w-3 h-3 rounded-full border border-border"
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </span>
+            <span className="flex-1">{opt.label}</span>
+            {theme === opt.value && <Check className="w-4 h-4 text-primary" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 const navItems = [
   { icon: Home, label: "Dashboard", href: "/" },
@@ -48,12 +119,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border space-y-1">
           {user && (
             <p className="text-xs text-muted-foreground px-3 mb-2 truncate">
               {user.firstName ?? user.email ?? ""}
             </p>
           )}
+          <ThemePicker variant="sidebar" />
           <button
             onClick={logout}
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium w-full text-sidebar-foreground hover:bg-sidebar-accent"
@@ -92,6 +164,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
+          <ThemePicker variant="mobile" />
           <button
             onClick={logout}
             className="flex flex-col items-center gap-1 p-2 min-w-[4rem] rounded-lg transition-colors text-muted-foreground hover:text-foreground"

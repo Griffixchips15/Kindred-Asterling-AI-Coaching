@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *, .theme-midnight *, .theme-forest *));
 
 @theme inline {
   --color-background: hsl(var(--background));
@@ -67,58 +67,20 @@
 }
 
 :root {
-  --button-outline: rgba(0,0,0, .10);
-  --badge-outline: rgba(0,0,0, .05);
-
-  --opaque-button-border-intensity: -8;
-
-  --elevate-1: rgba(0,0,0, .03);
-  --elevate-2: rgba(0,0,0, .08);
-
-  /* Calm Sand & Sage Theme */
-  --background: 40 33% 98%;
-  --foreground: 20 15% 15%;
-  --border: 40 20% 90%;
-  --card: 40 33% 99%;
-  --card-foreground: 20 15% 15%;
-  --card-border: 40 20% 90%;
-  --sidebar: 40 33% 97%;
-  --sidebar-foreground: 20 15% 25%;
-  --sidebar-border: 40 20% 90%;
-  --sidebar-primary: 140 20% 45%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 40 20% 90%;
-  --sidebar-accent-foreground: 20 15% 15%;
-  --sidebar-ring: 140 20% 45%;
-  --popover: 40 33% 99%;
-  --popover-foreground: 20 15% 15%;
-  --popover-border: 40 20% 90%;
-  --primary: 140 20% 45%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 25 30% 65%;
-  --secondary-foreground: 0 0% 100%;
-  --muted: 40 20% 90%;
-  --muted-foreground: 20 10% 40%;
-  --accent: 45 50% 75%;
-  --accent-foreground: 20 15% 15%;
-  --destructive: 0 45% 55%;
-  --destructive-foreground: 0 0% 100%;
-  --input: 40 20% 85%;
-  --ring: 140 20% 45%;
-  --chart-1: 140 20% 45%;
-  --chart-2: 25 30% 65%;
-  --chart-3: 45 50% 75%;
-  --chart-4: 200 20% 50%;
-  --chart-5: 280 15% 55%;
+  --button-outline: rgba(255,255,255, .10);
+  --badge-outline: rgba(255,255,255, .05);
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(255,255,255, .04);
+  --elevate-2: rgba(255,255,255, .09);
 
   --app-font-sans: 'Inter', sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: Menlo, monospace;
   --radius: 0.75rem;
-  
-  --shadow-sm: 0 1px 2px rgba(30, 25, 20, 0.05);
-  --shadow: 0 4px 6px -1px rgba(30, 25, 20, 0.05), 0 2px 4px -2px rgba(30, 25, 20, 0.05);
-  --shadow-md: 0 10px 15px -3px rgba(30, 25, 20, 0.05), 0 4px 6px -4px rgba(30, 25, 20, 0.05);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
 
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
@@ -129,47 +91,81 @@
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
-.dark {
-  --button-outline: rgba(255,255,255, .10);
-  --badge-outline: rgba(255,255,255, .05);
-  --opaque-button-border-intensity: 9;
-  --elevate-1: rgba(255,255,255, .04);
-  --elevate-2: rgba(255,255,255, .09);
-
-  --background: 20 15% 12%;
-  --foreground: 40 20% 90%;
-  --border: 20 10% 20%;
-  --card: 20 15% 15%;
-  --card-foreground: 40 20% 90%;
-  --card-border: 20 10% 20%;
-  --sidebar: 20 15% 12%;
-  --sidebar-foreground: 40 20% 80%;
-  --sidebar-border: 20 10% 20%;
-  --sidebar-primary: 140 20% 45%;
+/* Midnight: dark blue + pure white + black */
+:root,
+.theme-midnight {
+  --background: 220 45% 7%;
+  --foreground: 0 0% 98%;
+  --border: 220 25% 18%;
+  --card: 220 40% 11%;
+  --card-foreground: 0 0% 98%;
+  --card-border: 220 25% 20%;
+  --sidebar: 0 0% 3%;
+  --sidebar-foreground: 0 0% 90%;
+  --sidebar-border: 220 25% 15%;
+  --sidebar-primary: 215 90% 60%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 20 10% 20%;
-  --sidebar-accent-foreground: 40 20% 90%;
-  --sidebar-ring: 140 20% 45%;
-  --popover: 20 15% 15%;
-  --popover-foreground: 40 20% 90%;
-  --popover-border: 20 10% 20%;
-  --primary: 140 20% 45%;
+  --sidebar-accent: 220 35% 16%;
+  --sidebar-accent-foreground: 0 0% 98%;
+  --sidebar-ring: 215 90% 60%;
+  --popover: 220 40% 11%;
+  --popover-foreground: 0 0% 98%;
+  --popover-border: 220 25% 20%;
+  --primary: 215 90% 60%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 25 30% 65%;
-  --secondary-foreground: 0 0% 100%;
-  --muted: 20 10% 20%;
-  --muted-foreground: 40 10% 60%;
-  --accent: 45 50% 75%;
-  --accent-foreground: 20 15% 15%;
-  --destructive: 0 45% 55%;
+  --secondary: 0 0% 100%;
+  --secondary-foreground: 220 45% 10%;
+  --muted: 220 25% 16%;
+  --muted-foreground: 220 15% 70%;
+  --accent: 215 80% 50%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 70% 55%;
   --destructive-foreground: 0 0% 100%;
-  --input: 20 10% 25%;
-  --ring: 140 20% 45%;
-  --chart-1: 140 20% 45%;
-  --chart-2: 25 30% 65%;
-  --chart-3: 45 50% 75%;
-  --chart-4: 200 20% 50%;
-  --chart-5: 280 15% 55%;
+  --input: 220 25% 20%;
+  --ring: 215 90% 60%;
+  --chart-1: 215 90% 60%;
+  --chart-2: 0 0% 95%;
+  --chart-3: 220 50% 35%;
+  --chart-4: 200 80% 55%;
+  --chart-5: 230 60% 65%;
+}
+
+/* Forest: green + black + purple */
+.theme-forest {
+  --background: 0 0% 5%;
+  --foreground: 140 25% 92%;
+  --border: 0 0% 18%;
+  --card: 0 0% 9%;
+  --card-foreground: 140 25% 92%;
+  --card-border: 140 15% 18%;
+  --sidebar: 0 0% 0%;
+  --sidebar-foreground: 140 20% 85%;
+  --sidebar-border: 140 15% 14%;
+  --sidebar-primary: 145 60% 45%;
+  --sidebar-primary-foreground: 0 0% 5%;
+  --sidebar-accent: 0 0% 12%;
+  --sidebar-accent-foreground: 140 25% 92%;
+  --sidebar-ring: 145 60% 45%;
+  --popover: 0 0% 9%;
+  --popover-foreground: 140 25% 92%;
+  --popover-border: 140 15% 18%;
+  --primary: 145 60% 45%;
+  --primary-foreground: 0 0% 5%;
+  --secondary: 280 55% 55%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 0 0% 14%;
+  --muted-foreground: 140 10% 65%;
+  --accent: 280 50% 35%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 65% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 0 0% 18%;
+  --ring: 145 60% 45%;
+  --chart-1: 145 60% 45%;
+  --chart-2: 280 55% 55%;
+  --chart-3: 0 0% 25%;
+  --chart-4: 160 50% 50%;
+  --chart-5: 300 45% 60%;
 }
 
 @layer base {
