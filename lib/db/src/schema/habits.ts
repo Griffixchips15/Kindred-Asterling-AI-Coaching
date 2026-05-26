@@ -1,6 +1,7 @@
 import { pgTable, serial, text, integer, date, timestamp, boolean, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./auth";
 
 export const habitsTable = pgTable("habits", {
   id: serial("id").primaryKey(),
@@ -15,6 +16,7 @@ export const habitsTable = pgTable("habits", {
 export const habitEntriesTable = pgTable("habit_entries", {
   id: serial("id").primaryKey(),
   habitId: integer("habit_id").notNull().references(() => habitsTable.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
   date: date("date").notNull(),
   completed: boolean("completed").notNull().default(false),
   notes: text("notes"),

@@ -163,6 +163,7 @@ router.post("/habits/:id/entries", requireAuth, async (req, res): Promise<void> 
     .insert(habitEntriesTable)
     .values({
       habitId: params.data.id,
+      userId,
       date: parsed.data.date,
       completed: parsed.data.completed,
       notes: parsed.data.notes ?? null,
