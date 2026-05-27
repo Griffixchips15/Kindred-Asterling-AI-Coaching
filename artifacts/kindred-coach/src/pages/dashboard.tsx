@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO } from "date-fns";
 import { WeeklyHabitCompletion } from "@/components/charts/weekly-habit-completion";
 import { PositiveAffirmations } from "@/components/dashboard/positive-affirmations";
+import { CalendarEvents } from "@/components/dashboard/calendar-events";
 
 export default function Dashboard() {
   const { data: summary, isLoading: isLoadingSummary } = useGetTodaySummary({ query: { queryKey: getGetTodaySummaryQueryKey() } });
@@ -25,6 +26,8 @@ export default function Dashboard() {
       </header>
 
       <PositiveAffirmations />
+
+      <CalendarEvents />
 
       <WeeklyHabitCompletion />
 
