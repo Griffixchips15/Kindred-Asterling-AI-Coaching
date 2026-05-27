@@ -6,6 +6,7 @@ import bodyScansRouter from "./bodyScans";
 import eveningReportsRouter from "./eveningReports";
 import habitsRouter from "./habits";
 import dashboardRouter from "./dashboard";
+import affirmationsRouter from "./affirmations";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(bodyScansRouter);
 router.use(eveningReportsRouter);
 router.use(habitsRouter);
 router.use(dashboardRouter);
+router.use(affirmationsRouter);
 
 export default router;

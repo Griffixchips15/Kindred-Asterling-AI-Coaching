@@ -172,6 +172,12 @@ export interface HabitStreak {
   targetDays: number;
 }
 
+export interface Affirmation {
+  id: number;
+  text: string;
+  createdAt: string;
+}
+
 export interface MoodTrendPoint {
   date: string;
   /** @nullable */

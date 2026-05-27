@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  Affirmation,
   AuthUserEnvelope,
   BeginBrowserLoginParams,
   BodyScan,
@@ -1555,6 +1556,160 @@ export const useLogHabitEntry = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getLogHabitEntryMutationOptions(options));
     }
+
+export const getGetTodayAffirmationUrl = () => {
+
+
+
+
+  return `/api/affirmations/today`
+}
+
+/**
+ * @summary Get today's positive affirmation
+ */
+export const getTodayAffirmation = async ( options?: RequestInit): Promise<Affirmation> => {
+
+  return customFetch<Affirmation>(getGetTodayAffirmationUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTodayAffirmationQueryKey = () => {
+    return [
+    `/api/affirmations/today`
+    ] as const;
+    }
+
+
+export const getGetTodayAffirmationQueryOptions = <TData = Awaited<ReturnType<typeof getTodayAffirmation>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTodayAffirmation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTodayAffirmationQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTodayAffirmation>>> = ({ signal }) => getTodayAffirmation({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTodayAffirmation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTodayAffirmationQueryResult = NonNullable<Awaited<ReturnType<typeof getTodayAffirmation>>>
+export type GetTodayAffirmationQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get today's positive affirmation
+ */
+
+export function useGetTodayAffirmation<TData = Awaited<ReturnType<typeof getTodayAffirmation>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTodayAffirmation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTodayAffirmationQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetRandomAffirmationUrl = () => {
+
+
+
+
+  return `/api/affirmations/random`
+}
+
+/**
+ * @summary Get a random affirmation (used for the reshuffle button)
+ */
+export const getRandomAffirmation = async ( options?: RequestInit): Promise<Affirmation> => {
+
+  return customFetch<Affirmation>(getGetRandomAffirmationUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRandomAffirmationQueryKey = () => {
+    return [
+    `/api/affirmations/random`
+    ] as const;
+    }
+
+
+export const getGetRandomAffirmationQueryOptions = <TData = Awaited<ReturnType<typeof getRandomAffirmation>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRandomAffirmation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRandomAffirmationQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRandomAffirmation>>> = ({ signal }) => getRandomAffirmation({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRandomAffirmation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRandomAffirmationQueryResult = NonNullable<Awaited<ReturnType<typeof getRandomAffirmation>>>
+export type GetRandomAffirmationQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get a random affirmation (used for the reshuffle button)
+ */
+
+export function useGetRandomAffirmation<TData = Awaited<ReturnType<typeof getRandomAffirmation>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRandomAffirmation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRandomAffirmationQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getGetTodaySummaryUrl = () => {
 

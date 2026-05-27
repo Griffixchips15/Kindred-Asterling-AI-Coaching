@@ -21,6 +21,8 @@ tags:
     description: Goals and habit tracking
   - name: dashboard
     description: Dashboard summaries
+  - name: affirmations
+    description: Daily positive affirmations
 
 paths:
   /auth/user:
@@ -396,6 +398,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/HabitEntry"
 
+  /affirmations/today:
+    get:
+      operationId: getTodayAffirmation
+      tags: [affirmations]
+      summary: Get today's positive affirmation
+      responses:
+        "200":
+          description: A single affirmation chosen for today
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Affirmation"
+  /affirmations/random:
+    get:
+      operationId: getRandomAffirmation
+      tags: [affirmations]
+      summary: Get a random affirmation (used for the reshuffle button)
+      responses:
+        "200":
+          description: A random affirmation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Affirmation"
+
   /dashboard/today:
     get:
       operationId: getTodaySummary
@@ -755,6 +782,17 @@ components:
           type: integer
         targetDays:
           type: integer
+
+    Affirmation:
+      type: object
+      required: [id, text, createdAt]
+      properties:
+        id:
+          type: integer
+        text:
+          type: string
+        createdAt:
+          type: string
 
     MoodTrendPoint:
       type: object

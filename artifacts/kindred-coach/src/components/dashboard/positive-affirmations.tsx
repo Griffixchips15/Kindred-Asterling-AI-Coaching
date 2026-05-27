@@ -1,42 +1,29 @@
-import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useGetTodayAffirmation,
+  getGetTodayAffirmationQueryKey,
+  getRandomAffirmation,
+} from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkles, RefreshCw } from "lucide-react";
-
-const AFFIRMATIONS = [
-  "You are exactly where you need to be today.",
-  "Small steps in the right direction are still progress.",
-  "Your calm is a quiet kind of strength.",
-  "You are allowed to rest without earning it.",
-  "Today's effort is enough, even when it feels small.",
-  "You carry more wisdom than you give yourself credit for.",
-  "Gentleness with yourself is not weakness — it's wisdom.",
-  "You are becoming, and that takes time.",
-  "Your feelings are valid, even the complicated ones.",
-  "Breath by breath, you are finding your way.",
-  "You do not have to be everything to everyone today.",
-  "What you've already overcome speaks for what you can.",
-  "You are worthy of the care you give to others.",
-  "Today is a fresh page — write softly on it.",
-  "Your presence matters more than your productivity.",
-];
-
-function affirmationForToday(): string {
-  const start = new Date(new Date().getFullYear(), 0, 0);
-  const diff = Date.now() - start.getTime();
-  const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
-  return AFFIRMATIONS[dayOfYear % AFFIRMATIONS.length];
-}
+import { useState } from "react";
 
 export function PositiveAffirmations() {
-  const todays = useMemo(affirmationForToday, []);
-  const [message, setMessage] = useState(todays);
+  const queryClient = useQueryClient();
+  const { data, isLoading, isError } = useGetTodayAffirmation({
+    query: { queryKey: getGetTodayAffirmationQueryKey() },
+  });
+  const [shuffling, setShuffling] = useState(false);
 
-  const reshuffle = () => {
-    let next = message;
-    while (next === message && AFFIRMATIONS.length > 1) {
-      next = AFFIRMATIONS[Math.floor(Math.random() * AFFIRMATIONS.length)];
+  const reshuffle = async () => {
+    setShuffling(true);
+    try {
+      const next = await getRandomAffirmation();
+      queryClient.setQueryData(getGetTodayAffirmationQueryKey(), next);
+    } finally {
+      setShuffling(false);
     }
-    setMessage(next);
   };
 
   return (
@@ -49,18 +36,30 @@ export function PositiveAffirmations() {
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
             A thought for today
           </p>
-          <p className="mt-2 font-serif text-lg leading-relaxed text-foreground">
-            {message}
-          </p>
+          {isLoading ? (
+            <Skeleton className="mt-2 h-6 w-3/4" />
+          ) : isError || !data ? (
+            <p className="mt-2 font-serif text-lg leading-relaxed text-muted-foreground">
+              Be gentle with yourself today.
+            </p>
+          ) : (
+            <p
+              className="mt-2 font-serif text-lg leading-relaxed text-foreground"
+              data-testid="affirmation-text"
+            >
+              {data.text}
+            </p>
+          )}
         </div>
         <button
           type="button"
           onClick={reshuffle}
+          disabled={shuffling || isLoading}
           aria-label="Show another affirmation"
           data-testid="affirmation-reshuffle"
-          className="p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+          className="p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0 disabled:opacity-50"
         >
-          <RefreshCw className="w-4 h-4" strokeWidth={2} />
+          <RefreshCw className={`w-4 h-4 ${shuffling ? "animate-spin" : ""}`} strokeWidth={2} />
         </button>
       </CardContent>
     </Card>

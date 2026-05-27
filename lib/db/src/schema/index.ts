@@ -3,3 +3,4 @@ export * from "./bodyScans";
 export * from "./eveningReports";
 export * from "./habits";
 export * from "./auth";
+export * from "./affirmations";

@@ -284,6 +284,26 @@ export const LogHabitEntryBody = zod.object({
 
 
 /**
+ * @summary Get today's positive affirmation
+ */
+export const GetTodayAffirmationResponse = zod.object({
+  "id": zod.number(),
+  "text": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Get a random affirmation (used for the reshuffle button)
+ */
+export const GetRandomAffirmationResponse = zod.object({
+  "id": zod.number(),
+  "text": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary Get today's progress summary
  */
 export const GetTodaySummaryResponse = zod.object({
