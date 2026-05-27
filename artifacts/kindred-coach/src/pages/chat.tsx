@@ -84,6 +84,7 @@ export default function Chat() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const onboarded = !!authUser?.onboardedAt;
@@ -109,6 +110,7 @@ export default function Chat() {
     if (!text || sending) return;
     setDraft("");
     setSending(true);
+    setSendError(null);
     try {
       if (currentStep) {
         // Onboarding: persist profile first, then write the user message + next prompt.
@@ -134,7 +136,20 @@ export default function Chat() {
         await refetchUser();
         await qc.invalidateQueries({ queryKey: getGetActiveChatQueryKey() });
       } else {
-        await sendChatMessage({ content: text });
+        try {
+          await sendChatMessage({ content: text });
+        } catch (err: unknown) {
+          // Server didn't persist the user message? It did — /chat/send
+          // saves the user turn before calling Gemini, so refetch so the
+          // user's message still shows, then surface a transient banner
+          // so they can retry without losing what they typed.
+          setSendError(
+            "Kindred couldn't put a reply together. Try sending that again in a moment.",
+          );
+          setDraft(text);
+          await qc.invalidateQueries({ queryKey: getGetActiveChatQueryKey() });
+          return;
+        }
         await qc.invalidateQueries({ queryKey: getGetActiveChatQueryKey() });
       }
     } finally {
@@ -202,6 +217,21 @@ export default function Chat() {
       </div>
 
       <div className="pt-4">
+        {sendError && (
+          <div
+            className="mb-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive flex items-center justify-between gap-3"
+            data-testid="chat-send-error"
+          >
+            <span>{sendError}</span>
+            <button
+              onClick={() => setSendError(null)}
+              className="text-destructive/70 hover:text-destructive font-medium"
+              aria-label="Dismiss"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();

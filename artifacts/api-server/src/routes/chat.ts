@@ -14,6 +14,11 @@ import { requireAuth } from "../middlewares/requireAuth";
 const router: IRouter = Router();
 
 const GEMINI_MODEL = "gemini-2.5-flash";
+// Cap history sent to the model. Full history is still preserved in DB and
+// shown in the UI, but only the most recent turns are sent on each call so
+// that long sessions don't push token usage up or confuse the model with
+// stale assistant fallbacks.
+const HISTORY_TURN_LIMIT = 24;
 
 async function getCurrentUserRow(userId: string): Promise<User | null> {
   const [row] = await db
@@ -70,9 +75,10 @@ function buildSystemInstruction(user: User | null): string {
     `You are Kindred, a warm, attentive personal wellness coach speaking with ${name}.`,
     "Speak like a real person — natural, grounded, and human. Keep replies short: 1-3 sentences unless they explicitly ask for depth.",
     "Each reply should do at most ONE of these: reflect what they said, share a small thought, or ask ONE specific follow-up question. Never stack multiple questions in a single reply.",
-    "Do NOT use filler prompts like 'tell me more', 'go on', 'please continue', 'I'm here for you', or any generic invitation to keep talking. They feel hollow and repetitive.",
-    "If you ask a follow-up, make it concrete and rooted in something they actually said — name the specific thing you're curious about (a person, a moment, a feeling, a decision), not just 'what else'.",
+    "BANNED phrases — never use any of these or close paraphrases: 'tell me more', 'go on', 'please continue', 'say more about that', 'I'm here for you', 'I'm here with you', 'I hear you', 'that sounds tough', 'I'm listening'. They are hollow filler. If you have nothing specific to add, name one concrete detail from what they said instead.",
+    "If you ask a follow-up, it MUST quote or name something concrete they actually said — a person, a moment, a feeling, a decision. Generic openers like 'what else' or 'how does that feel' are not allowed.",
     "Vary your openings and rhythm. Do not start consecutive replies the same way. It is fine — often better — to make a statement, share an observation, or simply sit with what they said without asking anything at all.",
+    "If the user sends a short logistical message ('brb', 'heading to therapy', 'one sec'), reply with a short acknowledgement that names the thing they mentioned (e.g. 'Take your time at therapy.'). Never default to a generic 'tell me more'.",
     "Avoid sycophancy ('what a great question', 'that's amazing'). Avoid therapist clichés. Never give medical advice or diagnose.",
   ];
   if (user?.birthday) parts.push(`Their birthday is ${user.birthday}.`);
@@ -146,23 +152,62 @@ router.post("/chat/send", requireAuth, async (req: Request, res: Response): Prom
     .where(eq(messages.conversationId, conv.id))
     .orderBy(asc(messages.id));
 
-  const contents = history.map((m) => ({
+  // Only send the most recent turns to the model. Keeping the full history
+  // out of the prompt prevents stale assistant errors and old onboarding
+  // turns from steering the reply, and keeps token usage bounded.
+  const recent = history.slice(-HISTORY_TURN_LIMIT);
+  const contents = recent.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.content }],
   }));
 
-  let assistantText = "Sorry — I lost my train of thought there. Could you say that again?";
+  let assistantText: string | null = null;
+  let failureReason: string | null = null;
   try {
     const result = await ai.models.generateContent({
       model: GEMINI_MODEL,
       contents,
       config: {
         systemInstruction: buildSystemInstruction(userRow),
+        // gemini-2.5-flash enables internal "thinking" by default, which can
+        // consume the entire output budget and return an empty .text. Disable
+        // it for chat so every call yields a real reply.
+        thinkingConfig: { thinkingBudget: 0 },
+        maxOutputTokens: 400,
+        temperature: 0.8,
       },
     });
-    assistantText = result.text?.trim() || assistantText;
+    const text = result.text?.trim();
+    if (text) {
+      assistantText = text;
+    } else {
+      const cand = result.candidates?.[0];
+      failureReason = cand?.finishReason ?? "empty_response";
+      req.log.warn(
+        {
+          finishReason: cand?.finishReason,
+          safetyRatings: cand?.safetyRatings,
+          promptFeedback: result.promptFeedback,
+        },
+        "Gemini returned no text",
+      );
+    }
   } catch (err) {
+    failureReason = "exception";
     req.log.error({ err }, "Gemini generateContent failed");
+  }
+
+  if (!assistantText) {
+    // Do NOT persist a fallback assistant turn — it pollutes history and
+    // makes the next call see broken context. Surface a transient error
+    // to the client instead so the user can retry the same message.
+    res.status(502).json({
+      error: "assistant_unavailable",
+      reason: failureReason,
+      message:
+        "Kindred couldn't put a reply together this time. Try sending that again.",
+    });
+    return;
   }
 
   await db.insert(messages).values({
