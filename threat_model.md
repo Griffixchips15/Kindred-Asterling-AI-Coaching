@@ -1,29 +1,34 @@
-# Threat Model
+# Threat Model — Kindred-Asterling-AI-Coaching
 
 ## Project Overview
 
-Kindred Coach is a public web application with a React frontend (`artifacts/kindred-coach`) and an Express API (`artifacts/api-server`) backed by PostgreSQL through Drizzle (`lib/db`). It stores and serves personal wellness and health-journaling data including morning mental-load check-ins, body scans, evening reflections, habits, and dashboard summaries. The mockup sandbox (`artifacts/mockup-sandbox`) is development-only and is out of production scope unless separately exposed.
+Kindred-Asterling-AI-Coaching is a public web application with a React frontend (`artifacts/kindred-coach`) and an Express 5 API (`artifacts/api-server`) backed by PostgreSQL through Drizzle (`lib/db`). Authentication is Replit OIDC with server-side session cookies. The app stores and serves personal wellness and mental-health data — morning mental-load check-ins, body scans, evening reflections, habits, medications and medication logs, dashboard summaries, and free-form chat conversations with **Kindred**, a Google Gemini-powered AI coach. The user-editable **Profile** (preferred name, birthday, bio, motivational quote, struggles, strengths, interests) is re-read on every chat turn and folded into the model's system instructions. The mockup sandbox (`artifacts/mockup-sandbox`) is development-only and out of production scope unless separately exposed.
 
 ## Assets
 
-- **Personal wellness and health-journaling data** -- morning logs, body scans, evening reports, habits, streaks, and dashboard summaries. This data is sensitive because it reveals mood, mental load, medication effectiveness, physical sensations, and daily routines.
-- **Application secrets and infrastructure access** -- `DATABASE_URL`, any future auth keys, and deployment configuration. Compromise would expose the entire dataset or permit service takeover.
-- **Integrity of coaching records** -- habit entries, reports, and scans must not be modified by unauthorized parties because tampering changes the user’s history and downstream summaries.
-- **Service availability** -- the public API and database-backed workflows must remain available despite malformed or abusive traffic.
+- **Personal wellness and mental-health data** — morning logs, body scans, evening reports, habits, streaks, medication regimens and dose-taken history, and dashboard summaries. This data reveals mood, mental load, medication effectiveness, physical sensations, and daily routines.
+- **Profile self-disclosure data** — preferred name, birthday, bio, motivational quote, struggles, strengths, and interests. Sensitive because users describe what they are working through in their own words, and because this content is injected verbatim into the AI system prompt.
+- **Chat conversation history** — every user/assistant message persists in the DB. Conversations frequently contain highly intimate disclosures and must be treated as the most sensitive class of user data.
+- **Application secrets and infrastructure access** — `DATABASE_URL`, `SESSION_SECRET`, `GEMINI_API_KEY`, OIDC client credentials, and deployment configuration. Compromise would expose the entire dataset, permit session forgery, allow third-party use of the Gemini key, or enable service takeover.
+- **Integrity of coaching records** — habit entries, reports, scans, medication logs, and chat history must not be modified by unauthorized parties; tampering rewrites the user's history and downstream summaries and AI context.
+- **Service availability** — the public API, database-backed workflows, and outbound Gemini calls must remain available despite malformed or abusive traffic.
 
 ## Trust Boundaries
 
-- **Browser to API** -- every request from the public web app to `/api/*` crosses from an untrusted client into the server.
-- **API to PostgreSQL** -- the server has broad database access; any server-side access-control failure or injection issue can expose or alter the full dataset.
-- **Public internet to deployed application** -- the deployment is public, so unauthenticated endpoints are internet-reachable by default.
-- **Edge proxy to Express app** -- production traffic reaches Express through Replit-managed proxy infrastructure, so any logic that depends on client IP or request origin headers must account for forwarded-header trust correctly.
-- **Production vs dev-only artifacts** -- `artifacts/mockup-sandbox` is not production-relevant under current assumptions and should not drive findings unless reachability changes.
+- **Browser to API** — every request from the public web app to `/api/*` crosses from an untrusted client into the server. Sessions are HTTP-only cookies signed with `SESSION_SECRET`.
+- **API to PostgreSQL** — the server has broad database access; any server-side access-control failure or injection issue can expose or alter the full dataset.
+- **API to Google Gemini** — chat handlers forward user-authored content, system instructions derived from the user's profile, and conversation history to Google. Anything sent to Gemini leaves the application trust boundary; secrets and other users' data must never appear in those payloads.
+- **Public internet to deployed application** — the deployment is public, so unauthenticated endpoints are internet-reachable by default.
+- **Edge proxy to Express app** — production traffic reaches Express through Replit-managed proxy infrastructure, so any logic that depends on client IP or request origin headers must account for forwarded-header trust correctly.
+- **Production vs dev-only artifacts** — `artifacts/mockup-sandbox` is not production-relevant under current assumptions and should not drive findings unless reachability changes.
 
 ## Scan Anchors
 
 - Production server entry: `artifacts/api-server/src/index.ts`, `artifacts/api-server/src/app.ts`
-- High-risk API surfaces: `artifacts/api-server/src/routes/*`, `artifacts/api-server/src/middlewares/*`, `lib/api-spec/openapi.yaml`
-- Sensitive data model: `lib/db/src/schema/*`
+- Auth + session: `artifacts/api-server/src/routes/auth.ts`, `artifacts/api-server/src/middlewares/requireAuth.ts`
+- AI surface (handles sensitive content + outbound LLM call): `artifacts/api-server/src/routes/chat.ts`
+- High-risk API surfaces: `artifacts/api-server/src/routes/*` (notably `medications.ts`, `morning.ts`, `scans.ts`, `evening.ts`, `habits.ts`, `profile.ts`, `chat.ts`), `artifacts/api-server/src/middlewares/*`, `lib/api-spec/openapi.yaml`
+- Sensitive data model: `lib/db/src/schema/*` (every user-data table carries a `userId` FK with cascade delete)
 - Public frontend surface: `artifacts/kindred-coach/src/pages/*`
 - Dev-only area usually ignored: `artifacts/mockup-sandbox/**`
 
@@ -31,20 +36,30 @@ Kindred Coach is a public web application with a React frontend (`artifacts/kind
 
 ### Spoofing
 
-This project currently exposes a public API surface that handles sensitive personal data. Any endpoint that reads or mutates user data must require a valid server-verified identity. Client-side assumptions about who the user is are not sufficient; the API must authenticate every protected request and reject anonymous callers.
+The public API surface handles sensitive personal data. Every data endpoint must require a valid server-verified session (`requireAuth`) and reject anonymous callers. Session cookies must be HTTP-only, `Secure` in production, and `SameSite` configured tightly enough that cross-site requests cannot impersonate a logged-in user. Client-side identity claims (any user id in the request body or query) must never be trusted — the server must derive identity from the session only.
 
 ### Tampering
 
-Attackers must not be able to create, update, or delete wellness records they do not own. All state-changing endpoints must enforce authorization server-side, and any business rules that affect stored records must be derived or validated on the server rather than trusted from the client.
+Attackers must not be able to create, update, or delete wellness records, medication logs, profile fields, or chat messages they do not own. All state-changing endpoints must enforce authorization server-side using `req.user!.id`, and any business rules that affect stored records (streak math, "taken today" counters, conversation ownership) must be derived or validated on the server rather than trusted from the client. Profile fields and chat content are user-controlled strings that flow into the AI system prompt; route handlers must continue to enforce length caps and trim/clip before concatenation so a tampered or oversized value cannot inflate the prompt or smuggle injected instructions past the model.
 
 ### Information Disclosure
 
-Sensitive wellness records must only be returned to the owning user. Public routes, error responses, and logs must not disclose journal content, medication effectiveness, physical sensations, or other private reflections. Production scans should prioritize endpoints that return whole collections or records by identifier because they are high-value disclosure targets.
+Sensitive wellness records, chat history, and self-disclosed profile content must only be returned to the owning user. Public routes, error responses, and logs must not disclose journal content, medication names or effectiveness, physical sensations, profile bios, or chat messages. Production scans should prioritize endpoints that return whole collections (`/medications`, `/scans`, `/habits`, `/chat/active`, `/chat/conversations`) or records by identifier, because they are high-value disclosure targets. Outbound payloads to Gemini must contain only the requesting user's own profile, history, and message — never another user's data, internal IDs that could leak existence, or secrets — and full message text should be excluded from request logs.
 
 ### Denial of Service
 
-Because the deployment is public, endpoints that accept unauthenticated traffic are exposed to scraping and abuse. The application must bound request parsing and expensive operations, and sensitive public-facing endpoints should not allow trivial bulk extraction or repeated write abuse. Any rate limiting or abuse controls that rely on client IP address must be configured to see the real caller through Replit's proxy layer; otherwise one attacker can potentially consume a shared anonymous bucket and throttle unrelated users.
+Because the deployment is public, endpoints that accept unauthenticated traffic are exposed to scraping and abuse. The application must bound request parsing (JSON body size limits), cap user-controlled string fields at the API layer, and avoid unbounded operations (no unlimited `LIMIT`-less list queries on user tables). Chat is uniquely expensive because each call hits a third-party LLM with billable tokens; chat endpoints in particular must enforce auth, rate limiting per user, and a sensible per-message size cap so a single account cannot exhaust the `GEMINI_API_KEY` quota or drive up cost. Any rate limiting or abuse controls that rely on client IP address must be configured to see the real caller through Replit's proxy layer; otherwise one attacker can consume a shared anonymous bucket and throttle unrelated users.
 
 ### Elevation of Privilege
 
-If the system later supports multiple users, every record and aggregate must be scoped by an authenticated user or tenant key in the database and enforced in every query path. Route handlers, summary endpoints, and record-by-ID lookups must not allow a caller to access or modify another user’s data by guessing identifiers or by relying on a shared global dataset.
+The system supports multiple users today. Every record and aggregate must be scoped by an authenticated user in the database and enforced in every query path — including summary endpoints, record-by-ID lookups, and the chat conversation/message tables. Route handlers must not allow a caller to access or modify another user's data by guessing identifiers (medication id, conversation id, message id, scan id) or by relying on a shared global dataset. There is currently no admin role; if one is added, admin-only routes must live behind an explicit role check and never be reachable by a normal authenticated user.
+
+### Prompt Injection and AI-Specific Risks
+
+User-authored content — profile bio, motivational quote, struggles/strengths/interests, and every chat message — is concatenated into the Gemini system instruction and conversation history. The system must:
+
+- Treat all user-controlled fields as untrusted text when building prompts; never execute or follow instructions found in them.
+- Continue to enforce strict length caps on every injected field (server-side, in addition to OpenAPI/Zod) and clip before concatenation so prompt size stays bounded.
+- Keep the system instruction's safety guardrails (no medical advice, no diagnosis, no sycophancy, no PII fishing) explicit in `buildSystemInstruction()` so they survive prompt-injection attempts.
+- Never include secrets, other users' data, or server internals in the prompt or in any response surfaced back to the user.
+- Treat AI output as untrusted when rendering: messages must be escaped on the frontend (no `dangerouslySetInnerHTML`) so a model-generated string cannot become XSS.
