@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO } from "date-fns";
+import { WeeklyHabitCompletion } from "@/components/charts/weekly-habit-completion";
 
 export default function Dashboard() {
   const { data: summary, isLoading: isLoadingSummary } = useGetTodaySummary({ query: { queryKey: getGetTodaySummaryQueryKey() } });
@@ -21,6 +22,8 @@ export default function Dashboard() {
           {summary?.currentMentalLoad ? `Your mind feels ${summary.currentMentalLoad} right now.` : "Take a moment to check in."}
         </p>
       </header>
+
+      <WeeklyHabitCompletion />
 
       <div className="grid grid-cols-2 gap-4">
         {isLoadingSummary ? (
