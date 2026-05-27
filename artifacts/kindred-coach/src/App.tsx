@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,6 +8,8 @@ import Morning from "@/pages/morning";
 import Scans from "@/pages/scans";
 import Evening from "@/pages/evening";
 import Habits from "@/pages/habits";
+import Chat from "@/pages/chat";
+import Archive from "@/pages/archive";
 import NotFound from "@/pages/not-found";
 import { useAuth } from "@workspace/replit-auth-web";
 import { ThemeProvider } from "@/hooks/use-theme";
@@ -52,17 +54,30 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function OnboardingGate({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const [location] = useLocation();
+  if (user && !user.onboardedAt && location !== "/chat") {
+    return <Redirect to="/chat" />;
+  }
+  return <>{children}</>;
+}
+
 function Router() {
   return (
     <AppLayout>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/morning" component={Morning} />
-        <Route path="/scans" component={Scans} />
-        <Route path="/evening" component={Evening} />
-        <Route path="/habits" component={Habits} />
-        <Route component={NotFound} />
-      </Switch>
+      <OnboardingGate>
+        <Switch>
+          <Route path="/" component={Dashboard} />
+          <Route path="/morning" component={Morning} />
+          <Route path="/scans" component={Scans} />
+          <Route path="/evening" component={Evening} />
+          <Route path="/habits" component={Habits} />
+          <Route path="/chat" component={Chat} />
+          <Route path="/archive" component={Archive} />
+          <Route component={NotFound} />
+        </Switch>
+      </OnboardingGate>
     </AppLayout>
   );
 }

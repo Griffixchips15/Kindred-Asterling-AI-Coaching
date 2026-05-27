@@ -21,7 +21,13 @@ export const GetCurrentAuthUserResponse = zod.object({
   "email": zod.string().email().nullable(),
   "firstName": zod.string().nullable(),
   "lastName": zod.string().nullable(),
-  "profileImageUrl": zod.string().nullable()
+  "profileImageUrl": zod.string().nullable(),
+  "preferredName": zod.string().nullable(),
+  "birthday": zod.string().nullable(),
+  "struggles": zod.string().nullable(),
+  "strengths": zod.string().nullable(),
+  "interests": zod.string().nullable(),
+  "onboardedAt": zod.coerce.date().nullable()
 }),zod.null()])
 })
 
@@ -312,6 +318,171 @@ export const GetRandomAffirmationResponse = zod.object({
   "text": zod.string(),
   "createdAt": zod.string()
 })
+
+
+/**
+ * @summary Update profile fields (used by onboarding flow)
+ */
+export const UpdateProfileBody = zod.object({
+  "preferredName": zod.string().nullish(),
+  "birthday": zod.string().nullish(),
+  "struggles": zod.string().nullish(),
+  "strengths": zod.string().nullish(),
+  "interests": zod.string().nullish(),
+  "onboardedAt": zod.coerce.date().nullish()
+})
+
+export const UpdateProfileResponse = zod.object({
+  "id": zod.string(),
+  "email": zod.string().email().nullable(),
+  "firstName": zod.string().nullable(),
+  "lastName": zod.string().nullable(),
+  "profileImageUrl": zod.string().nullable(),
+  "preferredName": zod.string().nullable(),
+  "birthday": zod.string().nullable(),
+  "struggles": zod.string().nullable(),
+  "strengths": zod.string().nullable(),
+  "interests": zod.string().nullable(),
+  "onboardedAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Get the current active conversation with messages (creates one if missing)
+ */
+export const GetActiveChatResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "title": zod.string(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullable()
+}).and(zod.object({
+  "messages": zod.array(zod.object({
+  "id": zod.number(),
+  "conversationId": zod.number(),
+  "role": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+}))
+
+
+/**
+ * @summary Append a user message and get the AI response
+ */
+
+
+
+export const SendChatMessageBody = zod.object({
+  "content": zod.string().min(1)
+})
+
+export const SendChatMessageResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "title": zod.string(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullable()
+}).and(zod.object({
+  "messages": zod.array(zod.object({
+  "id": zod.number(),
+  "conversationId": zod.number(),
+  "role": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+}))
+
+
+/**
+ * @summary Append a pre-composed message without invoking the AI (used by onboarding script)
+ */
+
+
+
+export const AppendChatMessageBody = zod.object({
+  "role": zod.enum(['user', 'assistant']),
+  "content": zod.string().min(1)
+})
+
+export const AppendChatMessageResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "title": zod.string(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullable()
+}).and(zod.object({
+  "messages": zod.array(zod.object({
+  "id": zod.number(),
+  "conversationId": zod.number(),
+  "role": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+}))
+
+
+/**
+ * @summary Archive the current active conversation and start a fresh one
+ */
+export const ArchiveActiveChatResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "title": zod.string(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullable()
+}).and(zod.object({
+  "messages": zod.array(zod.object({
+  "id": zod.number(),
+  "conversationId": zod.number(),
+  "role": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+}))
+
+
+/**
+ * @summary List the user's archived conversations
+ */
+export const ListArchivedChatsResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "title": zod.string(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullable()
+})
+export const ListArchivedChatsResponse = zod.array(ListArchivedChatsResponseItem)
+
+
+/**
+ * @summary Get an archived conversation with messages
+ */
+export const GetArchivedChatParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetArchivedChatResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "title": zod.string(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "archivedAt": zod.coerce.date().nullable()
+}).and(zod.object({
+  "messages": zod.array(zod.object({
+  "id": zod.number(),
+  "conversationId": zod.number(),
+  "role": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+}))
 
 
 /**

@@ -16,4 +16,16 @@ export interface AuthUser {
   lastName: string | null;
   /** @nullable */
   profileImageUrl: string | null;
+  /** @nullable */
+  preferredName: string | null;
+  /** @nullable */
+  birthday: string | null;
+  /** @nullable */
+  struggles: string | null;
+  /** @nullable */
+  strengths: string | null;
+  /** @nullable */
+  interests: string | null;
+  /** @nullable */
+  onboardedAt: Date | null;
 }

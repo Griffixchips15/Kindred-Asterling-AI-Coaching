@@ -8,6 +8,8 @@ import habitsRouter from "./habits";
 import dashboardRouter from "./dashboard";
 import affirmationsRouter from "./affirmations";
 import calendarRouter from "./calendar";
+import profileRouter from "./profile";
+import chatRouter from "./chat";
 
 const router: IRouter = Router();
 
@@ -20,5 +22,7 @@ router.use(habitsRouter);
 router.use(dashboardRouter);
 router.use(affirmationsRouter);
 router.use(calendarRouter);
+router.use(profileRouter);
+router.use(chatRouter);
 
 export default router;

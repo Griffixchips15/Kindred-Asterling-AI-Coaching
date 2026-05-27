@@ -15,6 +15,18 @@ export interface AuthUser {
   lastName: string | null;
   /** @nullable */
   profileImageUrl: string | null;
+  /** @nullable */
+  preferredName: string | null;
+  /** @nullable */
+  birthday: string | null;
+  /** @nullable */
+  struggles: string | null;
+  /** @nullable */
+  strengths: string | null;
+  /** @nullable */
+  interests: string | null;
+  /** @nullable */
+  onboardedAt: string | null;
 }
 
 export interface AuthUserEnvelope {
@@ -170,6 +182,62 @@ export interface HabitStreak {
   longestStreak: number;
   completedCount: number;
   targetDays: number;
+}
+
+export interface ProfileUpdateInput {
+  /** @nullable */
+  preferredName?: string | null;
+  /** @nullable */
+  birthday?: string | null;
+  /** @nullable */
+  struggles?: string | null;
+  /** @nullable */
+  strengths?: string | null;
+  /** @nullable */
+  interests?: string | null;
+  /** @nullable */
+  onboardedAt?: string | null;
+}
+
+export interface ChatMessage {
+  id: number;
+  conversationId: number;
+  role: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface ChatConversation {
+  id: number;
+  userId: string;
+  title: string;
+  status: string;
+  createdAt: string;
+  /** @nullable */
+  archivedAt: string | null;
+}
+
+export type ChatConversationWithMessages = ChatConversation & {
+  messages: ChatMessage[];
+};
+
+export interface ChatSendInput {
+  /** @minLength 1 */
+  content: string;
+}
+
+export type ChatAppendInputRole = typeof ChatAppendInputRole[keyof typeof ChatAppendInputRole];
+
+
+export const ChatAppendInputRole = {
+  user: 'user',
+  assistant: 'assistant',
+} as const;
+
+export interface ChatAppendInput {
+  role: ChatAppendInputRole;
+  /** @minLength 1 */
+  content: string;
 }
 
 export interface CalendarEvent {

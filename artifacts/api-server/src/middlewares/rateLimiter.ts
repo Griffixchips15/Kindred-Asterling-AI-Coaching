@@ -1,11 +1,11 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { Request } from "express";
 
 function keyByUserOrIp(req: Request): string {
   if (req.user?.id) {
     return `user:${req.user.id}`;
   }
-  return `ip:${req.ip ?? "unknown"}`;
+  return `ip:${ipKeyGenerator(req.ip ?? "unknown")}`;
 }
 
 export const generalLimiter = rateLimit({

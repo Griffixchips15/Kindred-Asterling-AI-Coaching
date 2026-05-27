@@ -25,6 +25,10 @@ tags:
     description: Daily positive affirmations
   - name: calendar
     description: Google Calendar integration
+  - name: profile
+    description: User profile fields collected during onboarding
+  - name: chat
+    description: AI coaching chat and archive
 
 paths:
   /auth/user:
@@ -440,6 +444,125 @@ paths:
               schema:
                 $ref: "#/components/schemas/Affirmation"
 
+  /profile:
+    patch:
+      operationId: updateProfile
+      tags: [profile]
+      summary: Update profile fields (used by onboarding flow)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateInput'
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+
+  /chat/active:
+    get:
+      operationId: getActiveChat
+      tags: [chat]
+      summary: Get the current active conversation with messages (creates one if missing)
+      responses:
+        '200':
+          description: Active conversation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatConversationWithMessages'
+
+  /chat/send:
+    post:
+      operationId: sendChatMessage
+      tags: [chat]
+      summary: Append a user message and get the AI response
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatSendInput'
+      responses:
+        '200':
+          description: Updated conversation with both messages appended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatConversationWithMessages'
+
+  /chat/append:
+    post:
+      operationId: appendChatMessage
+      tags: [chat]
+      summary: Append a pre-composed message without invoking the AI (used by onboarding script)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatAppendInput'
+      responses:
+        '200':
+          description: Updated conversation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatConversationWithMessages'
+
+  /chat/archive:
+    post:
+      operationId: archiveActiveChat
+      tags: [chat]
+      summary: Archive the current active conversation and start a fresh one
+      responses:
+        '200':
+          description: New active conversation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatConversationWithMessages'
+
+  /chat/archived:
+    get:
+      operationId: listArchivedChats
+      tags: [chat]
+      summary: List the user's archived conversations
+      responses:
+        '200':
+          description: Archived conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatConversation'
+
+  /chat/archived/{id}:
+    get:
+      operationId: getArchivedChat
+      tags: [chat]
+      summary: Get an archived conversation with messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Archived conversation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatConversationWithMessages'
+        '404':
+          description: Not found
+
   /calendar/upcoming:
     get:
       operationId: getUpcomingCalendarEvents
@@ -533,7 +656,7 @@ components:
   schemas:
     AuthUser:
       type: object
-      required: [id, email, firstName, lastName, profileImageUrl]
+      required: [id, email, firstName, lastName, profileImageUrl, preferredName, birthday, struggles, strengths, interests, onboardedAt]
       properties:
         id:
           type: string
@@ -546,6 +669,19 @@ components:
           type: [string, 'null']
         profileImageUrl:
           type: [string, 'null']
+        preferredName:
+          type: [string, 'null']
+        birthday:
+          type: [string, 'null']
+        struggles:
+          type: [string, 'null']
+        strengths:
+          type: [string, 'null']
+        interests:
+          type: [string, 'null']
+        onboardedAt:
+          type: [string, 'null']
+          format: date-time
     AuthUserEnvelope:
       type: object
       required: [user]
@@ -816,6 +952,89 @@ components:
           type: integer
         targetDays:
           type: integer
+
+    ProfileUpdateInput:
+      type: object
+      properties:
+        preferredName:
+          type: [string, 'null']
+        birthday:
+          type: [string, 'null']
+        struggles:
+          type: [string, 'null']
+        strengths:
+          type: [string, 'null']
+        interests:
+          type: [string, 'null']
+        onboardedAt:
+          type: [string, 'null']
+          format: date-time
+      additionalProperties: false
+
+    ChatMessage:
+      type: object
+      required: [id, conversationId, role, content, createdAt]
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        role:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ChatConversation:
+      type: object
+      required: [id, userId, title, status, createdAt, archivedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        archivedAt:
+          type: [string, 'null']
+          format: date-time
+
+    ChatConversationWithMessages:
+      allOf:
+        - $ref: '#/components/schemas/ChatConversation'
+        - type: object
+          required: [messages]
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: '#/components/schemas/ChatMessage'
+
+    ChatSendInput:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+
+    ChatAppendInput:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+          minLength: 1
 
     CalendarEvent:
       type: object

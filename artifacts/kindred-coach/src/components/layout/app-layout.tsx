@@ -1,8 +1,9 @@
 import { Link, useLocation } from "wouter";
-import { Home, Sunrise, ScanLine, Sunset, ListTodo, LogOut, Palette, Check } from "lucide-react";
+import { Home, Sunrise, ScanLine, Sunset, ListTodo, LogOut, Palette, Check, MessageCircle, Archive as ArchiveIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ReactNode } from "react";
 import { useAuth } from "@workspace/replit-auth-web";
+import { format, parseISO } from "date-fns";
 import { useTheme, THEME_OPTIONS, type ThemeName } from "@/hooks/use-theme";
 import {
   DropdownMenu,
@@ -77,11 +78,64 @@ function ThemePicker({ variant = "sidebar" }: { variant?: "sidebar" | "mobile" }
 
 const navItems = [
   { icon: Home, label: "Dashboard", href: "/" },
+  { icon: MessageCircle, label: "Chat", href: "/chat" },
   { icon: Sunrise, label: "Morning", href: "/morning" },
   { icon: ScanLine, label: "Scans", href: "/scans" },
   { icon: Sunset, label: "Evening", href: "/evening" },
   { icon: ListTodo, label: "Habits", href: "/habits" },
+  { icon: ArchiveIcon, label: "Archive", href: "/archive" },
 ];
+
+const mobileNavItems = [
+  { icon: Home, label: "Today", href: "/" },
+  { icon: MessageCircle, label: "Chat", href: "/chat" },
+  { icon: Sunrise, label: "Morning", href: "/morning" },
+  { icon: Sunset, label: "Evening", href: "/evening" },
+  { icon: ArchiveIcon, label: "Archive", href: "/archive" },
+];
+
+function ProfilePanel({ user }: { user: ReturnType<typeof useAuth>["user"] }) {
+  if (!user) return null;
+  const name = user.preferredName || user.firstName || user.email || "You";
+  const initials = (name.match(/\b\w/g) ?? []).slice(0, 2).join("").toUpperCase();
+  const fields: { label: string; value: string | null | undefined }[] = [
+    { label: "Birthday", value: user.birthday ? safeFormatDate(user.birthday) : null },
+    { label: "Working on", value: user.struggles },
+    { label: "Strengths", value: user.strengths },
+    { label: "Interests", value: user.interests },
+  ];
+  return (
+    <div className="px-3 pb-3 pt-2">
+      <div className="flex items-center gap-2.5 mb-2">
+        <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center text-primary text-xs font-semibold">
+          {initials || "·"}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium truncate">{name}</p>
+          {user.email && <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>}
+        </div>
+      </div>
+      <div className="space-y-1.5 mt-3">
+        {fields.map((f) => (
+          <div key={f.label} className="text-[11px]">
+            <span className="text-muted-foreground/80 uppercase tracking-wide">{f.label}</span>
+            <p className={cn("text-foreground/90 leading-snug", !f.value && "text-muted-foreground/50 italic")}>
+              {f.value || "—"}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function safeFormatDate(s: string): string {
+  try {
+    return format(parseISO(s), "PP");
+  } catch {
+    return s;
+  }
+}
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
@@ -120,11 +174,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="p-4 border-t border-border space-y-1">
-          {user && (
-            <p className="text-xs text-muted-foreground px-3 mb-2 truncate">
-              {user.firstName ?? user.email ?? ""}
-            </p>
-          )}
+          <ProfilePanel user={user} />
           <ThemePicker variant="sidebar" />
           <button
             onClick={logout}
@@ -146,7 +196,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       {/* Mobile Bottom Nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-background/80 backdrop-blur-lg z-50 pb-safe">
         <div className="flex items-center justify-around p-2">
-          {navItems.map((item) => {
+          {mobileNavItems.map((item) => {
             const isActive = location === item.href;
             const Icon = item.icon;
             
