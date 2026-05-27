@@ -59,7 +59,7 @@ export async function fetchUpcomingEvents(daysAhead: number): Promise<Normalized
 
   const response = await connectors.proxy(
     "google-calendar",
-    `/calendars/primary/events?${params.toString()}`,
+    `/calendar/v3/calendars/primary/events?${params.toString()}`,
     { method: "GET" },
   );
 
