@@ -6,6 +6,7 @@ import {
   Sunset,
   ListTodo,
   Pill,
+  CalendarDays,
   User,
   LogOut,
   Palette,
@@ -129,6 +130,7 @@ const navItems = [
   { icon: Sunset, label: "Evening", href: "/evening" },
   { icon: ListTodo, label: "Habits", href: "/habits" },
   { icon: Pill, label: "Medications", href: "/medications" },
+  { icon: CalendarDays, label: "Calendar", href: "/calendar" },
   { icon: User, label: "Profile", href: "/profile" },
   { icon: ArchiveIcon, label: "Archive", href: "/archive" },
 ];
