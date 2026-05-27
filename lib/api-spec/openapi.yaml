@@ -398,6 +398,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/HabitEntry"
 
+  /affirmations:
+    get:
+      operationId: listAffirmations
+      tags: [affirmations]
+      summary: List all active affirmations
+      responses:
+        "200":
+          description: All active affirmations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Affirmation"
+
   /affirmations/today:
     get:
       operationId: getTodayAffirmation

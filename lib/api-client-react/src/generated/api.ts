@@ -1557,6 +1557,83 @@ export const useLogHabitEntry = <TError = ErrorType<unknown>,
       return useMutation(getLogHabitEntryMutationOptions(options));
     }
 
+export const getListAffirmationsUrl = () => {
+
+
+
+
+  return `/api/affirmations`
+}
+
+/**
+ * @summary List all active affirmations
+ */
+export const listAffirmations = async ( options?: RequestInit): Promise<Affirmation[]> => {
+
+  return customFetch<Affirmation[]>(getListAffirmationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAffirmationsQueryKey = () => {
+    return [
+    `/api/affirmations`
+    ] as const;
+    }
+
+
+export const getListAffirmationsQueryOptions = <TData = Awaited<ReturnType<typeof listAffirmations>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAffirmations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAffirmationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAffirmations>>> = ({ signal }) => listAffirmations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAffirmations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAffirmationsQueryResult = NonNullable<Awaited<ReturnType<typeof listAffirmations>>>
+export type ListAffirmationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all active affirmations
+ */
+
+export function useListAffirmations<TData = Awaited<ReturnType<typeof listAffirmations>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAffirmations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAffirmationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getGetTodayAffirmationUrl = () => {
 
 

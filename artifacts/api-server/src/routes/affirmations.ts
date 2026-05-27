@@ -38,6 +38,16 @@ async function ensureSeeded(): Promise<void> {
 
 const router: IRouter = Router();
 
+router.get("/affirmations", requireAuth, async (_req, res): Promise<void> => {
+  await ensureSeeded();
+  const rows = await db
+    .select()
+    .from(affirmationsTable)
+    .where(sql`${affirmationsTable.isActive} = true`)
+    .orderBy(affirmationsTable.id);
+  res.json(JSON.parse(JSON.stringify(rows)));
+});
+
 router.get("/affirmations/today", requireAuth, async (_req, res): Promise<void> => {
   await ensureSeeded();
   const rows = await db

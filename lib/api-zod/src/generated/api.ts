@@ -284,6 +284,17 @@ export const LogHabitEntryBody = zod.object({
 
 
 /**
+ * @summary List all active affirmations
+ */
+export const ListAffirmationsResponseItem = zod.object({
+  "id": zod.number(),
+  "text": zod.string(),
+  "createdAt": zod.string()
+})
+export const ListAffirmationsResponse = zod.array(ListAffirmationsResponseItem)
+
+
+/**
  * @summary Get today's positive affirmation
  */
 export const GetTodayAffirmationResponse = zod.object({
