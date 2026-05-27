@@ -6,6 +6,7 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "rec
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO } from "date-fns";
 import { WeeklyHabitCompletion } from "@/components/charts/weekly-habit-completion";
+import { PositiveAffirmations } from "@/components/dashboard/positive-affirmations";
 
 export default function Dashboard() {
   const { data: summary, isLoading: isLoadingSummary } = useGetTodaySummary({ query: { queryKey: getGetTodaySummaryQueryKey() } });
@@ -22,6 +23,8 @@ export default function Dashboard() {
           {summary?.currentMentalLoad ? `Your mind feels ${summary.currentMentalLoad} right now.` : "Take a moment to check in."}
         </p>
       </header>
+
+      <PositiveAffirmations />
 
       <WeeklyHabitCompletion />
 
