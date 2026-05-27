@@ -25,6 +25,7 @@ import type {
   BeginBrowserLoginParams,
   BodyScan,
   BodyScanInput,
+  CalendarEvent,
   ErrorEnvelope,
   EveningReport,
   EveningReportInput,
@@ -1776,6 +1777,83 @@ export function useGetRandomAffirmation<TData = Awaited<ReturnType<typeof getRan
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetRandomAffirmationQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetUpcomingCalendarEventsUrl = () => {
+
+
+
+
+  return `/api/calendar/upcoming`
+}
+
+/**
+ * @summary Get upcoming Google Calendar events (today + 3 days)
+ */
+export const getUpcomingCalendarEvents = async ( options?: RequestInit): Promise<CalendarEvent[]> => {
+
+  return customFetch<CalendarEvent[]>(getGetUpcomingCalendarEventsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUpcomingCalendarEventsQueryKey = () => {
+    return [
+    `/api/calendar/upcoming`
+    ] as const;
+    }
+
+
+export const getGetUpcomingCalendarEventsQueryOptions = <TData = Awaited<ReturnType<typeof getUpcomingCalendarEvents>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUpcomingCalendarEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUpcomingCalendarEventsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUpcomingCalendarEvents>>> = ({ signal }) => getUpcomingCalendarEvents({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUpcomingCalendarEvents>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetUpcomingCalendarEventsQueryResult = NonNullable<Awaited<ReturnType<typeof getUpcomingCalendarEvents>>>
+export type GetUpcomingCalendarEventsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get upcoming Google Calendar events (today + 3 days)
+ */
+
+export function useGetUpcomingCalendarEvents<TData = Awaited<ReturnType<typeof getUpcomingCalendarEvents>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUpcomingCalendarEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetUpcomingCalendarEventsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

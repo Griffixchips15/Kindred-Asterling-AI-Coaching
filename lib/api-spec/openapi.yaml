@@ -23,6 +23,8 @@ tags:
     description: Dashboard summaries
   - name: affirmations
     description: Daily positive affirmations
+  - name: calendar
+    description: Google Calendar integration
 
 paths:
   /auth/user:
@@ -438,6 +440,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/Affirmation"
 
+  /calendar/upcoming:
+    get:
+      operationId: getUpcomingCalendarEvents
+      tags: [calendar]
+      summary: Get upcoming Google Calendar events (today + 3 days)
+      responses:
+        "200":
+          description: Upcoming events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CalendarEvent"
+        "502":
+          description: Calendar provider unavailable
+
   /dashboard/today:
     get:
       operationId: getTodaySummary
@@ -797,6 +816,17 @@ components:
           type: integer
         targetDays:
           type: integer
+
+    CalendarEvent:
+      type: object
+      required: [date, time, title]
+      properties:
+        date:
+          type: string
+        time:
+          type: string
+        title:
+          type: string
 
     Affirmation:
       type: object

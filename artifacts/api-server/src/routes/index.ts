@@ -7,6 +7,7 @@ import eveningReportsRouter from "./eveningReports";
 import habitsRouter from "./habits";
 import dashboardRouter from "./dashboard";
 import affirmationsRouter from "./affirmations";
+import calendarRouter from "./calendar";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(eveningReportsRouter);
 router.use(habitsRouter);
 router.use(dashboardRouter);
 router.use(affirmationsRouter);
+router.use(calendarRouter);
 
 export default router;

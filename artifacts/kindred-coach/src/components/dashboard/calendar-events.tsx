@@ -1,18 +1,13 @@
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CalendarDays, Clock } from "lucide-react";
+import { useGetUpcomingCalendarEvents } from "@workspace/api-client-react";
 
 export type CalendarEvent = {
   date: string;
   time: string;
   title: string;
 };
-
-const DEFAULT_EVENTS: CalendarEvent[] = [
-  { date: "2026-05-27", time: "12:20 PM", title: "Phone appointment with Freddy" },
-  { date: "2026-05-28", time: "10:00 AM", title: "Kindred Coach dev session" },
-  { date: "2026-05-30", time: "3:00 PM", title: "Review weekly goals" },
-];
 
 const DAYS_AHEAD = 3;
 
@@ -42,11 +37,10 @@ function formatDateSubtitle(d: Date): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export function CalendarEvents({
-  events = DEFAULT_EVENTS,
-}: {
-  events?: CalendarEvent[];
-}) {
+export function CalendarEvents() {
+  const { data, isLoading, isError } = useGetUpcomingCalendarEvents();
+  const events = useMemo<CalendarEvent[]>(() => data ?? [], [data]);
+
   const grouped = useMemo(() => {
     const today = startOfDay(new Date());
     const cutoff = new Date(today);
@@ -84,7 +78,15 @@ export function CalendarEvents({
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        {grouped.days.length === 0 ? (
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">
+            Loading your calendar…
+          </p>
+        ) : isError ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">
+            Couldn't reach Google Calendar right now.
+          </p>
+        ) : grouped.days.length === 0 ? (
           <p className="text-sm text-muted-foreground py-6 text-center">
             Nothing on your calendar — enjoy the open space.
           </p>

@@ -172,6 +172,12 @@ export interface HabitStreak {
   targetDays: number;
 }
 
+export interface CalendarEvent {
+  date: string;
+  time: string;
+  title: string;
+}
+
 export interface Affirmation {
   id: number;
   text: string;

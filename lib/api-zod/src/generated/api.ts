@@ -315,6 +315,17 @@ export const GetRandomAffirmationResponse = zod.object({
 
 
 /**
+ * @summary Get upcoming Google Calendar events (today + 3 days)
+ */
+export const GetUpcomingCalendarEventsResponseItem = zod.object({
+  "date": zod.string(),
+  "time": zod.string(),
+  "title": zod.string()
+})
+export const GetUpcomingCalendarEventsResponse = zod.array(GetUpcomingCalendarEventsResponseItem)
+
+
+/**
  * @summary Get today's progress summary
  */
 export const GetTodaySummaryResponse = zod.object({
