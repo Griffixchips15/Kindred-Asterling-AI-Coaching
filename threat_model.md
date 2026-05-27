@@ -16,12 +16,13 @@ Kindred Coach is a public web application with a React frontend (`artifacts/kind
 - **Browser to API** -- every request from the public web app to `/api/*` crosses from an untrusted client into the server.
 - **API to PostgreSQL** -- the server has broad database access; any server-side access-control failure or injection issue can expose or alter the full dataset.
 - **Public internet to deployed application** -- the deployment is public, so unauthenticated endpoints are internet-reachable by default.
+- **Edge proxy to Express app** -- production traffic reaches Express through Replit-managed proxy infrastructure, so any logic that depends on client IP or request origin headers must account for forwarded-header trust correctly.
 - **Production vs dev-only artifacts** -- `artifacts/mockup-sandbox` is not production-relevant under current assumptions and should not drive findings unless reachability changes.
 
 ## Scan Anchors
 
 - Production server entry: `artifacts/api-server/src/index.ts`, `artifacts/api-server/src/app.ts`
-- High-risk API surfaces: `artifacts/api-server/src/routes/*`, `lib/api-spec/openapi.yaml`
+- High-risk API surfaces: `artifacts/api-server/src/routes/*`, `artifacts/api-server/src/middlewares/*`, `lib/api-spec/openapi.yaml`
 - Sensitive data model: `lib/db/src/schema/*`
 - Public frontend surface: `artifacts/kindred-coach/src/pages/*`
 - Dev-only area usually ignored: `artifacts/mockup-sandbox/**`
@@ -42,7 +43,7 @@ Sensitive wellness records must only be returned to the owning user. Public rout
 
 ### Denial of Service
 
-Because the deployment is public, endpoints that accept unauthenticated traffic are exposed to scraping and abuse. The application must bound request parsing and expensive operations, and sensitive public-facing endpoints should not allow trivial bulk extraction or repeated write abuse.
+Because the deployment is public, endpoints that accept unauthenticated traffic are exposed to scraping and abuse. The application must bound request parsing and expensive operations, and sensitive public-facing endpoints should not allow trivial bulk extraction or repeated write abuse. Any rate limiting or abuse controls that rely on client IP address must be configured to see the real caller through Replit's proxy layer; otherwise one attacker can potentially consume a shared anonymous bucket and throttle unrelated users.
 
 ### Elevation of Privilege
 
