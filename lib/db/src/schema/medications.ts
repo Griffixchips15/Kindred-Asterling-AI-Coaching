@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, varchar, integer, date } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, varchar, integer, date, uniqueIndex } from "drizzle-orm/pg-core";
 import { usersTable } from "./auth";
 
 export const medicationsTable = pgTable("medications", {
@@ -13,17 +13,28 @@ export const medicationsTable = pgTable("medications", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const medicationLogsTable = pgTable("medication_logs", {
-  id: serial("id").primaryKey(),
-  medicationId: integer("medication_id")
-    .notNull()
-    .references(() => medicationsTable.id, { onDelete: "cascade" }),
-  userId: varchar("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  date: date("date").notNull(),
-  takenAt: timestamp("taken_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const medicationLogsTable = pgTable(
+  "medication_logs",
+  {
+    id: serial("id").primaryKey(),
+    medicationId: integer("medication_id")
+      .notNull()
+      .references(() => medicationsTable.id, { onDelete: "cascade" }),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    takenAt: timestamp("taken_at", { withTimezone: true }).defaultNow().notNull(),
+    effectiveness: integer("effectiveness"),
+  },
+  (t) => [
+    uniqueIndex("medication_logs_user_med_date_unique").on(
+      t.userId,
+      t.medicationId,
+      t.date,
+    ),
+  ],
+);
 
 export type Medication = typeof medicationsTable.$inferSelect;
 export type MedicationLog = typeof medicationLogsTable.$inferSelect;

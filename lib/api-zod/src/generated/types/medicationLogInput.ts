@@ -6,15 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface MedicationLog {
-  id: number;
-  medicationId: number;
-  date: string;
-  takenAt: string;
+export interface MedicationLogInput {
   /**
+     * How effective this dose felt, on a 1-10 scale
      * @minimum 1
      * @maximum 10
      * @nullable
      */
-  effectiveness: number | null;
+  effectiveness?: number | null;
 }

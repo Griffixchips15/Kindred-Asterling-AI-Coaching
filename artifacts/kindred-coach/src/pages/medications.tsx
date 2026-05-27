@@ -10,7 +10,7 @@ import {
   unlogMedicationTaken,
   type MedicationWithStatus,
 } from "@workspace/api-client-react";
-import { Pill, Plus, Pencil, Trash2, Check, X, Clock } from "lucide-react";
+import { Pill, Plus, Pencil, Trash2, Check, X, Clock, Sparkles } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +22,7 @@ type FormState = {
 };
 
 const EMPTY_FORM: FormState = { name: "", dosage: "", timeOfDay: "08:00", notes: "" };
+const RATING_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
 function formatTimeLabel(hhmm: string): string {
   const [h, m] = hhmm.split(":").map(Number);
@@ -29,6 +30,12 @@ function formatTimeLabel(hhmm: string): string {
   const period = h >= 12 ? "PM" : "AM";
   const hour12 = ((h + 11) % 12) + 1;
   return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+function ratingTone(n: number): string {
+  if (n <= 3) return "text-amber-600 dark:text-amber-400";
+  if (n <= 6) return "text-foreground";
+  return "text-primary";
 }
 
 export default function Medications() {
@@ -106,8 +113,20 @@ export default function Medications() {
       if (m.takenToday) {
         await unlogMedicationTaken(m.id);
       } else {
-        await logMedicationTaken(m.id);
+        await logMedicationTaken(m.id, {});
       }
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rateEffectiveness(m: MedicationWithStatus, score: number) {
+    setBusy(true);
+    try {
+      // Logging is idempotent on the server — this both marks-taken (if needed)
+      // and sets the effectiveness in one call.
+      await logMedicationTaken(m.id, { effectiveness: score });
       await refresh();
     } finally {
       setBusy(false);
@@ -122,7 +141,7 @@ export default function Medications() {
         <div>
           <h1 className="text-2xl font-serif text-primary tracking-tight">Medications</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Track your medication schedule and daily intake.
+            Track your schedule, mark each dose as taken, and rate how well it's working — Kindred uses your ratings to spot patterns over time.
           </p>
         </div>
         <button
@@ -183,6 +202,7 @@ export default function Medications() {
               onToggle={() => toggleTaken(m)}
               onEdit={() => startEdit(m)}
               onDelete={() => handleDelete(m.id)}
+              onRate={(score) => rateEffectiveness(m, score)}
               busy={busy}
             />
           ),
@@ -197,74 +217,131 @@ function MedRow({
   onToggle,
   onEdit,
   onDelete,
+  onRate,
   busy,
 }: {
   med: MedicationWithStatus;
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onRate: (score: number) => void;
   busy: boolean;
 }) {
   const taken = !!med.takenToday;
+  const todayScore = med.effectivenessToday ?? null;
+  const avg = med.recentEffectivenessAvg;
+  const avgCount = med.recentEffectivenessCount;
+
   return (
     <div
       className={cn(
-        "rounded-lg border bg-card p-4 flex items-center gap-3 transition-colors",
+        "rounded-lg border bg-card p-4 transition-colors",
         taken ? "border-primary/40 bg-primary/5" : "border-border",
       )}
       data-testid={`med-row-${med.id}`}
     >
-      <button
-        onClick={onToggle}
-        disabled={busy}
-        className={cn(
-          "w-10 h-10 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
-          taken
-            ? "border-primary bg-primary text-primary-foreground"
-            : "border-border hover:border-primary/60",
-        )}
-        aria-label={taken ? "Mark as not taken" : "Mark as taken"}
-        data-testid={`toggle-med-${med.id}`}
-      >
-        {taken && <Check className="w-5 h-5" strokeWidth={3} />}
-      </button>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2 flex-wrap">
-          <h3 className="font-medium truncate">{med.name}</h3>
-          <span className="text-sm text-muted-foreground">{med.dosage}</span>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onToggle}
+          disabled={busy}
+          className={cn(
+            "w-10 h-10 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+            taken
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border hover:border-primary/60",
+          )}
+          aria-label={taken ? "Mark as not taken" : "Mark as taken"}
+          data-testid={`toggle-med-${med.id}`}
+        >
+          {taken && <Check className="w-5 h-5" strokeWidth={3} />}
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <h3 className="font-medium truncate">{med.name}</h3>
+            <span className="text-sm text-muted-foreground">{med.dosage}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1 flex-wrap">
+            <Clock className="w-3.5 h-3.5" />
+            <span>{formatTimeLabel(med.timeOfDay)}</span>
+            {taken && med.takenToday && (
+              <span className="text-primary">
+                · taken {format(parseISO(med.takenToday), "p")}
+              </span>
+            )}
+            {avg !== null && avgCount > 0 && (
+              <span className="ml-auto flex items-center gap-1 text-muted-foreground">
+                <Sparkles className="w-3 h-3" />
+                7-day avg{" "}
+                <span className={cn("font-medium", ratingTone(Math.round(avg)))}>
+                  {avg.toFixed(1)}/10
+                </span>
+                <span className="text-muted-foreground/70">({avgCount})</span>
+              </span>
+            )}
+          </div>
+          {med.notes && (
+            <p className="text-xs text-muted-foreground/80 mt-1.5 italic">{med.notes}</p>
+          )}
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-          <Clock className="w-3.5 h-3.5" />
-          <span>{formatTimeLabel(med.timeOfDay)}</span>
-          {taken && med.takenToday && (
-            <span className="text-primary">
-              · taken {format(parseISO(med.takenToday), "p")}
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={onEdit}
+            disabled={busy}
+            className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            aria-label="Edit"
+            data-testid={`edit-med-${med.id}`}
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onDelete}
+            disabled={busy}
+            className="p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            aria-label="Delete"
+            data-testid={`delete-med-${med.id}`}
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Effectiveness rating row */}
+      <div className="mt-3 pl-13 sm:pl-13">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
+          <span>How well is it working today?</span>
+          {todayScore !== null && (
+            <span className={cn("font-medium", ratingTone(todayScore))}>
+              {todayScore}/10
             </span>
           )}
         </div>
-        {med.notes && (
-          <p className="text-xs text-muted-foreground/80 mt-1.5 italic">{med.notes}</p>
-        )}
-      </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <button
-          onClick={onEdit}
-          disabled={busy}
-          className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          aria-label="Edit"
-          data-testid={`edit-med-${med.id}`}
-        >
-          <Pencil className="w-4 h-4" />
-        </button>
-        <button
-          onClick={onDelete}
-          disabled={busy}
-          className="p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-          aria-label="Delete"
-          data-testid={`delete-med-${med.id}`}
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Effectiveness 1 to 10">
+          {RATING_VALUES.map((n) => {
+            const selected = todayScore === n;
+            return (
+              <button
+                key={n}
+                onClick={() => onRate(n)}
+                disabled={busy}
+                role="radio"
+                aria-checked={selected}
+                aria-label={`Rate ${n} out of 10`}
+                data-testid={`rate-med-${med.id}-${n}`}
+                className={cn(
+                  "w-7 h-7 sm:w-8 sm:h-8 text-xs font-medium rounded-md border transition-colors",
+                  selected
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
+                )}
+              >
+                {n}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-muted-foreground/70 mt-1.5">
+          1 = not helping · 10 = working really well. Rating also marks the dose as taken.
+        </p>
       </div>
     </div>
   );

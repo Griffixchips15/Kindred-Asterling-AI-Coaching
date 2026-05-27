@@ -35,6 +35,7 @@ export * from './logoutSuccess';
 export * from './medication';
 export * from './medicationInput';
 export * from './medicationLog';
+export * from './medicationLogInput';
 export * from './medicationWithStatus';
 export * from './mobileTokenExchangeRequest';
 export * from './mobileTokenExchangeSuccess';

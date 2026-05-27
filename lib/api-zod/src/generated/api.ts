@@ -508,6 +508,10 @@ export const GetArchivedChatResponse = zod.object({
 /**
  * @summary List the current user's medications with today's intake status
  */
+export const listMedicationsResponseTwoEffectivenessTodayMax = 10;
+
+
+
 export const ListMedicationsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -516,7 +520,10 @@ export const ListMedicationsResponseItem = zod.object({
   "notes": zod.string().nullish(),
   "createdAt": zod.string()
 }).and(zod.object({
-  "takenToday": zod.string().nullable().describe('ISO timestamp of today\'s intake, or null if not yet taken')
+  "takenToday": zod.string().nullable().describe('ISO timestamp of today\'s intake, or null if not yet taken'),
+  "effectivenessToday": zod.number().min(1).max(listMedicationsResponseTwoEffectivenessTodayMax).nullable().describe('1-10 effectiveness rating for today\'s dose, if rated'),
+  "recentEffectivenessAvg": zod.number().nullable().describe('Average effectiveness over the last 7 days, or null if no ratings yet'),
+  "recentEffectivenessCount": zod.number().describe('Number of rated doses in the last 7 days')
 }))
 export const ListMedicationsResponse = zod.array(ListMedicationsResponseItem)
 
@@ -575,10 +582,18 @@ export const DeleteMedicationParams = zod.object({
 
 
 /**
- * @summary Mark a medication as taken today (creates a log entry)
+ * @summary Mark a medication as taken today (idempotent); optionally rate effectiveness 1-10
  */
 export const LogMedicationTakenParams = zod.object({
   "id": zod.coerce.number()
+})
+
+export const logMedicationTakenBodyEffectivenessMax = 10;
+
+
+
+export const LogMedicationTakenBody = zod.object({
+  "effectiveness": zod.number().min(1).max(logMedicationTakenBodyEffectivenessMax).nullish().describe('How effective this dose felt, on a 1-10 scale')
 })
 
 

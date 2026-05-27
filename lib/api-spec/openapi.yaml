@@ -643,16 +643,22 @@ paths:
     post:
       operationId: logMedicationTaken
       tags: [medications]
-      summary: Mark a medication as taken today (creates a log entry)
+      summary: Mark a medication as taken today (idempotent); optionally rate effectiveness 1-10
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicationLogInput'
       responses:
         '201':
-          description: Log entry recorded
+          description: Log entry recorded or updated
           content:
             application/json:
               schema:
@@ -1223,15 +1229,26 @@ components:
       allOf:
         - $ref: '#/components/schemas/Medication'
         - type: object
-          required: [takenToday]
+          required: [takenToday, effectivenessToday, recentEffectivenessAvg, recentEffectivenessCount]
           properties:
             takenToday:
               type: ["string", "null"]
               description: ISO timestamp of today's intake, or null if not yet taken
+            effectivenessToday:
+              type: ["integer", "null"]
+              description: 1-10 effectiveness rating for today's dose, if rated
+              minimum: 1
+              maximum: 10
+            recentEffectivenessAvg:
+              type: ["number", "null"]
+              description: Average effectiveness over the last 7 days, or null if no ratings yet
+            recentEffectivenessCount:
+              type: integer
+              description: Number of rated doses in the last 7 days
 
     MedicationLog:
       type: object
-      required: [id, medicationId, date, takenAt]
+      required: [id, medicationId, date, takenAt, effectiveness]
       properties:
         id:
           type: integer
@@ -1241,6 +1258,20 @@ components:
           type: string
         takenAt:
           type: string
+        effectiveness:
+          type: ["integer", "null"]
+          minimum: 1
+          maximum: 10
+
+    MedicationLogInput:
+      type: object
+      properties:
+        effectiveness:
+          type: ["integer", "null"]
+          minimum: 1
+          maximum: 10
+          description: How effective this dose felt, on a 1-10 scale
+      additionalProperties: false
 
     MoodTrendPoint:
       type: object

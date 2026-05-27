@@ -306,6 +306,20 @@ export type MedicationWithStatus = Medication & ({
      * @nullable
      */
   takenToday: string | null;
+  /**
+     * 1-10 effectiveness rating for today's dose, if rated
+     * @minimum 1
+     * @maximum 10
+     * @nullable
+     */
+  effectivenessToday: number | null;
+  /**
+     * Average effectiveness over the last 7 days, or null if no ratings yet
+     * @nullable
+     */
+  recentEffectivenessAvg: number | null;
+  /** Number of rated doses in the last 7 days */
+  recentEffectivenessCount: number;
 });
 
 export interface MedicationLog {
@@ -313,6 +327,22 @@ export interface MedicationLog {
   medicationId: number;
   date: string;
   takenAt: string;
+  /**
+     * @minimum 1
+     * @maximum 10
+     * @nullable
+     */
+  effectiveness: number | null;
+}
+
+export interface MedicationLogInput {
+  /**
+     * How effective this dose felt, on a 1-10 scale
+     * @minimum 1
+     * @maximum 10
+     * @nullable
+     */
+  effectiveness?: number | null;
 }
 
 export interface MoodTrendPoint {
