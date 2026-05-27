@@ -252,6 +252,43 @@ export interface Affirmation {
   createdAt: string;
 }
 
+export interface Medication {
+  id: number;
+  name: string;
+  dosage: string;
+  /** HH:MM 24-hour clock time the medication should be taken */
+  timeOfDay: string;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface MedicationInput {
+  /** @minLength 1 */
+  name: string;
+  /** @minLength 1 */
+  dosage: string;
+  /** @pattern ^([01]\d|2[0-3]):[0-5]\d$ */
+  timeOfDay: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type MedicationWithStatus = Medication & ({
+  /**
+     * ISO timestamp of today's intake, or null if not yet taken
+     * @nullable
+     */
+  takenToday: string | null;
+});
+
+export interface MedicationLog {
+  id: number;
+  medicationId: number;
+  date: string;
+  takenAt: string;
+}
+
 export interface MoodTrendPoint {
   date: string;
   /** @nullable */

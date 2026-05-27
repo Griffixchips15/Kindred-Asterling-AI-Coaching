@@ -486,6 +486,91 @@ export const GetArchivedChatResponse = zod.object({
 
 
 /**
+ * @summary List the current user's medications with today's intake status
+ */
+export const ListMedicationsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "dosage": zod.string(),
+  "timeOfDay": zod.string().describe('HH:MM 24-hour clock time the medication should be taken'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "takenToday": zod.string().nullable().describe('ISO timestamp of today\'s intake, or null if not yet taken')
+}))
+export const ListMedicationsResponse = zod.array(ListMedicationsResponseItem)
+
+
+/**
+ * @summary Create a medication entry
+ */
+
+
+export const createMedicationBodyTimeOfDayRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+
+
+export const CreateMedicationBody = zod.object({
+  "name": zod.string().min(1),
+  "dosage": zod.string().min(1),
+  "timeOfDay": zod.string().regex(createMedicationBodyTimeOfDayRegExp),
+  "notes": zod.string().nullish()
+})
+
+
+/**
+ * @summary Update a medication entry
+ */
+export const UpdateMedicationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+export const updateMedicationBodyTimeOfDayRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+
+
+export const UpdateMedicationBody = zod.object({
+  "name": zod.string().min(1),
+  "dosage": zod.string().min(1),
+  "timeOfDay": zod.string().regex(updateMedicationBodyTimeOfDayRegExp),
+  "notes": zod.string().nullish()
+})
+
+export const UpdateMedicationResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "dosage": zod.string(),
+  "timeOfDay": zod.string().describe('HH:MM 24-hour clock time the medication should be taken'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a medication entry
+ */
+export const DeleteMedicationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Mark a medication as taken today (creates a log entry)
+ */
+export const LogMedicationTakenParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Remove today's taken log for a medication
+ */
+export const UnlogMedicationTakenParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
  * @summary Get upcoming Google Calendar events (today + 3 days)
  */
 export const GetUpcomingCalendarEventsResponseItem = zod.object({

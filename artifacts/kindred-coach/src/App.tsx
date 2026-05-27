@@ -8,6 +8,7 @@ import Morning from "@/pages/morning";
 import Scans from "@/pages/scans";
 import Evening from "@/pages/evening";
 import Habits from "@/pages/habits";
+import Medications from "@/pages/medications";
 import Chat from "@/pages/chat";
 import Archive from "@/pages/archive";
 import NotFound from "@/pages/not-found";
@@ -73,6 +74,7 @@ function Router() {
           <Route path="/scans" component={Scans} />
           <Route path="/evening" component={Evening} />
           <Route path="/habits" component={Habits} />
+          <Route path="/medications" component={Medications} />
           <Route path="/chat" component={Chat} />
           <Route path="/archive" component={Archive} />
           <Route component={NotFound} />

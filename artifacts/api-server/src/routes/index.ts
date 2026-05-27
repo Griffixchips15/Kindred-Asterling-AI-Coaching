@@ -10,6 +10,7 @@ import affirmationsRouter from "./affirmations";
 import calendarRouter from "./calendar";
 import profileRouter from "./profile";
 import chatRouter from "./chat";
+import medicationsRouter from "./medications";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(affirmationsRouter);
 router.use(calendarRouter);
 router.use(profileRouter);
 router.use(chatRouter);
+router.use(medicationsRouter);
 
 export default router;

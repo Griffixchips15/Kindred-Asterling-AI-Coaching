@@ -43,6 +43,10 @@ import type {
   HandleBrowserLoginCallbackParams,
   HealthStatus,
   LogoutSuccess,
+  Medication,
+  MedicationInput,
+  MedicationLog,
+  MedicationWithStatus,
   MobileTokenExchangeRequest,
   MobileTokenExchangeSuccess,
   MoodTrendPoint,
@@ -2308,6 +2312,436 @@ export function useGetArchivedChat<TData = Awaited<ReturnType<typeof getArchived
 
 
 
+
+export const getListMedicationsUrl = () => {
+
+
+
+
+  return `/api/medications`
+}
+
+/**
+ * @summary List the current user's medications with today's intake status
+ */
+export const listMedications = async ( options?: RequestInit): Promise<MedicationWithStatus[]> => {
+
+  return customFetch<MedicationWithStatus[]>(getListMedicationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMedicationsQueryKey = () => {
+    return [
+    `/api/medications`
+    ] as const;
+    }
+
+
+export const getListMedicationsQueryOptions = <TData = Awaited<ReturnType<typeof listMedications>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMedications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMedicationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMedications>>> = ({ signal }) => listMedications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMedications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMedicationsQueryResult = NonNullable<Awaited<ReturnType<typeof listMedications>>>
+export type ListMedicationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the current user's medications with today's intake status
+ */
+
+export function useListMedications<TData = Awaited<ReturnType<typeof listMedications>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMedications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMedicationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateMedicationUrl = () => {
+
+
+
+
+  return `/api/medications`
+}
+
+/**
+ * @summary Create a medication entry
+ */
+export const createMedication = async (medicationInput: MedicationInput, options?: RequestInit): Promise<Medication> => {
+
+  return customFetch<Medication>(getCreateMedicationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      medicationInput,)
+  }
+);}
+
+
+
+
+export const getCreateMedicationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMedication>>, TError,{data: BodyType<MedicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMedication>>, TError,{data: BodyType<MedicationInput>}, TContext> => {
+
+const mutationKey = ['createMedication'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMedication>>, {data: BodyType<MedicationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createMedication(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMedicationMutationResult = NonNullable<Awaited<ReturnType<typeof createMedication>>>
+    export type CreateMedicationMutationBody = BodyType<MedicationInput>
+    export type CreateMedicationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a medication entry
+ */
+export const useCreateMedication = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMedication>>, TError,{data: BodyType<MedicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMedication>>,
+        TError,
+        {data: BodyType<MedicationInput>},
+        TContext
+      > => {
+      return useMutation(getCreateMedicationMutationOptions(options));
+    }
+
+export const getUpdateMedicationUrl = (id: number,) => {
+
+
+
+
+  return `/api/medications/${id}`
+}
+
+/**
+ * @summary Update a medication entry
+ */
+export const updateMedication = async (id: number,
+    medicationInput: MedicationInput, options?: RequestInit): Promise<Medication> => {
+
+  return customFetch<Medication>(getUpdateMedicationUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      medicationInput,)
+  }
+);}
+
+
+
+
+export const getUpdateMedicationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMedication>>, TError,{id: number;data: BodyType<MedicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMedication>>, TError,{id: number;data: BodyType<MedicationInput>}, TContext> => {
+
+const mutationKey = ['updateMedication'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMedication>>, {id: number;data: BodyType<MedicationInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateMedication(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMedicationMutationResult = NonNullable<Awaited<ReturnType<typeof updateMedication>>>
+    export type UpdateMedicationMutationBody = BodyType<MedicationInput>
+    export type UpdateMedicationMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a medication entry
+ */
+export const useUpdateMedication = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMedication>>, TError,{id: number;data: BodyType<MedicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateMedication>>,
+        TError,
+        {id: number;data: BodyType<MedicationInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateMedicationMutationOptions(options));
+    }
+
+export const getDeleteMedicationUrl = (id: number,) => {
+
+
+
+
+  return `/api/medications/${id}`
+}
+
+/**
+ * @summary Delete a medication entry
+ */
+export const deleteMedication = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteMedicationUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteMedicationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMedication>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMedication>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteMedication'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMedication>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteMedication(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMedicationMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMedication>>>
+
+    export type DeleteMedicationMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a medication entry
+ */
+export const useDeleteMedication = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMedication>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMedication>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteMedicationMutationOptions(options));
+    }
+
+export const getLogMedicationTakenUrl = (id: number,) => {
+
+
+
+
+  return `/api/medications/${id}/log`
+}
+
+/**
+ * @summary Mark a medication as taken today (creates a log entry)
+ */
+export const logMedicationTaken = async (id: number, options?: RequestInit): Promise<MedicationLog> => {
+
+  return customFetch<MedicationLog>(getLogMedicationTakenUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getLogMedicationTakenMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logMedicationTaken>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof logMedicationTaken>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['logMedicationTaken'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logMedicationTaken>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  logMedicationTaken(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LogMedicationTakenMutationResult = NonNullable<Awaited<ReturnType<typeof logMedicationTaken>>>
+
+    export type LogMedicationTakenMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark a medication as taken today (creates a log entry)
+ */
+export const useLogMedicationTaken = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logMedicationTaken>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof logMedicationTaken>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getLogMedicationTakenMutationOptions(options));
+    }
+
+export const getUnlogMedicationTakenUrl = (id: number,) => {
+
+
+
+
+  return `/api/medications/${id}/log`
+}
+
+/**
+ * @summary Remove today's taken log for a medication
+ */
+export const unlogMedicationTaken = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getUnlogMedicationTakenUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getUnlogMedicationTakenMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlogMedicationTaken>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unlogMedicationTaken>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['unlogMedicationTaken'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unlogMedicationTaken>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  unlogMedicationTaken(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnlogMedicationTakenMutationResult = NonNullable<Awaited<ReturnType<typeof unlogMedicationTaken>>>
+
+    export type UnlogMedicationTakenMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove today's taken log for a medication
+ */
+export const useUnlogMedicationTaken = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlogMedicationTaken>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unlogMedicationTaken>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getUnlogMedicationTakenMutationOptions(options));
+    }
 
 export const getGetUpcomingCalendarEventsUrl = () => {
 

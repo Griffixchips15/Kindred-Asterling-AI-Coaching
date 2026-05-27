@@ -27,6 +27,8 @@ tags:
     description: Google Calendar integration
   - name: profile
     description: User profile fields collected during onboarding
+  - name: medications
+    description: Medication schedule and intake log
   - name: chat
     description: AI coaching chat and archive
 
@@ -563,6 +565,116 @@ paths:
         '404':
           description: Not found
 
+  /medications:
+    get:
+      operationId: listMedications
+      tags: [medications]
+      summary: List the current user's medications with today's intake status
+      responses:
+        '200':
+          description: Medications with today flag
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MedicationWithStatus'
+    post:
+      operationId: createMedication
+      tags: [medications]
+      summary: Create a medication entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicationInput'
+      responses:
+        '201':
+          description: Created medication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medication'
+
+  /medications/{id}:
+    patch:
+      operationId: updateMedication
+      tags: [medications]
+      summary: Update a medication entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicationInput'
+      responses:
+        '200':
+          description: Updated medication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medication'
+        '404':
+          description: Not found
+    delete:
+      operationId: deleteMedication
+      tags: [medications]
+      summary: Delete a medication entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          description: Not found
+
+  /medications/{id}/log:
+    post:
+      operationId: logMedicationTaken
+      tags: [medications]
+      summary: Mark a medication as taken today (creates a log entry)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '201':
+          description: Log entry recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicationLog'
+        '404':
+          description: Not found
+    delete:
+      operationId: unlogMedicationTaken
+      tags: [medications]
+      summary: Remove today's taken log for a medication
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Removed
+        '404':
+          description: Not found
+
   /calendar/upcoming:
     get:
       operationId: getUpcomingCalendarEvents
@@ -1056,6 +1168,63 @@ components:
         text:
           type: string
         createdAt:
+          type: string
+
+    Medication:
+      type: object
+      required: [id, name, dosage, timeOfDay, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        dosage:
+          type: string
+        timeOfDay:
+          type: string
+          description: HH:MM 24-hour clock time the medication should be taken
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    MedicationInput:
+      type: object
+      required: [name, dosage, timeOfDay]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        dosage:
+          type: string
+          minLength: 1
+        timeOfDay:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+        notes:
+          type: ["string", "null"]
+
+    MedicationWithStatus:
+      allOf:
+        - $ref: '#/components/schemas/Medication'
+        - type: object
+          required: [takenToday]
+          properties:
+            takenToday:
+              type: ["string", "null"]
+              description: ISO timestamp of today's intake, or null if not yet taken
+
+    MedicationLog:
+      type: object
+      required: [id, medicationId, date, takenAt]
+      properties:
+        id:
+          type: integer
+        medicationId:
+          type: integer
+        date:
+          type: string
+        takenAt:
           type: string
 
     MoodTrendPoint:

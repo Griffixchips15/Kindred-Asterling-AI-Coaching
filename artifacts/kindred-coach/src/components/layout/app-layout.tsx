@@ -5,6 +5,7 @@ import {
   ScanLine,
   Sunset,
   ListTodo,
+  Pill,
   LogOut,
   Palette,
   Check,
@@ -126,6 +127,7 @@ const navItems = [
   { icon: ScanLine, label: "Scans", href: "/scans" },
   { icon: Sunset, label: "Evening", href: "/evening" },
   { icon: ListTodo, label: "Habits", href: "/habits" },
+  { icon: Pill, label: "Medications", href: "/medications" },
   { icon: ArchiveIcon, label: "Archive", href: "/archive" },
 ];
 
