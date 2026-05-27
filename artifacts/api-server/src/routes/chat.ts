@@ -52,8 +52,20 @@ async function loadWithMessages(conversationId: number) {
   return { ...conv, messages: msgs };
 }
 
+function clip(s: string | null | undefined, max: number): string | null {
+  if (!s) return null;
+  const t = s.trim();
+  if (!t) return null;
+  return t.length > max ? t.slice(0, max) + "…" : t;
+}
+
 function buildSystemInstruction(user: User | null): string {
   const name = user?.preferredName ?? user?.firstName ?? "friend";
+  const struggles = clip(user?.struggles, 500);
+  const strengths = clip(user?.strengths, 500);
+  const interests = clip(user?.interests, 500);
+  const bio = clip(user?.bio, 1000);
+  const quote = clip(user?.motivationalQuote, 280);
   const parts: string[] = [
     `You are Kindred, a warm, attentive personal wellness coach speaking with ${name}.`,
     "Speak like a real person — natural, grounded, and human. Keep replies short: 1-3 sentences unless they explicitly ask for depth.",
@@ -64,9 +76,11 @@ function buildSystemInstruction(user: User | null): string {
     "Avoid sycophancy ('what a great question', 'that's amazing'). Avoid therapist clichés. Never give medical advice or diagnose.",
   ];
   if (user?.birthday) parts.push(`Their birthday is ${user.birthday}.`);
-  if (user?.struggles) parts.push(`They are working through: ${user.struggles}.`);
-  if (user?.strengths) parts.push(`Their strengths: ${user.strengths}.`);
-  if (user?.interests) parts.push(`They enjoy: ${user.interests}.`);
+  if (struggles) parts.push(`They are working through: ${struggles}.`);
+  if (strengths) parts.push(`Their strengths: ${strengths}.`);
+  if (interests) parts.push(`They enjoy: ${interests}.`);
+  if (bio) parts.push(`A bit about them, in their own words: ${bio}`);
+  if (quote) parts.push(`A quote that means something to them: "${quote}". You may reference it occasionally when it fits naturally — never force it.`);
   return parts.join(" ");
 }
 

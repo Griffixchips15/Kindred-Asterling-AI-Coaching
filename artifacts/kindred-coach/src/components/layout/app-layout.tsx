@@ -6,6 +6,7 @@ import {
   Sunset,
   ListTodo,
   Pill,
+  User,
   LogOut,
   Palette,
   Check,
@@ -128,6 +129,7 @@ const navItems = [
   { icon: Sunset, label: "Evening", href: "/evening" },
   { icon: ListTodo, label: "Habits", href: "/habits" },
   { icon: Pill, label: "Medications", href: "/medications" },
+  { icon: User, label: "Profile", href: "/profile" },
   { icon: ArchiveIcon, label: "Archive", href: "/archive" },
 ];
 

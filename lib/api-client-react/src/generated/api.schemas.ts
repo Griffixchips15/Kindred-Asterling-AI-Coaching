@@ -26,6 +26,10 @@ export interface AuthUser {
   /** @nullable */
   interests: string | null;
   /** @nullable */
+  bio: string | null;
+  /** @nullable */
+  motivationalQuote: string | null;
+  /** @nullable */
   onboardedAt: string | null;
 }
 
@@ -185,16 +189,38 @@ export interface HabitStreak {
 }
 
 export interface ProfileUpdateInput {
-  /** @nullable */
+  /**
+     * @maxLength 80
+     * @nullable
+     */
   preferredName?: string | null;
   /** @nullable */
   birthday?: string | null;
-  /** @nullable */
+  /**
+     * @maxLength 500
+     * @nullable
+     */
   struggles?: string | null;
-  /** @nullable */
+  /**
+     * @maxLength 500
+     * @nullable
+     */
   strengths?: string | null;
-  /** @nullable */
+  /**
+     * @maxLength 500
+     * @nullable
+     */
   interests?: string | null;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  bio?: string | null;
+  /**
+     * @maxLength 280
+     * @nullable
+     */
+  motivationalQuote?: string | null;
   /** @nullable */
   onboardedAt?: string | null;
 }

@@ -24,6 +24,8 @@ export const usersTable = pgTable("users", {
   struggles: text("struggles"),
   strengths: text("strengths"),
   interests: text("interests"),
+  bio: text("bio"),
+  motivationalQuote: text("motivational_quote"),
   onboardedAt: timestamp("onboarded_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

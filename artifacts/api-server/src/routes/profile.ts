@@ -20,6 +20,8 @@ router.patch("/profile", requireAuth, async (req, res): Promise<void> => {
   if (data.struggles !== undefined) updates.struggles = data.struggles;
   if (data.strengths !== undefined) updates.strengths = data.strengths;
   if (data.interests !== undefined) updates.interests = data.interests;
+  if (data.bio !== undefined) updates.bio = data.bio;
+  if (data.motivationalQuote !== undefined) updates.motivationalQuote = data.motivationalQuote;
   if (data.onboardedAt !== undefined) {
     updates.onboardedAt = data.onboardedAt ? new Date(data.onboardedAt) : null;
   }

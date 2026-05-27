@@ -27,5 +27,9 @@ export interface AuthUser {
   /** @nullable */
   interests: string | null;
   /** @nullable */
+  bio: string | null;
+  /** @nullable */
+  motivationalQuote: string | null;
+  /** @nullable */
   onboardedAt: Date | null;
 }

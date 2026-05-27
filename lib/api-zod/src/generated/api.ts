@@ -27,6 +27,8 @@ export const GetCurrentAuthUserResponse = zod.object({
   "struggles": zod.string().nullable(),
   "strengths": zod.string().nullable(),
   "interests": zod.string().nullable(),
+  "bio": zod.string().nullable(),
+  "motivationalQuote": zod.string().nullable(),
   "onboardedAt": zod.coerce.date().nullable()
 }),zod.null()])
 })
@@ -323,12 +325,28 @@ export const GetRandomAffirmationResponse = zod.object({
 /**
  * @summary Update profile fields (used by onboarding flow)
  */
+export const updateProfileBodyPreferredNameMax = 80;
+
+export const updateProfileBodyStrugglesMax = 500;
+
+export const updateProfileBodyStrengthsMax = 500;
+
+export const updateProfileBodyInterestsMax = 500;
+
+export const updateProfileBodyBioMax = 1000;
+
+export const updateProfileBodyMotivationalQuoteMax = 280;
+
+
+
 export const UpdateProfileBody = zod.object({
-  "preferredName": zod.string().nullish(),
-  "birthday": zod.string().nullish(),
-  "struggles": zod.string().nullish(),
-  "strengths": zod.string().nullish(),
-  "interests": zod.string().nullish(),
+  "preferredName": zod.string().max(updateProfileBodyPreferredNameMax).nullish(),
+  "birthday": zod.coerce.date().nullish(),
+  "struggles": zod.string().max(updateProfileBodyStrugglesMax).nullish(),
+  "strengths": zod.string().max(updateProfileBodyStrengthsMax).nullish(),
+  "interests": zod.string().max(updateProfileBodyInterestsMax).nullish(),
+  "bio": zod.string().max(updateProfileBodyBioMax).nullish(),
+  "motivationalQuote": zod.string().max(updateProfileBodyMotivationalQuoteMax).nullish(),
   "onboardedAt": zod.coerce.date().nullish()
 })
 
@@ -343,6 +361,8 @@ export const UpdateProfileResponse = zod.object({
   "struggles": zod.string().nullable(),
   "strengths": zod.string().nullable(),
   "interests": zod.string().nullable(),
+  "bio": zod.string().nullable(),
+  "motivationalQuote": zod.string().nullable(),
   "onboardedAt": zod.coerce.date().nullable()
 })
 
