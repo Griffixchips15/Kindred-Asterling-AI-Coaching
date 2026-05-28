@@ -10,6 +10,7 @@ import {
 import { SendChatMessageBody, AppendChatMessageBody } from "@workspace/api-zod";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { requireAuth } from "../middlewares/requireAuth";
+import { chatLimiter } from "../middlewares/rateLimiter";
 
 const router: IRouter = Router();
 
@@ -19,6 +20,20 @@ const GEMINI_MODEL = "gemini-2.5-flash";
 // that long sessions don't push token usage up or confuse the model with
 // stale assistant fallbacks.
 const HISTORY_TURN_LIMIT = 24;
+// Hard cap on any single chat message stored or forwarded to the model.
+// Mirrors the OpenAPI/Zod maxLength as a defense-in-depth measure so even a
+// drifted contract can't push oversized text into the prompt.
+const MAX_MESSAGE_CHARS = 4000;
+// Hard cap on the total characters of conversation history sent to Gemini on
+// any single /chat/send call. Even with per-message caps, 24 turns of
+// near-limit messages would otherwise total ~96KB of attacker-controlled
+// text. We trim oldest-first until the window fits this budget.
+const MAX_HISTORY_CHARS = 24000;
+
+function clipMessage(s: string): string {
+  const t = s.trim();
+  return t.length > MAX_MESSAGE_CHARS ? t.slice(0, MAX_MESSAGE_CHARS) : t;
+}
 
 async function getCurrentUserRow(userId: string): Promise<User | null> {
   const [row] = await db
@@ -113,9 +128,14 @@ router.get("/chat/active", requireAuth, async (req: Request, res: Response): Pro
   res.json(JSON.parse(JSON.stringify(full)));
 });
 
-router.post("/chat/append", requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.post("/chat/append", requireAuth, chatLimiter, async (req: Request, res: Response): Promise<void> => {
   const parsed = AppendChatMessageBody.safeParse(req.body);
   if (!parsed.success) {
+    res.status(400).json({ error: "Invalid input" });
+    return;
+  }
+  const clipped = clipMessage(parsed.data.content);
+  if (!clipped) {
     res.status(400).json({ error: "Invalid input" });
     return;
   }
@@ -124,15 +144,20 @@ router.post("/chat/append", requireAuth, async (req: Request, res: Response): Pr
   await db.insert(messages).values({
     conversationId: conv.id,
     role: parsed.data.role,
-    content: parsed.data.content,
+    content: clipped,
   });
   const full = await loadWithMessages(conv.id);
   res.json(JSON.parse(JSON.stringify(full)));
 });
 
-router.post("/chat/send", requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Response): Promise<void> => {
   const parsed = SendChatMessageBody.safeParse(req.body);
   if (!parsed.success) {
+    res.status(400).json({ error: "Invalid input" });
+    return;
+  }
+  const clipped = clipMessage(parsed.data.content);
+  if (!clipped) {
     res.status(400).json({ error: "Invalid input" });
     return;
   }
@@ -143,22 +168,35 @@ router.post("/chat/send", requireAuth, async (req: Request, res: Response): Prom
   await db.insert(messages).values({
     conversationId: conv.id,
     role: "user",
-    content: parsed.data.content,
+    content: clipped,
   });
 
-  const history = await db
+  // Bounded SQL fetch: only pull the most recent HISTORY_TURN_LIMIT rows
+  // instead of the entire conversation. Otherwise an attacker who has
+  // already stored thousands of messages can force an O(N) DB read +
+  // serialize on every future /chat/send, even though the Gemini payload
+  // itself is bounded by MAX_HISTORY_CHARS.
+  const recentDesc = await db
     .select()
     .from(messages)
     .where(eq(messages.conversationId, conv.id))
-    .orderBy(asc(messages.id));
-
-  // Only send the most recent turns to the model. Keeping the full history
-  // out of the prompt prevents stale assistant errors and old onboarding
-  // turns from steering the reply, and keeps token usage bounded.
-  const recent = history.slice(-HISTORY_TURN_LIMIT);
-  const contents = recent.map((m) => ({
+    .orderBy(desc(messages.id))
+    .limit(HISTORY_TURN_LIMIT);
+  const recent = recentDesc.slice().reverse();
+  // Further trim oldest-first so the total characters forwarded to Gemini
+  // stay within MAX_HISTORY_CHARS, even if stored messages somehow exceed
+  // the per-message cap. Always keep at least the most recent turn.
+  const bounded: typeof recent = [];
+  let total = 0;
+  for (let i = recent.length - 1; i >= 0; i--) {
+    const len = recent[i].content.length;
+    if (bounded.length > 0 && total + len > MAX_HISTORY_CHARS) break;
+    bounded.unshift(recent[i]);
+    total += len;
+  }
+  const contents = bounded.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }],
+    parts: [{ text: clipMessage(m.content) }],
   }));
 
   let assistantText: string | null = null;

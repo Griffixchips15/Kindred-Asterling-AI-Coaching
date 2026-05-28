@@ -7,6 +7,9 @@
  */
 
 export interface ChatSendInput {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
   content: string;
 }

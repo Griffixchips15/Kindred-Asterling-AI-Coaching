@@ -26,3 +26,19 @@ export const writeLimiter = rateLimit({
   keyGenerator: keyByUserOrIp,
   message: { error: "Too many write requests, please slow down." },
 });
+
+// Chat is uniquely expensive: every /chat/send hits a third-party LLM with
+// billable tokens, and even /chat/append grows the history that future sends
+// re-bill. Hold chat to a much tighter per-user budget than generic writes so
+// one account can't burn the Gemini quota or drive up cost.
+export const chatLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  keyGenerator: keyByUserOrIp,
+  message: {
+    error:
+      "You're sending messages to Kindred too quickly. Take a breath and try again in a few minutes.",
+  },
+});

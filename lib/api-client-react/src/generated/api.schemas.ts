@@ -248,7 +248,10 @@ export type ChatConversationWithMessages = ChatConversation & {
 };
 
 export interface ChatSendInput {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
   content: string;
 }
 
@@ -262,7 +265,10 @@ export const ChatAppendInputRole = {
 
 export interface ChatAppendInput {
   role: ChatAppendInputRole;
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
   content: string;
 }
 

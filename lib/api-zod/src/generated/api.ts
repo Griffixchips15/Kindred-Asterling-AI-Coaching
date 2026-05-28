@@ -391,11 +391,12 @@ export const GetActiveChatResponse = zod.object({
 /**
  * @summary Append a user message and get the AI response
  */
+export const sendChatMessageBodyContentMax = 4000;
 
 
 
 export const SendChatMessageBody = zod.object({
-  "content": zod.string().min(1)
+  "content": zod.string().min(1).max(sendChatMessageBodyContentMax)
 })
 
 export const SendChatMessageResponse = zod.object({
@@ -419,12 +420,13 @@ export const SendChatMessageResponse = zod.object({
 /**
  * @summary Append a pre-composed message without invoking the AI (used by onboarding script)
  */
+export const appendChatMessageBodyContentMax = 4000;
 
 
 
 export const AppendChatMessageBody = zod.object({
   "role": zod.enum(['user', 'assistant']),
-  "content": zod.string().min(1)
+  "content": zod.string().min(1).max(appendChatMessageBodyContentMax)
 })
 
 export const AppendChatMessageResponse = zod.object({

@@ -1157,6 +1157,7 @@ components:
         content:
           type: string
           minLength: 1
+          maxLength: 4000
 
     ChatAppendInput:
       type: object
@@ -1168,6 +1169,7 @@ components:
         content:
           type: string
           minLength: 1
+          maxLength: 4000
 
     CalendarEvent:
       type: object
