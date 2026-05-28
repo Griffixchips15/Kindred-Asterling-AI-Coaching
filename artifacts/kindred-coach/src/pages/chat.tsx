@@ -12,8 +12,39 @@ import {
   type AuthUser,
 } from "@workspace/api-client-react";
 import { useGetCurrentAuthUser } from "@workspace/api-client-react";
-import { Send, Archive, Loader2 } from "lucide-react";
+import { Send, Archive, Loader2, Mic, MicOff } from "lucide-react";
 import { useLocation } from "wouter";
+
+// Minimal local typings for the Web Speech API. Browser support is patchy
+// (Chrome/Edge/Safari yes, Firefox no), so we feature-detect at runtime and
+// hide the mic button on unsupported browsers.
+type SpeechRecognitionResult = { transcript: string };
+type SpeechRecognitionAlternatives = { 0: SpeechRecognitionResult; isFinal: boolean };
+interface SpeechRecognitionEventLike {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionAlternatives>;
+}
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((e: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((e: Event) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as {
+    SpeechRecognition?: SpeechRecognitionCtor;
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+  };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
+
+const TEXTAREA_MAX_HEIGHT_PX = 160;
 
 interface OnboardingStep {
   key: "preferredName" | "birthday" | "struggles" | "strengths" | "interests";
@@ -85,7 +116,15 @@ export default function Chat() {
   const [sending, setSending] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [listening, setListening] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  // Snapshot of draft text at the moment dictation started, so live transcript
+  // updates append to (not overwrite) anything the user had already typed.
+  const dictationBaseRef = useRef<string>("");
+  const voiceSupported = useMemo(() => getSpeechRecognitionCtor() !== null, []);
 
   const onboarded = !!authUser?.onboardedAt;
   const messages: ChatMessage[] = conv?.messages ?? [];
@@ -105,9 +144,91 @@ export default function Chat() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages.length, sending]);
 
+  // Auto-grow the textarea as the user types, capped at TEXTAREA_MAX_HEIGHT_PX
+  // so it never crowds the chat. Run after every draft change.
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT_PX)}px`;
+  }, [draft, currentStep]);
+
+  // Stop dictation when the component unmounts so the mic indicator doesn't
+  // hang around after the user navigates away.
+  useEffect(() => {
+    return () => {
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        // ignore — recognition may not have started
+      }
+    };
+  }, []);
+
+  function stopDictation() {
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      // ignore
+    }
+    setListening(false);
+  }
+
+  function startDictation() {
+    const Ctor = getSpeechRecognitionCtor();
+    if (!Ctor) {
+      setVoiceError("Voice input isn't supported in this browser.");
+      return;
+    }
+    setVoiceError(null);
+    dictationBaseRef.current = draft;
+    const rec = new Ctor();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = typeof navigator !== "undefined" ? navigator.language || "en-US" : "en-US";
+    rec.onresult = (e) => {
+      let appended = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        appended += e.results[i][0].transcript;
+      }
+      const base = dictationBaseRef.current;
+      const joiner = base && !base.endsWith(" ") && appended && !appended.startsWith(" ") ? " " : "";
+      setDraft(base + joiner + appended);
+    };
+    rec.onerror = (e: Event & { error?: string }) => {
+      const code = e.error;
+      if (code === "not-allowed" || code === "service-not-allowed") {
+        setVoiceError("Microphone access was blocked. Enable it in your browser settings.");
+      } else if (code !== "aborted" && code !== "no-speech") {
+        setVoiceError("Voice input ran into a problem. Try again.");
+      }
+      setListening(false);
+    };
+    rec.onend = () => {
+      setListening(false);
+    };
+    recognitionRef.current = rec;
+    try {
+      rec.start();
+      setListening(true);
+    } catch {
+      setVoiceError("Couldn't start voice input. Try again.");
+      setListening(false);
+    }
+  }
+
+  function toggleDictation() {
+    if (listening) {
+      stopDictation();
+    } else {
+      startDictation();
+    }
+  }
+
   async function handleSend() {
     const text = draft.trim();
     if (!text || sending) return;
+    if (listening) stopDictation();
     setDraft("");
     setSending(true);
     setSendError(null);
@@ -232,26 +353,83 @@ export default function Chat() {
             </button>
           </div>
         )}
+        {voiceError && (
+          <div
+            className="mb-2 rounded-md border border-amber-300/50 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between gap-3"
+            data-testid="chat-voice-error"
+          >
+            <span>{voiceError}</span>
+            <button
+              onClick={() => setVoiceError(null)}
+              className="font-medium opacity-70 hover:opacity-100"
+              aria-label="Dismiss"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleSend();
           }}
-          className="flex gap-2"
+          className="flex gap-2 items-end"
         >
-          <input
-            type={currentStep?.inputType === "date" ? "date" : "text"}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder={currentStep?.placeholder ?? "Share what's on your mind..."}
-            disabled={sending}
-            className="flex-1 rounded-full px-4 py-2.5 text-sm bg-muted border-0 focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
-            data-testid="chat-input"
-          />
+          {currentStep?.inputType === "date" ? (
+            <input
+              type="date"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder={currentStep?.placeholder}
+              disabled={sending}
+              className="flex-1 rounded-full px-4 py-2.5 text-sm bg-muted border-0 focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
+              data-testid="chat-input"
+            />
+          ) : (
+            <textarea
+              ref={textareaRef}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter sends; Shift+Enter inserts a newline. Match common chat UX.
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder={
+                listening
+                  ? "Listening… speak now."
+                  : currentStep?.placeholder ?? "Share what's on your mind..."
+              }
+              disabled={sending}
+              rows={1}
+              className="flex-1 rounded-2xl px-4 py-2.5 text-sm bg-muted border-0 focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50 resize-none leading-relaxed overflow-y-auto"
+              style={{ maxHeight: TEXTAREA_MAX_HEIGHT_PX }}
+              data-testid="chat-input"
+            />
+          )}
+          {voiceSupported && currentStep?.inputType !== "date" && (
+            <button
+              type="button"
+              onClick={toggleDictation}
+              disabled={sending}
+              aria-label={listening ? "Stop voice input" : "Start voice input"}
+              title={listening ? "Stop voice input" : "Start voice input"}
+              className={`flex items-center justify-center w-11 h-11 rounded-full transition-colors shrink-0 disabled:opacity-40 ${
+                listening
+                  ? "bg-destructive text-destructive-foreground animate-pulse"
+                  : "bg-muted text-foreground hover:bg-muted/70"
+              }`}
+              data-testid="chat-mic"
+            >
+              {listening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+          )}
           <button
             type="submit"
             disabled={sending || !draft.trim()}
-            className="flex items-center justify-center w-11 h-11 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+            className="flex items-center justify-center w-11 h-11 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors shrink-0"
             data-testid="chat-send"
           >
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
