@@ -84,7 +84,7 @@ export function CalendarEvents() {
           </p>
         ) : isError ? (
           <p className="text-sm text-muted-foreground py-6 text-center">
-            Couldn't reach Google Calendar right now.
+            Calendar isn't available for your account.
           </p>
         ) : grouped.days.length === 0 ? (
           <p className="text-sm text-muted-foreground py-6 text-center">

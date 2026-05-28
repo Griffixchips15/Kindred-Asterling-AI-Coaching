@@ -690,6 +690,12 @@ paths:
       operationId: getUpcomingCalendarEvents
       tags: [calendar]
       summary: Get upcoming Google Calendar events (today + 3 days)
+      description: >
+        The Google Calendar connector is project-scoped (Replit Connectors
+        are tied to the app builder's Replit account, not the requesting
+        user). To prevent leaking the builder's schedule to other users,
+        this endpoint is gated by CALENDAR_OWNER_USER_ID and returns 403
+        for any non-owner caller.
       responses:
         "200":
           description: Upcoming events
@@ -699,6 +705,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/CalendarEvent"
+        "403":
+          description: Calendar not available for this account
         "502":
           description: Calendar provider unavailable
 

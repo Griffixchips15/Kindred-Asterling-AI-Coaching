@@ -96,16 +96,15 @@ export default function CalendarPage() {
           Loading your calendar…
         </div>
       ) : isError ? (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+        <div className="rounded-lg border border-border bg-card p-6 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
           <div className="text-sm">
-            <p className="font-medium text-destructive">
-              Couldn't reach Google Calendar.
+            <p className="font-medium text-foreground">
+              Calendar isn't available for your account.
             </p>
             <p className="text-muted-foreground mt-1">
-              This usually means the Google Calendar connection needs to be
-              re-authorized. Try refreshing, or reconnect from your account
-              settings.
+              The calendar view is currently limited. If you think you should
+              have access, contact the app owner.
             </p>
           </div>
         </div>
