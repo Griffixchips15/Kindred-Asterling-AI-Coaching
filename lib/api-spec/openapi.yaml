@@ -94,17 +94,21 @@ paths:
         '302':
           description: Redirect to the `returnTo` path on success (defaults to `/`) or `/api/login` on failure.
   /logout:
-    get:
+    post:
       tags: [Auth]
       operationId: logoutBrowserSession
-      summary: Clear the session and begin OIDC logout
+      summary: Clear the session and return the OIDC logout URL
       security: []
       parameters:
         - $ref: '#/components/parameters/AuthorizationSessionHeader'
         - $ref: '#/components/parameters/SessionCookie'
       responses:
-        '302':
-          description: Redirect to the OIDC provider logout URL.
+        '200':
+          description: Session cleared. The client must navigate to the returned URL to complete OIDC logout.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrowserLogoutResponse'
   /mobile-auth/token-exchange:
     post:
       tags: [Auth]
@@ -838,6 +842,13 @@ components:
       properties:
         token:
           type: string
+    BrowserLogoutResponse:
+      type: object
+      required: [logoutUrl]
+      properties:
+        logoutUrl:
+          type: string
+          format: uri
     LogoutSuccess:
       type: object
       required: [success]

@@ -54,6 +54,10 @@ export interface MobileTokenExchangeSuccess {
   token: string;
 }
 
+export interface BrowserLogoutResponse {
+  logoutUrl: string;
+}
+
 export const LogoutSuccessValue = {
   success: true,
 } as const;

@@ -13,6 +13,7 @@ export * from './authUserEnvelope';
 export * from './beginBrowserLoginParams';
 export * from './bodyScan';
 export * from './bodyScanInput';
+export * from './browserLogoutResponse';
 export * from './calendarEvent';
 export * from './chatAppendInput';
 export * from './chatAppendInputRole';

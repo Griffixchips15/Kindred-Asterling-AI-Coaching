@@ -53,10 +53,14 @@ export const HandleBrowserLoginCallbackQueryParams = zod.object({
 
 
 /**
- * @summary Clear the session and begin OIDC logout
+ * @summary Clear the session and return the OIDC logout URL
  */
 export const LogoutBrowserSessionHeader = zod.object({
   "Authorization": zod.string().optional().describe('Opaque session token — `Bearer <sid>`.')
+})
+
+export const LogoutBrowserSessionResponse = zod.object({
+  "logoutUrl": zod.string().url()
 })
 
 
