@@ -14,7 +14,7 @@ runButton = "artifacts/kindred-coach: web"
 [[workflows.workflow]]
 name = "artifacts/kindred-coach: web"
 author = "agent"
-mode = "sequential"
+mode = "parallel"
 
 [workflows.workflow.metadata]
 outputType = "webview"
