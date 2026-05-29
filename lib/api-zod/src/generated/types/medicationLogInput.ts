@@ -19,4 +19,11 @@ export interface MedicationLogInput {
      * @nullable
      */
   effectiveness?: number | null;
+  /**
+     * Client time-zone offset in minutes (Date.getTimezoneOffset(), UTC minus local). Resolves which local calendar day this dose belongs to. Defaults to 0 (UTC) when omitted.
+
+     * @minimum -840
+     * @maximum 840
+     */
+  tzOffset?: number;
 }

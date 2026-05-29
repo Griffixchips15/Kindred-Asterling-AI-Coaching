@@ -48,8 +48,11 @@ function normalizeTimes(times: string[]): string[] {
 
 export default function Medications() {
   const qc = useQueryClient();
-  const { data: meds = [], isLoading } = useListMedications({
-    query: { queryKey: getListMedicationsQueryKey() },
+  // Resolve "today's doses" in the device's local day, matching how doses are
+  // recorded — so a dose toggled near midnight stays attached to the right day.
+  const listParams = { tzOffset: new Date().getTimezoneOffset() };
+  const { data: meds = [], isLoading } = useListMedications(listParams, {
+    query: { queryKey: getListMedicationsQueryKey(listParams) },
   });
 
   const [editingId, setEditingId] = useState<number | "new" | null>(null);
@@ -119,10 +122,11 @@ export default function Medications() {
   async function toggleDose(m: MedicationWithStatus, dose: MedicationDoseStatus) {
     setBusy(true);
     try {
+      const tzOffset = new Date().getTimezoneOffset();
       if (dose.takenAt) {
-        await unlogMedicationTaken(m.id, { scheduledTime: dose.scheduledTime });
+        await unlogMedicationTaken(m.id, { scheduledTime: dose.scheduledTime, tzOffset });
       } else {
-        await logMedicationTaken(m.id, { scheduledTime: dose.scheduledTime });
+        await logMedicationTaken(m.id, { scheduledTime: dose.scheduledTime, tzOffset });
       }
       await refresh();
     } finally {
@@ -138,6 +142,7 @@ export default function Medications() {
       await logMedicationTaken(m.id, {
         scheduledTime: dose.scheduledTime,
         effectiveness: score,
+        tzOffset: new Date().getTimezoneOffset(),
       });
       await refresh();
     } finally {

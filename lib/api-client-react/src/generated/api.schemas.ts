@@ -365,6 +365,13 @@ export interface MedicationDoseRef {
      * @pattern ^([01]\d|2[0-3]):[0-5]\d$
      */
   scheduledTime: string;
+  /**
+     * Client time-zone offset in minutes (Date.getTimezoneOffset(), UTC minus local). Resolves which local calendar day this dose belongs to. Defaults to 0 (UTC) when omitted.
+
+     * @minimum -840
+     * @maximum 840
+     */
+  tzOffset?: number;
 }
 
 export interface MedicationLogInput {
@@ -380,6 +387,13 @@ export interface MedicationLogInput {
      * @nullable
      */
   effectiveness?: number | null;
+  /**
+     * Client time-zone offset in minutes (Date.getTimezoneOffset(), UTC minus local). Resolves which local calendar day this dose belongs to. Defaults to 0 (UTC) when omitted.
+
+     * @minimum -840
+     * @maximum 840
+     */
+  tzOffset?: number;
 }
 
 export type MedicationWeeklyReportMedicationsItemScheduleItem = {
@@ -445,5 +459,25 @@ export type HandleBrowserLoginCallbackParams = {
 code?: string;
 state?: string;
 iss?: string;
+};
+
+export type ListMedicationsParams = {
+/**
+ * Client time-zone offset in minutes as returned by JavaScript Date.getTimezoneOffset() (UTC minus local; e.g. 300 for UTC-5). Used to resolve "today" in the user's local day. Defaults to 0 (UTC).
+
+ * @minimum -840
+ * @maximum 840
+ */
+tzOffset?: number;
+};
+
+export type GetMedicationWeeklyReportParams = {
+/**
+ * Client time-zone offset in minutes as returned by JavaScript Date.getTimezoneOffset() (UTC minus local; e.g. 300 for UTC-5). Used so the 7-day window, day columns, and createdDate are computed in the user's local day — matching how doses are recorded. Defaults to 0 (UTC).
+
+ * @minimum -840
+ * @maximum 840
+ */
+tzOffset?: number;
 };
 

@@ -574,6 +574,18 @@ paths:
       operationId: listMedications
       tags: [medications]
       summary: List the current user's medications with today's intake status
+      parameters:
+        - name: tzOffset
+          in: query
+          required: false
+          description: >
+            Client time-zone offset in minutes as returned by JavaScript
+            Date.getTimezoneOffset() (UTC minus local; e.g. 300 for UTC-5).
+            Used to resolve "today" in the user's local day. Defaults to 0 (UTC).
+          schema:
+            type: integer
+            minimum: -840
+            maximum: 840
       responses:
         '200':
           description: Medications with today flag
@@ -648,6 +660,19 @@ paths:
       operationId: getMedicationWeeklyReport
       tags: [medications]
       summary: Raw 7-day dose data for all medications, for client-side on-time/missed/upcoming labeling
+      parameters:
+        - name: tzOffset
+          in: query
+          required: false
+          description: >
+            Client time-zone offset in minutes as returned by JavaScript
+            Date.getTimezoneOffset() (UTC minus local; e.g. 300 for UTC-5).
+            Used so the 7-day window, day columns, and createdDate are computed
+            in the user's local day — matching how doses are recorded. Defaults to 0 (UTC).
+          schema:
+            type: integer
+            minimum: -840
+            maximum: 840
       responses:
         '200':
           description: Weekly report data
@@ -1334,6 +1359,14 @@ components:
           type: string
           pattern: '^([01]\d|2[0-3]):[0-5]\d$'
           description: Which scheduled dose (HH:MM) to act on
+        tzOffset:
+          type: integer
+          minimum: -840
+          maximum: 840
+          description: >
+            Client time-zone offset in minutes (Date.getTimezoneOffset(), UTC
+            minus local). Resolves which local calendar day this dose belongs to.
+            Defaults to 0 (UTC) when omitted.
       additionalProperties: false
 
     MedicationLogInput:
@@ -1349,6 +1382,14 @@ components:
           minimum: 1
           maximum: 10
           description: How effective this dose felt, on a 1-10 scale
+        tzOffset:
+          type: integer
+          minimum: -840
+          maximum: 840
+          description: >
+            Client time-zone offset in minutes (Date.getTimezoneOffset(), UTC
+            minus local). Resolves which local calendar day this dose belongs to.
+            Defaults to 0 (UTC) when omitted.
       additionalProperties: false
 
     MedicationWeeklyReport:

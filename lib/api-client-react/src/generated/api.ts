@@ -35,6 +35,7 @@ import type {
   ErrorEnvelope,
   EveningReport,
   EveningReportInput,
+  GetMedicationWeeklyReportParams,
   Habit,
   HabitEntry,
   HabitEntryInput,
@@ -43,6 +44,7 @@ import type {
   HabitUpdate,
   HandleBrowserLoginCallbackParams,
   HealthStatus,
+  ListMedicationsParams,
   LogoutSuccess,
   Medication,
   MedicationDoseRef,
@@ -2310,20 +2312,27 @@ export function useGetArchivedChat<TData = Awaited<ReturnType<typeof getArchived
 
 
 
-export const getListMedicationsUrl = () => {
+export const getListMedicationsUrl = (params?: ListMedicationsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/medications`
+  return stringifiedParams.length > 0 ? `/api/medications?${stringifiedParams}` : `/api/medications`
 }
 
 /**
  * @summary List the current user's medications with today's intake status
  */
-export const listMedications = async ( options?: RequestInit): Promise<MedicationWithStatus[]> => {
+export const listMedications = async (params?: ListMedicationsParams, options?: RequestInit): Promise<MedicationWithStatus[]> => {
 
-  return customFetch<MedicationWithStatus[]>(getListMedicationsUrl(),
+  return customFetch<MedicationWithStatus[]>(getListMedicationsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -2336,23 +2345,23 @@ export const listMedications = async ( options?: RequestInit): Promise<Medicatio
 
 
 
-export const getListMedicationsQueryKey = () => {
+export const getListMedicationsQueryKey = (params?: ListMedicationsParams,) => {
     return [
-    `/api/medications`
+    `/api/medications`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListMedicationsQueryOptions = <TData = Awaited<ReturnType<typeof listMedications>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMedications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListMedicationsQueryOptions = <TData = Awaited<ReturnType<typeof listMedications>>, TError = ErrorType<unknown>>(params?: ListMedicationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMedications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListMedicationsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListMedicationsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMedications>>> = ({ signal }) => listMedications({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMedications>>> = ({ signal }) => listMedications(params, { signal, ...requestOptions });
 
 
 
@@ -2370,11 +2379,11 @@ export type ListMedicationsQueryError = ErrorType<unknown>
  */
 
 export function useListMedications<TData = Awaited<ReturnType<typeof listMedications>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMedications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListMedicationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMedications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListMedicationsQueryOptions(options)
+  const queryOptions = getListMedicationsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -2600,20 +2609,27 @@ export const useDeleteMedication = <TError = ErrorType<void>,
       return useMutation(getDeleteMedicationMutationOptions(options));
     }
 
-export const getGetMedicationWeeklyReportUrl = () => {
+export const getGetMedicationWeeklyReportUrl = (params?: GetMedicationWeeklyReportParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/medications/weekly-report`
+  return stringifiedParams.length > 0 ? `/api/medications/weekly-report?${stringifiedParams}` : `/api/medications/weekly-report`
 }
 
 /**
  * @summary Raw 7-day dose data for all medications, for client-side on-time/missed/upcoming labeling
  */
-export const getMedicationWeeklyReport = async ( options?: RequestInit): Promise<MedicationWeeklyReport> => {
+export const getMedicationWeeklyReport = async (params?: GetMedicationWeeklyReportParams, options?: RequestInit): Promise<MedicationWeeklyReport> => {
 
-  return customFetch<MedicationWeeklyReport>(getGetMedicationWeeklyReportUrl(),
+  return customFetch<MedicationWeeklyReport>(getGetMedicationWeeklyReportUrl(params),
   {
     ...options,
     method: 'GET'
@@ -2626,23 +2642,23 @@ export const getMedicationWeeklyReport = async ( options?: RequestInit): Promise
 
 
 
-export const getGetMedicationWeeklyReportQueryKey = () => {
+export const getGetMedicationWeeklyReportQueryKey = (params?: GetMedicationWeeklyReportParams,) => {
     return [
-    `/api/medications/weekly-report`
+    `/api/medications/weekly-report`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetMedicationWeeklyReportQueryOptions = <TData = Awaited<ReturnType<typeof getMedicationWeeklyReport>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMedicationWeeklyReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetMedicationWeeklyReportQueryOptions = <TData = Awaited<ReturnType<typeof getMedicationWeeklyReport>>, TError = ErrorType<unknown>>(params?: GetMedicationWeeklyReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMedicationWeeklyReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetMedicationWeeklyReportQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetMedicationWeeklyReportQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMedicationWeeklyReport>>> = ({ signal }) => getMedicationWeeklyReport({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMedicationWeeklyReport>>> = ({ signal }) => getMedicationWeeklyReport(params, { signal, ...requestOptions });
 
 
 
@@ -2660,11 +2676,11 @@ export type GetMedicationWeeklyReportQueryError = ErrorType<unknown>
  */
 
 export function useGetMedicationWeeklyReport<TData = Awaited<ReturnType<typeof getMedicationWeeklyReport>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMedicationWeeklyReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetMedicationWeeklyReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMedicationWeeklyReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetMedicationWeeklyReportQueryOptions(options)
+  const queryOptions = getGetMedicationWeeklyReportQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

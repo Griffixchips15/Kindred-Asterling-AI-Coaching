@@ -16,23 +16,47 @@ import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-function todayDateStr(): string {
-  return new Date().toISOString().split("T")[0];
+// Largest valid UTC offset is ±14h; clamp anything outside that (and NaN → 0)
+// so a malformed client value can't shift the day by an absurd amount.
+function normalizeTzOffset(raw: unknown): number {
+  const n =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string"
+        ? Number(raw)
+        : NaN;
+  if (!Number.isFinite(n)) return 0;
+  const i = Math.trunc(n);
+  return Math.max(-840, Math.min(840, i));
 }
 
-function sevenDayWindowStartDateStr(): string {
-  // Inclusive 7-day window: today and the previous 6 days.
-  const d = new Date();
-  d.setDate(d.getDate() - 6);
-  return d.toISOString().split("T")[0];
+// JS Date.getTimezoneOffset() returns (UTC - local) in minutes, so subtracting
+// it from a UTC instant yields that instant's local wall-clock. We then read the
+// calendar day off the shifted instant via toISOString(). This gives one
+// consistent "local day" notion used both when recording and reporting doses.
+function localDateStr(instant: Date, tzOffsetMinutes: number): string {
+  const local = new Date(instant.getTime() - tzOffsetMinutes * 60_000);
+  return local.toISOString().split("T")[0];
 }
 
-function lastSevenDays(): string[] {
-  // Oldest first: [today-6 ... today].
+function todayDateStr(tzOffsetMinutes = 0): string {
+  return localDateStr(new Date(), tzOffsetMinutes);
+}
+
+function sevenDayWindowStartDateStr(tzOffsetMinutes: number): string {
+  // Inclusive 7-day window: today and the previous 6 days, in local time.
+  const local = new Date(Date.now() - tzOffsetMinutes * 60_000);
+  local.setUTCDate(local.getUTCDate() - 6);
+  return local.toISOString().split("T")[0];
+}
+
+function lastSevenDays(tzOffsetMinutes: number): string[] {
+  // Oldest first: [today-6 ... today], in local time.
   const days: string[] = [];
+  const base = new Date(Date.now() - tzOffsetMinutes * 60_000);
   for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
+    const d = new Date(base);
+    d.setUTCDate(d.getUTCDate() - i);
     days.push(d.toISOString().split("T")[0]);
   }
   return days;
@@ -113,13 +137,14 @@ async function reconcileScheduleEntries(
 
 router.get("/medications", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
+  const tzOffset = normalizeTzOffset(req.query.tzOffset);
   const meds = await db
     .select()
     .from(medicationsTable)
     .where(eq(medicationsTable.userId, userId))
     .orderBy(asc(medicationsTable.name));
 
-  const today = todayDateStr();
+  const today = todayDateStr(tzOffset);
   const todays = await db
     .select()
     .from(medicationLogsTable)
@@ -133,7 +158,7 @@ router.get("/medications", requireAuth, async (req, res): Promise<void> => {
     });
   }
 
-  const sinceDate = sevenDayWindowStartDateStr();
+  const sinceDate = sevenDayWindowStartDateStr(tzOffset);
   const recent = await db
     .select({
       medicationId: medicationLogsTable.medicationId,
@@ -183,13 +208,14 @@ router.get(
   requireAuth,
   async (req, res): Promise<void> => {
     const userId = req.user!.id;
+    const tzOffset = normalizeTzOffset(req.query.tzOffset);
     const meds = await db
       .select()
       .from(medicationsTable)
       .where(eq(medicationsTable.userId, userId))
       .orderBy(asc(medicationsTable.name));
 
-    const sinceDate = sevenDayWindowStartDateStr();
+    const sinceDate = sevenDayWindowStartDateStr(tzOffset);
     const logs = await db
       .select()
       .from(medicationLogsTable)
@@ -224,13 +250,13 @@ router.get(
     }
 
     res.json({
-      days: lastSevenDays(),
+      days: lastSevenDays(tzOffset),
       medications: meds.map((m) => ({
         id: m.id,
         name: m.name,
         dosage: m.dosage,
         schedule: scheduleByMed.get(m.id) ?? [],
-        createdDate: new Date(m.createdAt).toISOString().split("T")[0],
+        createdDate: localDateStr(new Date(m.createdAt), tzOffset),
       })),
       logs: logs.map((l) => ({
         medicationId: l.medicationId,
@@ -327,6 +353,7 @@ router.post("/medications/:id/log", requireAuth, async (req, res): Promise<void>
   }
   const scheduledTime = parsed.data.scheduledTime;
   const effectiveness = parsed.data.effectiveness ?? null;
+  const tzOffset = normalizeTzOffset(parsed.data.tzOffset);
 
   const userId = req.user!.id;
   const [med] = await db
@@ -343,7 +370,7 @@ router.post("/medications/:id/log", requireAuth, async (req, res): Promise<void>
     return;
   }
 
-  const today = todayDateStr();
+  const today = todayDateStr(tzOffset);
   // True idempotency via DB-level unique (user_id, medication_id, date, scheduled_time).
   // Only overwrite an existing rating when caller supplied one.
   const setOnConflict =
@@ -378,7 +405,7 @@ router.delete("/medications/:id/log", requireAuth, async (req, res): Promise<voi
     return;
   }
   const userId = req.user!.id;
-  const today = todayDateStr();
+  const today = todayDateStr(normalizeTzOffset(parsed.data.tzOffset));
   const [removed] = await db
     .delete(medicationLogsTable)
     .where(

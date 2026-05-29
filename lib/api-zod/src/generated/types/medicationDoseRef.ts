@@ -12,4 +12,11 @@ export interface MedicationDoseRef {
      * @pattern ^([01]\d|2[0-3]):[0-5]\d$
      */
   scheduledTime: string;
+  /**
+     * Client time-zone offset in minutes (Date.getTimezoneOffset(), UTC minus local). Resolves which local calendar day this dose belongs to. Defaults to 0 (UTC) when omitted.
+
+     * @minimum -840
+     * @maximum 840
+     */
+  tzOffset?: number;
 }

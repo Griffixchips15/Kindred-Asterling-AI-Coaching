@@ -514,6 +514,15 @@ export const GetArchivedChatResponse = zod.object({
 /**
  * @summary List the current user's medications with today's intake status
  */
+export const listMedicationsQueryTzOffsetMin = -840;
+export const listMedicationsQueryTzOffsetMax = 840;
+
+
+
+export const ListMedicationsQueryParams = zod.object({
+  "tzOffset": zod.coerce.number().min(listMedicationsQueryTzOffsetMin).max(listMedicationsQueryTzOffsetMax).optional().describe('Client time-zone offset in minutes as returned by JavaScript Date.getTimezoneOffset() (UTC minus local; e.g. 300 for UTC-5). Used to resolve \"today\" in the user\'s local day. Defaults to 0 (UTC).\n')
+})
+
 export const listMedicationsResponseOneTimesItemRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
 
 export const listMedicationsResponseTwoDosesItemEffectivenessMax = 10;
@@ -603,6 +612,15 @@ export const DeleteMedicationParams = zod.object({
 /**
  * @summary Raw 7-day dose data for all medications, for client-side on-time/missed/upcoming labeling
  */
+export const getMedicationWeeklyReportQueryTzOffsetMin = -840;
+export const getMedicationWeeklyReportQueryTzOffsetMax = 840;
+
+
+
+export const GetMedicationWeeklyReportQueryParams = zod.object({
+  "tzOffset": zod.coerce.number().min(getMedicationWeeklyReportQueryTzOffsetMin).max(getMedicationWeeklyReportQueryTzOffsetMax).optional().describe('Client time-zone offset in minutes as returned by JavaScript Date.getTimezoneOffset() (UTC minus local; e.g. 300 for UTC-5). Used so the 7-day window, day columns, and createdDate are computed in the user\'s local day — matching how doses are recorded. Defaults to 0 (UTC).\n')
+})
+
 export const GetMedicationWeeklyReportResponse = zod.object({
   "days": zod.array(zod.string()).describe('The 7 day-date strings (YYYY-MM-DD), oldest first, that the grid covers'),
   "medications": zod.array(zod.object({
@@ -636,11 +654,15 @@ export const LogMedicationTakenParams = zod.object({
 export const logMedicationTakenBodyScheduledTimeRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
 export const logMedicationTakenBodyEffectivenessMax = 10;
 
+export const logMedicationTakenBodyTzOffsetMin = -840;
+export const logMedicationTakenBodyTzOffsetMax = 840;
+
 
 
 export const LogMedicationTakenBody = zod.object({
   "scheduledTime": zod.string().regex(logMedicationTakenBodyScheduledTimeRegExp).describe('Which scheduled dose (HH:MM) is being marked taken'),
-  "effectiveness": zod.number().min(1).max(logMedicationTakenBodyEffectivenessMax).nullish().describe('How effective this dose felt, on a 1-10 scale')
+  "effectiveness": zod.number().min(1).max(logMedicationTakenBodyEffectivenessMax).nullish().describe('How effective this dose felt, on a 1-10 scale'),
+  "tzOffset": zod.number().min(logMedicationTakenBodyTzOffsetMin).max(logMedicationTakenBodyTzOffsetMax).optional().describe('Client time-zone offset in minutes (Date.getTimezoneOffset(), UTC minus local). Resolves which local calendar day this dose belongs to. Defaults to 0 (UTC) when omitted.\n')
 })
 
 
@@ -652,10 +674,14 @@ export const UnlogMedicationTakenParams = zod.object({
 })
 
 export const unlogMedicationTakenBodyScheduledTimeRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+export const unlogMedicationTakenBodyTzOffsetMin = -840;
+export const unlogMedicationTakenBodyTzOffsetMax = 840;
+
 
 
 export const UnlogMedicationTakenBody = zod.object({
-  "scheduledTime": zod.string().regex(unlogMedicationTakenBodyScheduledTimeRegExp).describe('Which scheduled dose (HH:MM) to act on')
+  "scheduledTime": zod.string().regex(unlogMedicationTakenBodyScheduledTimeRegExp).describe('Which scheduled dose (HH:MM) to act on'),
+  "tzOffset": zod.number().min(unlogMedicationTakenBodyTzOffsetMin).max(unlogMedicationTakenBodyTzOffsetMax).optional().describe('Client time-zone offset in minutes (Date.getTimezoneOffset(), UTC minus local). Resolves which local calendar day this dose belongs to. Defaults to 0 (UTC) when omitted.\n')
 })
 
 

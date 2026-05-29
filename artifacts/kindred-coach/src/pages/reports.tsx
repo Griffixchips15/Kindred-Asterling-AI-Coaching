@@ -92,8 +92,12 @@ function dayLabels(dateStr: string): { weekday: string; day: string } {
 
 export default function Reports() {
   const now = new Date();
-  const { data, isLoading } = useGetMedicationWeeklyReport({
-    query: { queryKey: getGetMedicationWeeklyReportQueryKey() },
+  // Send the device's UTC offset so the server builds the day grid, window, and
+  // createdDate in the same local day the doses were recorded under.
+  const tzOffset = now.getTimezoneOffset();
+  const params = { tzOffset };
+  const { data, isLoading } = useGetMedicationWeeklyReport(params, {
+    query: { queryKey: getGetMedicationWeeklyReportQueryKey(params) },
   });
 
   const days = data?.days ?? [];
