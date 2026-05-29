@@ -8,6 +8,7 @@ import {
   ListMorningLogsResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
+import { createMorningLogTx } from "../lib/journalWrites";
 
 const router: IRouter = Router();
 
@@ -28,17 +29,13 @@ router.post("/morning-logs", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [log] = await db
-    .insert(morningLogsTable)
-    .values({
-      userId,
-      date: parsed.data.date,
-      mentalLoadLevel: parsed.data.mentalLoadLevel,
-      miniGoals: parsed.data.miniGoals ?? [],
-      notes: parsed.data.notes ?? null,
-    })
-    .returning();
-  res.status(201).json(GetMorningLogResponse.parse(JSON.parse(JSON.stringify(log))));
+  const log = await createMorningLogTx(userId, {
+    date: parsed.data.date,
+    mentalLoadLevel: parsed.data.mentalLoadLevel,
+    miniGoals: parsed.data.miniGoals ?? [],
+    notes: parsed.data.notes ?? null,
+  });
+  res.status(201).json(GetMorningLogResponse.parse(log));
 });
 
 router.get("/morning-logs/:id", requireAuth, async (req, res): Promise<void> => {

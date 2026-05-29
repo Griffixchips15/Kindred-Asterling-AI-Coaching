@@ -1,8 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, usersTable } from "@workspace/db";
 import { UpdateProfileBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
+import { updateProfileTx } from "../lib/journalWrites";
 
 const router: IRouter = Router();
 
@@ -26,17 +25,13 @@ router.patch("/profile", requireAuth, async (req, res): Promise<void> => {
     updates.onboardedAt = data.onboardedAt ? new Date(data.onboardedAt) : null;
   }
 
-  const [updated] = await db
-    .update(usersTable)
-    .set(updates)
-    .where(eq(usersTable.id, userId))
-    .returning();
+  const updated = await updateProfileTx(userId, updates);
 
   if (!updated) {
     res.status(404).json({ error: "User not found" });
     return;
   }
-  res.json(JSON.parse(JSON.stringify(updated)));
+  res.json(updated);
 });
 
 export default router;

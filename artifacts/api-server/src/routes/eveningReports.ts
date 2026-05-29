@@ -6,6 +6,7 @@ import {
   ListEveningReportsResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
+import { createEveningReportTx } from "../lib/journalWrites";
 
 const router: IRouter = Router();
 
@@ -26,19 +27,15 @@ router.post("/evening-reports", requireAuth, async (req, res): Promise<void> => 
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [report] = await db
-    .insert(eveningReportsTable)
-    .values({
-      userId,
-      date: parsed.data.date,
-      medicationEffectiveness: parsed.data.medicationEffectiveness,
-      overallMood: parsed.data.overallMood ?? null,
-      wins: parsed.data.wins ?? null,
-      challenges: parsed.data.challenges ?? null,
-      tomorrowIntent: parsed.data.tomorrowIntent ?? null,
-    })
-    .returning();
-  res.status(201).json(JSON.parse(JSON.stringify(report)));
+  const report = await createEveningReportTx(userId, {
+    date: parsed.data.date,
+    medicationEffectiveness: parsed.data.medicationEffectiveness,
+    overallMood: parsed.data.overallMood ?? null,
+    wins: parsed.data.wins ?? null,
+    challenges: parsed.data.challenges ?? null,
+    tomorrowIntent: parsed.data.tomorrowIntent ?? null,
+  });
+  res.status(201).json(report);
 });
 
 export default router;

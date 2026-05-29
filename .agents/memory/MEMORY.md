@@ -1,2 +1,3 @@
 - [Replit Auth setup](replit-auth-setup.md) — auth is fully wired; userId columns on all 5 data tables scope data per user.
 - [DB date serialization](db-date-serialization.md) — Drizzle returns JS Date objects but Zod expects strings; always wrap results in JSON.parse(JSON.stringify(...)) before .parse().
+- [Journal write rollback pattern](write-rollback-tests.md) — multi-step saves are wrapped in db.transaction + tested by mocking a per-module seam to throw and asserting no rows persist.

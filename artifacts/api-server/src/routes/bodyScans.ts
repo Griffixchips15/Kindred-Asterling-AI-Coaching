@@ -6,6 +6,7 @@ import {
   ListBodyScansResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
+import { createBodyScanTx } from "../lib/journalWrites";
 
 const router: IRouter = Router();
 
@@ -26,18 +27,14 @@ router.post("/body-scans", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [scan] = await db
-    .insert(bodyScansTable)
-    .values({
-      userId,
-      scannedAt: parsed.data.scannedAt ? new Date(parsed.data.scannedAt) : new Date(),
-      feelings: parsed.data.feelings ?? [],
-      energyLevel: parsed.data.energyLevel,
-      physicalSensations: parsed.data.physicalSensations ?? null,
-      notes: parsed.data.notes ?? null,
-    })
-    .returning();
-  res.status(201).json(JSON.parse(JSON.stringify(scan)));
+  const scan = await createBodyScanTx(userId, {
+    scannedAt: parsed.data.scannedAt ? new Date(parsed.data.scannedAt) : new Date(),
+    feelings: parsed.data.feelings ?? [],
+    energyLevel: parsed.data.energyLevel,
+    physicalSensations: parsed.data.physicalSensations ?? null,
+    notes: parsed.data.notes ?? null,
+  });
+  res.status(201).json(scan);
 });
 
 export default router;

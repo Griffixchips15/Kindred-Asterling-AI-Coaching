@@ -13,6 +13,7 @@ import {
   UpdateHabitResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
+import { createHabitTx, logHabitEntryTx } from "../lib/journalWrites";
 
 const router: IRouter = Router();
 
@@ -50,17 +51,13 @@ router.post("/habits", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const today = new Date().toISOString().split("T")[0];
-  const [habit] = await db
-    .insert(habitsTable)
-    .values({
-      userId,
-      name: parsed.data.name,
-      description: parsed.data.description ?? null,
-      targetDays: parsed.data.targetDays ?? 90,
-      startDate: parsed.data.startDate ?? today,
-    })
-    .returning();
-  res.status(201).json(JSON.parse(JSON.stringify({ ...habit, completedCount: 0 })));
+  const habit = await createHabitTx(userId, {
+    name: parsed.data.name,
+    description: parsed.data.description ?? null,
+    targetDays: parsed.data.targetDays ?? 90,
+    startDate: parsed.data.startDate ?? today,
+  });
+  res.status(201).json(habit);
 });
 
 router.patch("/habits/:id", requireAuth, async (req, res): Promise<void> => {
@@ -150,26 +147,16 @@ router.post("/habits/:id/entries", requireAuth, async (req, res): Promise<void> 
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  // Verify the habit belongs to this user
-  const [habit] = await db
-    .select()
-    .from(habitsTable)
-    .where(and(eq(habitsTable.id, params.data.id), eq(habitsTable.userId, userId)));
-  if (!habit) {
+  const entry = await logHabitEntryTx(params.data.id, userId, {
+    date: parsed.data.date,
+    completed: parsed.data.completed,
+    notes: parsed.data.notes ?? null,
+  });
+  if (!entry) {
     res.status(404).json({ error: "Habit not found" });
     return;
   }
-  const [entry] = await db
-    .insert(habitEntriesTable)
-    .values({
-      habitId: params.data.id,
-      userId,
-      date: parsed.data.date,
-      completed: parsed.data.completed,
-      notes: parsed.data.notes ?? null,
-    })
-    .returning();
-  res.status(201).json(JSON.parse(JSON.stringify(entry)));
+  res.status(201).json(entry);
 });
 
 export default router;
