@@ -6,7 +6,7 @@ import {
 import { CalendarRange, Pill } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type DoseState = "onTime" | "late" | "missed" | "upcoming";
+type DoseState = "onTime" | "missed" | "upcoming";
 
 function formatTimeLabel(hhmm: string): string {
   const [h, m] = hhmm.split(":").map(Number);
@@ -36,7 +36,8 @@ function doseState(
   const deadline = new Date(scheduled.getTime() + HOUR_MS);
   if (log) {
     const taken = new Date(log.takenAt);
-    return taken.getTime() <= deadline.getTime() ? "onTime" : "late";
+    // Taken within the 1-hour window is "on time"; taken late counts as missed.
+    return taken.getTime() <= deadline.getTime() ? "onTime" : "missed";
   }
   // No log: missed once the 1-hour window has passed, otherwise still upcoming.
   return now.getTime() > deadline.getTime() ? "missed" : "upcoming";
@@ -50,11 +51,6 @@ const STATE_META: Record<
     label: "On time",
     dot: "bg-emerald-500",
     text: "text-emerald-700 dark:text-emerald-400",
-  },
-  late: {
-    label: "Late",
-    dot: "bg-amber-500",
-    text: "text-amber-700 dark:text-amber-400",
   },
   missed: {
     label: "Missed",
@@ -97,7 +93,7 @@ export default function Reports() {
       <header>
         <h1 className="text-2xl font-serif text-primary tracking-tight">Reports</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Your last 7 days of medication doses at a glance — whether each was taken on time, late, or missed.
+          Your last 7 days of medication doses at a glance — whether each was taken on time or missed.
         </p>
       </header>
 

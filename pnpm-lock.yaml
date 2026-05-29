@@ -655,6 +655,9 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+      tsx:
+        specifier: 'catalog:'
+        version: 4.21.0
 
   lib/integrations-anthropic-ai:
     dependencies:
