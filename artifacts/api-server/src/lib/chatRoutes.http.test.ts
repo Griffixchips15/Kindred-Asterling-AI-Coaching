@@ -16,6 +16,7 @@ import {
   usersTable,
   conversations,
   messages,
+  morningLogsTable,
 } from "@workspace/db";
 import app from "../app";
 import { createSession, deleteSession } from "./auth";
@@ -49,6 +50,30 @@ function mockReplyOnce(text: string) {
 
 function failReplyOnce() {
   createMock.mockRejectedValueOnce(new Error("anthropic boom"));
+}
+
+// Mocks a single Claude turn that asks to call a tool. The route runs the tool
+// scoped to the session user, then re-calls Claude with the result fed back.
+function mockToolUseOnce(
+  toolName: string,
+  input: Record<string, unknown> = {},
+  toolUseId = "toolu_test",
+) {
+  createMock.mockResolvedValueOnce({
+    stop_reason: "tool_use",
+    content: [
+      { type: "tool_use", id: toolUseId, name: toolName, input },
+    ],
+  } as unknown as Awaited<ReturnType<typeof anthropic.messages.create>>);
+}
+
+// Mocks an unbounded "always asks for another tool" model so we can prove the
+// agentic loop is capped and never loops forever / burns tokens.
+function mockToolUseAlways(toolName: string, toolUseId = "toolu_loop") {
+  createMock.mockResolvedValue({
+    stop_reason: "tool_use",
+    content: [{ type: "tool_use", id: toolUseId, name: toolName, input: {} }],
+  } as unknown as Awaited<ReturnType<typeof anthropic.messages.create>>);
 }
 
 const suffix = Math.random().toString(36).slice(2, 10);
@@ -132,6 +157,7 @@ afterEach(async () => {
   for (const id of [userAId, userBId]) {
     // Cascade removes messages owned by the user's conversations.
     await db.delete(conversations).where(eq(conversations.userId, id));
+    await db.delete(morningLogsTable).where(eq(morningLogsTable.userId, id));
   }
 });
 
@@ -251,6 +277,108 @@ describe("POST /chat/send", () => {
     // must never pollute history with a fabricated reply.
     const rows = await db
       .select({ role: messages.role, content: messages.content })
+      .from(messages)
+      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+      .where(eq(conversations.userId, userAId));
+    expect(rows.filter((r) => r.role === "assistant")).toHaveLength(0);
+    expect(rows.filter((r) => r.role === "user")).toHaveLength(1);
+  });
+});
+
+describe("POST /chat/send agentic tool loop", () => {
+  // Pull the tool_result text that the route fed back to Claude after running
+  // the requested tool. This is what proves the executor was scoped to the
+  // session user: the JSON handed back to the model contains exactly that
+  // user's rows. callIndex is which anthropic.messages.create call to inspect
+  // (the tool_result rides on the user turn of the *next* call).
+  function toolResultTextFrom(callIndex: number): string {
+    const call = createMock.mock.calls[callIndex]?.[0] as
+      | { messages: { role: string; content: unknown }[] }
+      | undefined;
+    expect(call, `expected a model call at index ${callIndex}`).toBeTruthy();
+    const lastUser = [...call!.messages]
+      .reverse()
+      .find((m) => m.role === "user");
+    const blocks = lastUser?.content as
+      | { type: string; content: string }[]
+      | undefined;
+    const toolResult = Array.isArray(blocks)
+      ? blocks.find((b) => b.type === "tool_result")
+      : undefined;
+    return toolResult?.content ?? "";
+  }
+
+  it("runs the requested tool scoped to the session user and returns the final reply", async () => {
+    // Seed a morning log for BOTH users on the same date. If the loop leaked
+    // the wrong id into the tool, user B's note would surface in the payload
+    // handed back to the model.
+    await db.insert(morningLogsTable).values([
+      {
+        userId: userAId,
+        date: "2026-05-20",
+        mentalLoadLevel: "medium",
+        miniGoals: [],
+        notes: "USER_A_MORNING_NOTE",
+      },
+      {
+        userId: userBId,
+        date: "2026-05-20",
+        mentalLoadLevel: "high",
+        miniGoals: [],
+        notes: "USER_B_MORNING_NOTE",
+      },
+    ]);
+
+    // Turn 1: Claude asks for the morning logs. Turn 2: it produces a reply.
+    mockToolUseOnce("get_recent_morning_logs", { limit: 7 });
+    mockReplyOnce("Your mornings have felt heavy lately.");
+
+    const res = await api("POST", "/chat/send", {
+      token: tokenA,
+      body: { content: "how have my mornings been" },
+    });
+    expect(res.status).toBe(200);
+
+    // The loop made exactly two model calls: tool_use, then the final reply.
+    expect(createMock).toHaveBeenCalledTimes(2);
+
+    // The tool ran scoped to user A: their note is in the result fed back to
+    // the model, and user B's note is not.
+    const fedBack = toolResultTextFrom(1);
+    expect(fedBack).toContain("USER_A_MORNING_NOTE");
+    expect(fedBack).not.toContain("USER_B_MORNING_NOTE");
+
+    // The loop terminated and the final reply persisted for the owner.
+    const conv = res.body as ConvWithMessages;
+    expect(
+      conv.messages.some(
+        (m) =>
+          m.role === "assistant" &&
+          m.content === "Your mornings have felt heavy lately.",
+      ),
+    ).toBe(true);
+  });
+
+  it("bounds a model that keeps requesting tools at the iteration cap", async () => {
+    // A misbehaving model that never stops asking for tools must not loop
+    // forever. The route caps at MAX_TOOL_ITERATIONS (4) and then fails the
+    // turn rather than burning unbounded tokens.
+    mockToolUseAlways("get_recent_morning_logs");
+
+    const res = await api("POST", "/chat/send", {
+      token: tokenA,
+      body: { content: "loop please" },
+    });
+    expect(res.status).toBe(502);
+    expect((res.body as { reason?: string }).reason).toBe("max_tool_iterations");
+
+    // Exactly 4 model calls — the cap — no more.
+    expect(createMock).toHaveBeenCalledTimes(4);
+
+    // The user turn is stored, but the capped turn persisted no assistant
+    // reply (no fabricated history).
+    const rows = await db
+      .select({ role: messages.role })
       .from(messages)
       .innerJoin(conversations, eq(messages.conversationId, conversations.id))
       .where(eq(conversations.userId, userAId));
