@@ -382,11 +382,23 @@ export interface MedicationLogInput {
   effectiveness?: number | null;
 }
 
+export type MedicationWeeklyReportMedicationsItemScheduleItem = {
+  scheduledTime: string;
+  /** YYYY-MM-DD, inclusive first day this time was in effect */
+  startDate: string;
+  /**
+     * YYYY-MM-DD exclusive end day, or null if still active
+     * @nullable
+     */
+  endDate: string | null;
+};
+
 export type MedicationWeeklyReportMedicationsItem = {
   id: number;
   name: string;
   dosage: string;
-  times: string[];
+  /** Schedule history — each scheduled time with the date range it was in effect. A time applies to day D iff startDate <= D AND (endDate is null OR D < endDate). */
+  schedule: MedicationWeeklyReportMedicationsItemScheduleItem[];
   /** YYYY-MM-DD the medication was created; days before this are not applicable in the grid */
   createdDate: string;
 };

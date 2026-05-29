@@ -2,6 +2,7 @@ import {
   useGetMedicationWeeklyReport,
   getGetMedicationWeeklyReportQueryKey,
   type MedicationWeeklyReportLogsItem,
+  type MedicationWeeklyReportMedicationsItemScheduleItem,
 } from "@workspace/api-client-react";
 import { CalendarRange, Pill } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,22 @@ const STATE_META: Record<
     text: "text-muted-foreground",
   },
 };
+
+// Times scheduled on a given day, per the schedule history: a time applies to
+// day D iff startDate <= D AND (endDate is null OR D < endDate). De-duplicated
+// and sorted so a time re-added after removal isn't shown twice.
+function activeTimesForDay(
+  schedule: MedicationWeeklyReportMedicationsItemScheduleItem[],
+  dateStr: string,
+): string[] {
+  const times = new Set<string>();
+  for (const s of schedule) {
+    if (s.startDate <= dateStr && (s.endDate === null || dateStr < s.endDate)) {
+      times.add(s.scheduledTime);
+    }
+  }
+  return Array.from(times).sort();
+}
 
 function dayLabels(dateStr: string): { weekday: string; day: string } {
   const [y, mo, d] = dateStr.split("-").map(Number);
@@ -158,39 +175,47 @@ export default function Reports() {
                       </div>
                     </div>
                   </td>
-                  {days.map((d) => (
-                    <td key={d} className="px-2 py-3 align-top">
-                      <div className="flex flex-col items-center gap-1.5">
-                        {d < med.createdDate ? (
-                          <span
-                            title="Before this medication was added"
-                            className="text-muted-foreground/30 text-xs leading-none py-1"
-                          >
-                            —
-                          </span>
-                        ) : (
-                          med.times.map((t) => {
-                          const log = logMap.get(`${med.id}|${d}|${t}`);
-                          const state = doseState(d, t, log, now);
-                          const meta = STATE_META[state];
-                          return (
+                  {days.map((d) => {
+                    const activeTimes =
+                      d < med.createdDate ? [] : activeTimesForDay(med.schedule, d);
+                    return (
+                      <td key={d} className="px-2 py-3 align-top">
+                        <div className="flex flex-col items-center gap-1.5">
+                          {activeTimes.length === 0 ? (
                             <span
-                              key={t}
-                              title={`${formatTimeLabel(t)} — ${meta.label}`}
-                              data-testid={`cell-${med.id}-${d}-${t}`}
-                              className="flex flex-col items-center gap-0.5"
+                              title={
+                                d < med.createdDate
+                                  ? "Before this medication was added"
+                                  : "Nothing scheduled this day"
+                              }
+                              className="text-muted-foreground/30 text-xs leading-none py-1"
                             >
-                              <span className={cn("w-3 h-3 rounded-full", meta.dot)} />
-                              <span className="text-[9px] leading-none text-muted-foreground/70">
-                                {t}
-                              </span>
+                              —
                             </span>
-                          );
-                        })
-                        )}
-                      </div>
-                    </td>
-                  ))}
+                          ) : (
+                            activeTimes.map((t) => {
+                              const log = logMap.get(`${med.id}|${d}|${t}`);
+                              const state = doseState(d, t, log, now);
+                              const meta = STATE_META[state];
+                              return (
+                                <span
+                                  key={t}
+                                  title={`${formatTimeLabel(t)} — ${meta.label}`}
+                                  data-testid={`cell-${med.id}-${d}-${t}`}
+                                  className="flex flex-col items-center gap-0.5"
+                                >
+                                  <span className={cn("w-3 h-3 rounded-full", meta.dot)} />
+                                  <span className="text-[9px] leading-none text-muted-foreground/70">
+                                    {t}
+                                  </span>
+                                </span>
+                              );
+                            })
+                          )}
+                        </div>
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>

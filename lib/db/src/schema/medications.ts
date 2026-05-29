@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, varchar, integer, date, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, varchar, integer, date, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { usersTable } from "./auth";
 
 export const medicationsTable = pgTable("medications", {
@@ -40,5 +40,32 @@ export const medicationLogsTable = pgTable(
   ],
 );
 
+// Schedule history: each row is one scheduled time that was in effect for a
+// medication over a date range. `endDate` NULL means still active. This lets the
+// weekly report judge each past day against the schedule that was actually in
+// effect that day, not whatever the current schedule is.
+export const medicationScheduleEntriesTable = pgTable(
+  "medication_schedule_entries",
+  {
+    id: serial("id").primaryKey(),
+    medicationId: integer("medication_id")
+      .notNull()
+      .references(() => medicationsTable.id, { onDelete: "cascade" }),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    // The scheduled dose time ("HH:MM", 24-hour).
+    scheduledTime: text("scheduled_time").notNull(),
+    // Inclusive first day this time was in effect.
+    startDate: date("start_date").notNull(),
+    // Exclusive last day (NULL = still active): active on day D iff
+    // startDate <= D AND (endDate IS NULL OR D < endDate).
+    endDate: date("end_date"),
+  },
+  (t) => [index("medication_schedule_entries_med_idx").on(t.medicationId)],
+);
+
 export type Medication = typeof medicationsTable.$inferSelect;
 export type MedicationLog = typeof medicationLogsTable.$inferSelect;
+export type MedicationScheduleEntry =
+  typeof medicationScheduleEntriesTable.$inferSelect;

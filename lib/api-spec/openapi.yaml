@@ -1364,7 +1364,7 @@ components:
           type: array
           items:
             type: object
-            required: [id, name, dosage, times, createdDate]
+            required: [id, name, dosage, schedule, createdDate]
             properties:
               id:
                 type: integer
@@ -1372,10 +1372,21 @@ components:
                 type: string
               dosage:
                 type: string
-              times:
+              schedule:
                 type: array
+                description: Schedule history — each scheduled time with the date range it was in effect. A time applies to day D iff startDate <= D AND (endDate is null OR D < endDate).
                 items:
-                  type: string
+                  type: object
+                  required: [scheduledTime, startDate, endDate]
+                  properties:
+                    scheduledTime:
+                      type: string
+                    startDate:
+                      type: string
+                      description: YYYY-MM-DD, inclusive first day this time was in effect
+                    endDate:
+                      type: ["string", "null"]
+                      description: YYYY-MM-DD exclusive end day, or null if still active
               createdDate:
                 type: string
                 description: YYYY-MM-DD the medication was created; days before this are not applicable in the grid

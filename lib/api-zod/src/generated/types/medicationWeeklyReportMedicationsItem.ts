@@ -5,12 +5,14 @@
  * Kindred Coach API
  * OpenAPI spec version: 0.1.0
  */
+import type { MedicationWeeklyReportMedicationsItemScheduleItem } from './medicationWeeklyReportMedicationsItemScheduleItem';
 
 export type MedicationWeeklyReportMedicationsItem = {
   id: number;
   name: string;
   dosage: string;
-  times: string[];
+  /** Schedule history — each scheduled time with the date range it was in effect. A time applies to day D iff startDate <= D AND (endDate is null OR D < endDate). */
+  schedule: MedicationWeeklyReportMedicationsItemScheduleItem[];
   /** YYYY-MM-DD the medication was created; days before this are not applicable in the grid */
   createdDate: string;
 };

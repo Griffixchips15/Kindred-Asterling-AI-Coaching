@@ -609,7 +609,11 @@ export const GetMedicationWeeklyReportResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "dosage": zod.string(),
-  "times": zod.array(zod.string()),
+  "schedule": zod.array(zod.object({
+  "scheduledTime": zod.string(),
+  "startDate": zod.string().describe('YYYY-MM-DD, inclusive first day this time was in effect'),
+  "endDate": zod.string().nullable().describe('YYYY-MM-DD exclusive end day, or null if still active')
+})).describe('Schedule history — each scheduled time with the date range it was in effect. A time applies to day D iff startDate <= D AND (endDate is null OR D < endDate).'),
   "createdDate": zod.string().describe('YYYY-MM-DD the medication was created; days before this are not applicable in the grid')
 })),
   "logs": zod.array(zod.object({

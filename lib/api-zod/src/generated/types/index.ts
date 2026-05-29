@@ -42,6 +42,7 @@ export * from './medicationLogInput';
 export * from './medicationWeeklyReport';
 export * from './medicationWeeklyReportLogsItem';
 export * from './medicationWeeklyReportMedicationsItem';
+export * from './medicationWeeklyReportMedicationsItemScheduleItem';
 export * from './medicationWithStatus';
 export * from './mobileTokenExchangeRequest';
 export * from './mobileTokenExchangeSuccess';

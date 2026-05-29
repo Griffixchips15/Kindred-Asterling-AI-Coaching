@@ -1,6 +1,11 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq, gte, sql } from "drizzle-orm";
-import { db, medicationsTable, medicationLogsTable } from "@workspace/db";
+import { and, asc, eq, gte, isNull, sql } from "drizzle-orm";
+import {
+  db,
+  medicationsTable,
+  medicationLogsTable,
+  medicationScheduleEntriesTable,
+} from "@workspace/db";
 import {
   CreateMedicationBody,
   UpdateMedicationBody,
@@ -44,6 +49,66 @@ function parseId(raw: string | string[] | undefined): number | null {
 // Normalize a list of "HH:MM" times: trim, de-duplicate, and sort ascending.
 function normalizeTimes(times: string[]): string[] {
   return Array.from(new Set(times.map((t) => t.trim()))).sort();
+}
+
+// Reconcile schedule history for a medication against a new set of times,
+// effective `today`. Times newly present open a fresh active entry; times no
+// longer present have their open entry closed (end_date = today, exclusive) so
+// they still count for days before today. Re-adding a time that was removed
+// earlier today simply re-opens that same entry (no double-count).
+async function reconcileScheduleEntries(
+  medicationId: number,
+  userId: string,
+  newTimes: string[],
+  today: string,
+): Promise<void> {
+  const open = await db
+    .select()
+    .from(medicationScheduleEntriesTable)
+    .where(
+      and(
+        eq(medicationScheduleEntriesTable.medicationId, medicationId),
+        eq(medicationScheduleEntriesTable.userId, userId),
+        isNull(medicationScheduleEntriesTable.endDate),
+      ),
+    );
+  const openByTime = new Map(open.map((e) => [e.scheduledTime, e]));
+  const target = new Set(newTimes);
+
+  // Close entries for times no longer scheduled.
+  for (const entry of open) {
+    if (!target.has(entry.scheduledTime)) {
+      await db
+        .update(medicationScheduleEntriesTable)
+        .set({ endDate: today })
+        .where(eq(medicationScheduleEntriesTable.id, entry.id));
+    }
+  }
+
+  // Open entries for newly scheduled times (or re-open one closed earlier today).
+  for (const time of target) {
+    if (openByTime.has(time)) continue;
+    const [reopened] = await db
+      .update(medicationScheduleEntriesTable)
+      .set({ endDate: null })
+      .where(
+        and(
+          eq(medicationScheduleEntriesTable.medicationId, medicationId),
+          eq(medicationScheduleEntriesTable.userId, userId),
+          eq(medicationScheduleEntriesTable.scheduledTime, time),
+          eq(medicationScheduleEntriesTable.endDate, today),
+        ),
+      )
+      .returning();
+    if (reopened) continue;
+    await db.insert(medicationScheduleEntriesTable).values({
+      medicationId,
+      userId,
+      scheduledTime: time,
+      startDate: today,
+      endDate: null,
+    });
+  }
 }
 
 router.get("/medications", requireAuth, async (req, res): Promise<void> => {
@@ -135,13 +200,36 @@ router.get(
         ),
       );
 
+    const scheduleEntries = await db
+      .select()
+      .from(medicationScheduleEntriesTable)
+      .where(eq(medicationScheduleEntriesTable.userId, userId));
+    const scheduleByMed = new Map<
+      number,
+      { scheduledTime: string; startDate: string; endDate: string | null }[]
+    >();
+    for (const e of scheduleEntries) {
+      const list = scheduleByMed.get(e.medicationId) ?? [];
+      list.push({
+        scheduledTime: e.scheduledTime,
+        startDate: typeof e.startDate === "string" ? e.startDate : String(e.startDate),
+        endDate:
+          e.endDate === null
+            ? null
+            : typeof e.endDate === "string"
+              ? e.endDate
+              : String(e.endDate),
+      });
+      scheduleByMed.set(e.medicationId, list);
+    }
+
     res.json({
       days: lastSevenDays(),
       medications: meds.map((m) => ({
         id: m.id,
         name: m.name,
         dosage: m.dosage,
-        times: normalizeTimes(m.times),
+        schedule: scheduleByMed.get(m.id) ?? [],
         createdDate: new Date(m.createdAt).toISOString().split("T")[0],
       })),
       logs: logs.map((l) => ({
@@ -162,16 +250,18 @@ router.post("/medications", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const userId = req.user!.id;
+  const times = normalizeTimes(parsed.data.times);
   const [created] = await db
     .insert(medicationsTable)
     .values({
       userId,
       name: parsed.data.name.trim(),
       dosage: parsed.data.dosage.trim(),
-      times: normalizeTimes(parsed.data.times),
+      times,
       notes: parsed.data.notes ?? null,
     })
     .returning();
+  await reconcileScheduleEntries(created.id, userId, times, todayDateStr());
   res.status(201).json(JSON.parse(JSON.stringify(created)));
 });
 
@@ -187,12 +277,13 @@ router.patch("/medications/:id", requireAuth, async (req, res): Promise<void> =>
     return;
   }
   const userId = req.user!.id;
+  const times = normalizeTimes(parsed.data.times);
   const [updated] = await db
     .update(medicationsTable)
     .set({
       name: parsed.data.name.trim(),
       dosage: parsed.data.dosage.trim(),
-      times: normalizeTimes(parsed.data.times),
+      times,
       notes: parsed.data.notes ?? null,
     })
     .where(and(eq(medicationsTable.id, id), eq(medicationsTable.userId, userId)))
@@ -201,6 +292,7 @@ router.patch("/medications/:id", requireAuth, async (req, res): Promise<void> =>
     res.status(404).json({ error: "Not found" });
     return;
   }
+  await reconcileScheduleEntries(id, userId, times, todayDateStr());
   res.json(JSON.parse(JSON.stringify(updated)));
 });
 
