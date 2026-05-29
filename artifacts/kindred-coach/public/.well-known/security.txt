@@ -1,0 +1,6 @@
+# Security policy for kindred-asterling-ai-coaching.com
+# See https://securitytxt.org / RFC 9116
+
+Contact: mailto:Cybermonkey9647@gmail.com
+Expires: 2027-05-29T00:00:00.000Z
+Preferred-Languages: en
