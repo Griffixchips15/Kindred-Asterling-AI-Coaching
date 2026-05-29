@@ -17,6 +17,12 @@ import {
   conversations,
   messages,
   morningLogsTable,
+  eveningReportsTable,
+  bodyScansTable,
+  habitsTable,
+  habitEntriesTable,
+  medicationsTable,
+  medicationLogsTable,
 } from "@workspace/db";
 import app from "../app";
 import { createSession, deleteSession } from "./auth";
@@ -64,6 +70,23 @@ function mockToolUseOnce(
     content: [
       { type: "tool_use", id: toolUseId, name: toolName, input },
     ],
+  } as unknown as Awaited<ReturnType<typeof anthropic.messages.create>>);
+}
+
+// Mocks a single Claude turn that asks to call several tools at once. The route
+// runs every requested tool (each scoped to the session user) and feeds all the
+// results back together on the next call.
+function mockMultiToolUseOnce(
+  tools: { name: string; input?: Record<string, unknown>; id: string }[],
+) {
+  createMock.mockResolvedValueOnce({
+    stop_reason: "tool_use",
+    content: tools.map((t) => ({
+      type: "tool_use",
+      id: t.id,
+      name: t.name,
+      input: t.input ?? {},
+    })),
   } as unknown as Awaited<ReturnType<typeof anthropic.messages.create>>);
 }
 
@@ -158,6 +181,13 @@ afterEach(async () => {
     // Cascade removes messages owned by the user's conversations.
     await db.delete(conversations).where(eq(conversations.userId, id));
     await db.delete(morningLogsTable).where(eq(morningLogsTable.userId, id));
+    await db
+      .delete(eveningReportsTable)
+      .where(eq(eveningReportsTable.userId, id));
+    await db.delete(bodyScansTable).where(eq(bodyScansTable.userId, id));
+    // habit_entries + medication_logs cascade off their parent rows.
+    await db.delete(habitsTable).where(eq(habitsTable.userId, id));
+    await db.delete(medicationsTable).where(eq(medicationsTable.userId, id));
   }
 });
 
@@ -308,6 +338,27 @@ describe("POST /chat/send agentic tool loop", () => {
     return toolResult?.content ?? "";
   }
 
+  // Like toolResultTextFrom, but concatenates EVERY tool_result block on the
+  // call's last user turn. Used when one model turn requested several tools at
+  // once, so we can assert all of their results were scoped to the same user.
+  function allToolResultsTextFrom(callIndex: number): string {
+    const call = createMock.mock.calls[callIndex]?.[0] as
+      | { messages: { role: string; content: unknown }[] }
+      | undefined;
+    expect(call, `expected a model call at index ${callIndex}`).toBeTruthy();
+    const lastUser = [...call!.messages]
+      .reverse()
+      .find((m) => m.role === "user");
+    const blocks = lastUser?.content as
+      | { type: string; content: string }[]
+      | undefined;
+    if (!Array.isArray(blocks)) return "";
+    return blocks
+      .filter((b) => b.type === "tool_result")
+      .map((b) => b.content)
+      .join("\n");
+  }
+
   it("runs the requested tool scoped to the session user and returns the final reply", async () => {
     // Seed a morning log for BOTH users on the same date. If the loop leaked
     // the wrong id into the tool, user B's note would surface in the payload
@@ -357,6 +408,239 @@ describe("POST /chat/send agentic tool loop", () => {
           m.content === "Your mornings have felt heavy lately.",
       ),
     ).toBe(true);
+  });
+
+  it("runs get_recent_evening_reports scoped to the session user", async () => {
+    // Both users have an evening reflection on the same day. Only the caller's
+    // wins/challenges text may surface in what's fed back to the model.
+    await db.insert(eveningReportsTable).values([
+      {
+        userId: userAId,
+        date: "2026-05-21",
+        medicationEffectiveness: 7,
+        overallMood: "steady",
+        wins: "USER_A_EVENING_WIN",
+        challenges: "USER_A_EVENING_CHALLENGE",
+        tomorrowIntent: "rest",
+      },
+      {
+        userId: userBId,
+        date: "2026-05-21",
+        medicationEffectiveness: 3,
+        overallMood: "low",
+        wins: "USER_B_EVENING_WIN",
+        challenges: "USER_B_EVENING_CHALLENGE",
+        tomorrowIntent: "regroup",
+      },
+    ]);
+
+    mockToolUseOnce("get_recent_evening_reports", { limit: 7 });
+    mockReplyOnce("Sounds like the evenings carried a real win.");
+
+    const res = await api("POST", "/chat/send", {
+      token: tokenA,
+      body: { content: "how have my evenings gone" },
+    });
+    expect(res.status).toBe(200);
+    expect(createMock).toHaveBeenCalledTimes(2);
+
+    const fedBack = toolResultTextFrom(1);
+    expect(fedBack).toContain("USER_A_EVENING_WIN");
+    expect(fedBack).toContain("USER_A_EVENING_CHALLENGE");
+    expect(fedBack).not.toContain("USER_B_EVENING_WIN");
+    expect(fedBack).not.toContain("USER_B_EVENING_CHALLENGE");
+  });
+
+  it("runs get_recent_body_scans scoped to the session user", async () => {
+    // Two users log a body scan; only the caller's sensations/notes may leave.
+    await db.insert(bodyScansTable).values([
+      {
+        userId: userAId,
+        scannedAt: new Date("2026-05-22T09:00:00Z"),
+        feelings: ["calm"],
+        energyLevel: 6,
+        physicalSensations: "USER_A_BODY_SENSATION",
+        notes: "USER_A_BODY_NOTE",
+      },
+      {
+        userId: userBId,
+        scannedAt: new Date("2026-05-22T09:00:00Z"),
+        feelings: ["tense"],
+        energyLevel: 2,
+        physicalSensations: "USER_B_BODY_SENSATION",
+        notes: "USER_B_BODY_NOTE",
+      },
+    ]);
+
+    mockToolUseOnce("get_recent_body_scans", { limit: 7 });
+    mockReplyOnce("Your body's been asking for a slower pace.");
+
+    const res = await api("POST", "/chat/send", {
+      token: tokenA,
+      body: { content: "how's my body been feeling" },
+    });
+    expect(res.status).toBe(200);
+    expect(createMock).toHaveBeenCalledTimes(2);
+
+    const fedBack = toolResultTextFrom(1);
+    expect(fedBack).toContain("USER_A_BODY_SENSATION");
+    expect(fedBack).toContain("USER_A_BODY_NOTE");
+    expect(fedBack).not.toContain("USER_B_BODY_SENSATION");
+    expect(fedBack).not.toContain("USER_B_BODY_NOTE");
+  });
+
+  it("runs get_habits_with_streaks scoped to the session user", async () => {
+    // Each user owns a habit with a completed entry. The tool must only ever
+    // surface the caller's habit name — never the other user's.
+    const [habitA] = await db
+      .insert(habitsTable)
+      .values({
+        userId: userAId,
+        name: "USER_A_HABIT",
+        description: null,
+        targetDays: 90,
+        startDate: "2026-05-01",
+      })
+      .returning();
+    const [habitB] = await db
+      .insert(habitsTable)
+      .values({
+        userId: userBId,
+        name: "USER_B_HABIT",
+        description: null,
+        targetDays: 90,
+        startDate: "2026-05-01",
+      })
+      .returning();
+    const todayStr = new Date().toISOString().split("T")[0];
+    await db.insert(habitEntriesTable).values([
+      {
+        userId: userAId,
+        habitId: habitA.id,
+        date: todayStr,
+        completed: true,
+      },
+      {
+        userId: userBId,
+        habitId: habitB.id,
+        date: todayStr,
+        completed: true,
+      },
+    ]);
+
+    mockToolUseOnce("get_habits_with_streaks");
+    mockReplyOnce("That streak is something to be proud of.");
+
+    const res = await api("POST", "/chat/send", {
+      token: tokenA,
+      body: { content: "how are my habits going" },
+    });
+    expect(res.status).toBe(200);
+    expect(createMock).toHaveBeenCalledTimes(2);
+
+    const fedBack = toolResultTextFrom(1);
+    expect(fedBack).toContain("USER_A_HABIT");
+    expect(fedBack).not.toContain("USER_B_HABIT");
+  });
+
+  it("runs get_medications_status scoped to the session user", async () => {
+    // Two users have a medication. Only the caller's med name/notes may surface.
+    await db.insert(medicationsTable).values([
+      {
+        userId: userAId,
+        name: "USER_A_MED",
+        dosage: "10mg",
+        times: ["08:00"],
+        notes: "USER_A_MED_NOTE",
+      },
+      {
+        userId: userBId,
+        name: "USER_B_MED",
+        dosage: "20mg",
+        times: ["09:00"],
+        notes: "USER_B_MED_NOTE",
+      },
+    ]);
+
+    mockToolUseOnce("get_medications_status");
+    mockReplyOnce("Looks like the morning dose is still pending.");
+
+    const res = await api("POST", "/chat/send", {
+      token: tokenA,
+      body: { content: "did I take my meds today" },
+    });
+    expect(res.status).toBe(200);
+    expect(createMock).toHaveBeenCalledTimes(2);
+
+    const fedBack = toolResultTextFrom(1);
+    expect(fedBack).toContain("USER_A_MED");
+    expect(fedBack).toContain("USER_A_MED_NOTE");
+    expect(fedBack).not.toContain("USER_B_MED");
+    expect(fedBack).not.toContain("USER_B_MED_NOTE");
+  });
+
+  it("runs two tools requested in one turn, both scoped to the session user", async () => {
+    // A single model turn asks for evening reports AND body scans at once. Both
+    // executors must run scoped to the caller and feed back only their rows.
+    await db.insert(eveningReportsTable).values([
+      {
+        userId: userAId,
+        date: "2026-05-23",
+        medicationEffectiveness: 8,
+        overallMood: "good",
+        wins: "USER_A_EVENING_WIN",
+        challenges: null,
+        tomorrowIntent: null,
+      },
+      {
+        userId: userBId,
+        date: "2026-05-23",
+        medicationEffectiveness: 4,
+        overallMood: "tired",
+        wins: "USER_B_EVENING_WIN",
+        challenges: null,
+        tomorrowIntent: null,
+      },
+    ]);
+    await db.insert(bodyScansTable).values([
+      {
+        userId: userAId,
+        scannedAt: new Date("2026-05-23T20:00:00Z"),
+        feelings: ["light"],
+        energyLevel: 7,
+        physicalSensations: "USER_A_BODY_SENSATION",
+        notes: null,
+      },
+      {
+        userId: userBId,
+        scannedAt: new Date("2026-05-23T20:00:00Z"),
+        feelings: ["heavy"],
+        energyLevel: 3,
+        physicalSensations: "USER_B_BODY_SENSATION",
+        notes: null,
+      },
+    ]);
+
+    mockMultiToolUseOnce([
+      { name: "get_recent_evening_reports", input: { limit: 7 }, id: "toolu_a" },
+      { name: "get_recent_body_scans", input: { limit: 7 }, id: "toolu_b" },
+    ]);
+    mockReplyOnce("Your evenings and your body both point the same way.");
+
+    const res = await api("POST", "/chat/send", {
+      token: tokenA,
+      body: { content: "how have my evenings and body been" },
+    });
+    expect(res.status).toBe(200);
+    // One tool_use turn (with two tools) + one final reply = two model calls.
+    expect(createMock).toHaveBeenCalledTimes(2);
+
+    // Both tool results rode back on the same user turn; neither leaked B.
+    const fedBack = allToolResultsTextFrom(1);
+    expect(fedBack).toContain("USER_A_EVENING_WIN");
+    expect(fedBack).toContain("USER_A_BODY_SENSATION");
+    expect(fedBack).not.toContain("USER_B_EVENING_WIN");
+    expect(fedBack).not.toContain("USER_B_BODY_SENSATION");
   });
 
   it("bounds a model that keeps requesting tools at the iteration cap", async () => {
