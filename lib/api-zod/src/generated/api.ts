@@ -374,6 +374,10 @@ export const UpdateProfileResponse = zod.object({
 /**
  * @summary Get the current active conversation with messages (creates one if missing)
  */
+export const getActiveChatResponseTwoMessagesMax = 500;
+
+
+
 export const GetActiveChatResponse = zod.object({
   "id": zod.number(),
   "userId": zod.string(),
@@ -388,7 +392,7 @@ export const GetActiveChatResponse = zod.object({
   "role": zod.string(),
   "content": zod.string(),
   "createdAt": zod.coerce.date()
-}))
+})).max(getActiveChatResponseTwoMessagesMax).describe('A bounded window of the most recent messages. Live chat endpoints return at most 100 messages; the archive export endpoint returns at most 500. The server never materialises the full transcript.\n')
 }))
 
 
@@ -402,6 +406,10 @@ export const sendChatMessageBodyContentMax = 4000;
 export const SendChatMessageBody = zod.object({
   "content": zod.string().min(1).max(sendChatMessageBodyContentMax)
 })
+
+export const sendChatMessageResponseTwoMessagesMax = 500;
+
+
 
 export const SendChatMessageResponse = zod.object({
   "id": zod.number(),
@@ -417,7 +425,7 @@ export const SendChatMessageResponse = zod.object({
   "role": zod.string(),
   "content": zod.string(),
   "createdAt": zod.coerce.date()
-}))
+})).max(sendChatMessageResponseTwoMessagesMax).describe('A bounded window of the most recent messages. Live chat endpoints return at most 100 messages; the archive export endpoint returns at most 500. The server never materialises the full transcript.\n')
 }))
 
 
@@ -433,6 +441,10 @@ export const AppendChatMessageBody = zod.object({
   "content": zod.string().min(1).max(appendChatMessageBodyContentMax)
 })
 
+export const appendChatMessageResponseTwoMessagesMax = 500;
+
+
+
 export const AppendChatMessageResponse = zod.object({
   "id": zod.number(),
   "userId": zod.string(),
@@ -447,13 +459,17 @@ export const AppendChatMessageResponse = zod.object({
   "role": zod.string(),
   "content": zod.string(),
   "createdAt": zod.coerce.date()
-}))
+})).max(appendChatMessageResponseTwoMessagesMax).describe('A bounded window of the most recent messages. Live chat endpoints return at most 100 messages; the archive export endpoint returns at most 500. The server never materialises the full transcript.\n')
 }))
 
 
 /**
  * @summary Archive the current active conversation and start a fresh one
  */
+export const archiveActiveChatResponseTwoMessagesMax = 500;
+
+
+
 export const ArchiveActiveChatResponse = zod.object({
   "id": zod.number(),
   "userId": zod.string(),
@@ -468,7 +484,7 @@ export const ArchiveActiveChatResponse = zod.object({
   "role": zod.string(),
   "content": zod.string(),
   "createdAt": zod.coerce.date()
-}))
+})).max(archiveActiveChatResponseTwoMessagesMax).describe('A bounded window of the most recent messages. Live chat endpoints return at most 100 messages; the archive export endpoint returns at most 500. The server never materialises the full transcript.\n')
 }))
 
 
@@ -493,6 +509,10 @@ export const GetArchivedChatParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getArchivedChatResponseTwoMessagesMax = 500;
+
+
+
 export const GetArchivedChatResponse = zod.object({
   "id": zod.number(),
   "userId": zod.string(),
@@ -507,7 +527,7 @@ export const GetArchivedChatResponse = zod.object({
   "role": zod.string(),
   "content": zod.string(),
   "createdAt": zod.coerce.date()
-}))
+})).max(getArchivedChatResponseTwoMessagesMax).describe('A bounded window of the most recent messages. Live chat endpoints return at most 100 messages; the archive export endpoint returns at most 500. The server never materialises the full transcript.\n')
 }))
 
 

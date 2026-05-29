@@ -248,6 +248,11 @@ export interface ChatConversation {
 }
 
 export type ChatConversationWithMessages = ChatConversation & {
+  /**
+     * A bounded window of the most recent messages. Live chat endpoints return at most 100 messages; the archive export endpoint returns at most 500. The server never materialises the full transcript.
+
+     * @maxItems 500
+     */
   messages: ChatMessage[];
 };
 

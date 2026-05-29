@@ -36,6 +36,13 @@ const MAX_MESSAGE_CHARS = 4000;
 // near-limit messages would otherwise total ~96KB of attacker-controlled
 // text. We trim oldest-first until the window fits this budget.
 const MAX_HISTORY_CHARS = 24000;
+// Cap on the number of messages returned in API responses for live chat
+// endpoints. Bounds DB read size and response payload regardless of how many
+// messages a conversation has accumulated.
+const MESSAGE_RESPONSE_LIMIT = 100;
+// Slightly higher cap for the archive export path where the user explicitly
+// wants a fuller transcript, but still bounded to prevent oversized reads.
+const ARCHIVE_MESSAGE_LIMIT = 500;
 
 function clipMessage(s: string): string {
   const t = s.trim();
@@ -65,17 +72,22 @@ async function getOrCreateActive(userId: string) {
   return created;
 }
 
-async function loadWithMessages(conversationId: number) {
+async function loadWithMessages(conversationId: number, limit: number) {
   const [conv] = await db
     .select()
     .from(conversations)
     .where(eq(conversations.id, conversationId));
   if (!conv) return null;
-  const msgs = await db
+  // Fetch only the most recent `limit` messages (desc), then re-sort asc for
+  // the response. This bounds both the DB read and the serialized payload size
+  // regardless of how many messages a conversation has accumulated.
+  const msgsDesc = await db
     .select()
     .from(messages)
     .where(eq(messages.conversationId, conversationId))
-    .orderBy(asc(messages.id));
+    .orderBy(desc(messages.id))
+    .limit(limit);
+  const msgs = msgsDesc.slice().reverse();
   return { ...conv, messages: msgs };
 }
 
@@ -132,7 +144,7 @@ router.get("/chat/active", requireAuth, async (req: Request, res: Response): Pro
       content: ONBOARDING_FIRST_PROMPT(userRow.firstName),
     });
   }
-  const full = await loadWithMessages(conv.id);
+  const full = await loadWithMessages(conv.id, MESSAGE_RESPONSE_LIMIT);
   res.json(JSON.parse(JSON.stringify(full)));
 });
 
@@ -154,7 +166,7 @@ router.post("/chat/append", requireAuth, chatLimiter, async (req: Request, res: 
     role: parsed.data.role,
     content: clipped,
   });
-  const full = await loadWithMessages(conv.id);
+  const full = await loadWithMessages(conv.id, MESSAGE_RESPONSE_LIMIT);
   res.json(JSON.parse(JSON.stringify(full)));
 });
 
@@ -325,7 +337,7 @@ router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Re
     content: assistantText,
   });
 
-  const full = await loadWithMessages(conv.id);
+  const full = await loadWithMessages(conv.id, MESSAGE_RESPONSE_LIMIT);
   res.json(JSON.parse(JSON.stringify(full)));
 });
 
@@ -340,7 +352,7 @@ router.post("/chat/archive", requireAuth, async (req: Request, res: Response): P
     .insert(conversations)
     .values({ userId, title: "Coaching chat", status: "active" })
     .returning();
-  const full = await loadWithMessages(created.id);
+  const full = await loadWithMessages(created.id, MESSAGE_RESPONSE_LIMIT);
   res.json(JSON.parse(JSON.stringify(full)));
 });
 
@@ -369,7 +381,7 @@ router.get("/chat/archived/:id", requireAuth, async (req: Request, res: Response
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const full = await loadWithMessages(conv.id);
+  const full = await loadWithMessages(conv.id, ARCHIVE_MESSAGE_LIMIT);
   res.json(JSON.parse(JSON.stringify(full)));
 });
 
