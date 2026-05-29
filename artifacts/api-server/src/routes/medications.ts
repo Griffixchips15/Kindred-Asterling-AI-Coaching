@@ -341,10 +341,15 @@ router.delete("/medications/:id", requireAuth, async (req, res): Promise<void> =
     return;
   }
   const userId = req.user!.id;
-  const [deleted] = await db
-    .delete(medicationsTable)
-    .where(and(eq(medicationsTable.id, id), eq(medicationsTable.userId, userId)))
-    .returning();
+  // Wrapped in a transaction so the medication delete and any dependent writes
+  // (DB cascade today; future archival / side-effect writes) commit all-or-nothing.
+  const deleted = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .delete(medicationsTable)
+      .where(and(eq(medicationsTable.id, id), eq(medicationsTable.userId, userId)))
+      .returning();
+    return row ?? null;
+  });
   if (!deleted) {
     res.status(404).json({ error: "Not found" });
     return;
@@ -368,41 +373,46 @@ router.post("/medications/:id/log", requireAuth, async (req, res): Promise<void>
   const tzOffset = normalizeTzOffset(parsed.data.tzOffset);
 
   const userId = req.user!.id;
-  const [med] = await db
-    .select()
-    .from(medicationsTable)
-    .where(and(eq(medicationsTable.id, id), eq(medicationsTable.userId, userId)));
-  if (!med) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  // The dose must be one of the medication's scheduled times.
-  if (!normalizeTimes(med.times).includes(scheduledTime)) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-
   const today = todayDateStr(tzOffset);
-  // True idempotency via DB-level unique (user_id, medication_id, date, scheduled_time).
-  // Only overwrite an existing rating when caller supplied one.
-  const setOnConflict =
-    effectiveness !== null
-      ? { effectiveness }
-      : { medicationId: medicationLogsTable.medicationId };
-  const [log] = await db
-    .insert(medicationLogsTable)
-    .values({ medicationId: id, userId, date: today, scheduledTime, effectiveness })
-    .onConflictDoUpdate({
-      target: [
-        medicationLogsTable.userId,
-        medicationLogsTable.medicationId,
-        medicationLogsTable.date,
-        medicationLogsTable.scheduledTime,
-      ],
-      set: setOnConflict,
-    })
-    .returning();
-  res.status(201).json(JSON.parse(JSON.stringify(log)));
+  // Wrapped in a transaction so the medication/dose-time validation read and the
+  // dose-log write are atomic: a concurrent edit/delete of the medication can't
+  // slip between the check and the insert (and any future side-effect writes
+  // here commit all-or-nothing).
+  const result = await db.transaction(async (tx) => {
+    const [med] = await tx
+      .select()
+      .from(medicationsTable)
+      .where(and(eq(medicationsTable.id, id), eq(medicationsTable.userId, userId)));
+    if (!med) return null;
+    // The dose must be one of the medication's scheduled times.
+    if (!normalizeTimes(med.times).includes(scheduledTime)) return null;
+
+    // True idempotency via DB-level unique (user_id, medication_id, date, scheduled_time).
+    // Only overwrite an existing rating when caller supplied one.
+    const setOnConflict =
+      effectiveness !== null
+        ? { effectiveness }
+        : { medicationId: medicationLogsTable.medicationId };
+    const [log] = await tx
+      .insert(medicationLogsTable)
+      .values({ medicationId: id, userId, date: today, scheduledTime, effectiveness })
+      .onConflictDoUpdate({
+        target: [
+          medicationLogsTable.userId,
+          medicationLogsTable.medicationId,
+          medicationLogsTable.date,
+          medicationLogsTable.scheduledTime,
+        ],
+        set: setOnConflict,
+      })
+      .returning();
+    return log;
+  });
+  if (!result) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.status(201).json(JSON.parse(JSON.stringify(result)));
 });
 
 router.delete("/medications/:id/log", requireAuth, async (req, res): Promise<void> => {
