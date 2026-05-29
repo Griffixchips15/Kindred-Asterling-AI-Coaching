@@ -7,20 +7,30 @@ import {
   bodyScansTable,
   eveningReportsTable,
   usersTable,
+} from "@workspace/db";
+import {
+  GetMorningLogResponse,
+  ListBodyScansResponseItem,
+  ListEveningReportsResponseItem,
+  ListHabitsResponseItem,
+  ListHabitEntriesResponseItem,
+  UpdateProfileResponse,
   type Habit,
   type HabitEntry,
   type MorningLog,
   type BodyScan,
   type EveningReport,
-  type User,
-} from "@workspace/db";
+  type AuthUser,
+} from "@workspace/api-zod";
 import { finalizeWrite } from "./writeContract";
 
 // Every function here wraps its write(s) in a single transaction and runs
-// finalizeWrite as the closing step. If anything inside the transaction throws,
-// the insert/update rolls back so a save can never leave a half-written or
-// orphaned row. New dependent writes added to a save should go inside the same
-// transaction so they stay all-or-nothing.
+// finalizeWrite as the closing step. finalizeWrite serializes the new row and
+// validates it against the matching response schema, so if anything inside the
+// transaction throws — including a row that violates the API contract — the
+// insert/update rolls back and a save can never leave a half-written, orphaned,
+// or un-serializable row. New dependent writes added to a save should go inside
+// the same transaction so they stay all-or-nothing.
 
 export interface HabitWriteData {
   name: string;
@@ -29,13 +39,10 @@ export interface HabitWriteData {
   startDate: string;
 }
 
-// A freshly created habit always has zero completed entries.
-export type HabitWithCount = Habit & { completedCount: number };
-
 export async function createHabitTx(
   userId: string,
   data: HabitWriteData,
-): Promise<HabitWithCount> {
+): Promise<Habit> {
   return db.transaction(async (tx) => {
     const [habit] = await tx
       .insert(habitsTable)
@@ -47,7 +54,7 @@ export async function createHabitTx(
         startDate: data.startDate,
       })
       .returning();
-    return finalizeWrite({ ...habit, completedCount: 0 });
+    return finalizeWrite({ ...habit, completedCount: 0 }, ListHabitsResponseItem);
   });
 }
 
@@ -82,7 +89,7 @@ export async function logHabitEntryTx(
         notes: data.notes,
       })
       .returning();
-    return finalizeWrite(entry);
+    return finalizeWrite(entry, ListHabitEntriesResponseItem);
   });
 }
 
@@ -108,7 +115,7 @@ export async function createMorningLogTx(
         notes: data.notes,
       })
       .returning();
-    return finalizeWrite(log);
+    return finalizeWrite(log, GetMorningLogResponse);
   });
 }
 
@@ -136,7 +143,7 @@ export async function createBodyScanTx(
         notes: data.notes,
       })
       .returning();
-    return finalizeWrite(scan);
+    return finalizeWrite(scan, ListBodyScansResponseItem);
   });
 }
 
@@ -166,7 +173,7 @@ export async function createEveningReportTx(
         tomorrowIntent: data.tomorrowIntent,
       })
       .returning();
-    return finalizeWrite(report);
+    return finalizeWrite(report, ListEveningReportsResponseItem);
   });
 }
 
@@ -175,7 +182,7 @@ export async function createEveningReportTx(
 export async function updateProfileTx(
   userId: string,
   updates: Record<string, unknown>,
-): Promise<User | null> {
+): Promise<AuthUser | null> {
   return db.transaction(async (tx) => {
     const [updated] = await tx
       .update(usersTable)
@@ -183,6 +190,6 @@ export async function updateProfileTx(
       .where(eq(usersTable.id, userId))
       .returning();
     if (!updated) return null;
-    return finalizeWrite(updated);
+    return finalizeWrite(updated, UpdateProfileResponse);
   });
 }

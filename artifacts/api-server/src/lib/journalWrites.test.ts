@@ -41,6 +41,12 @@ vi.mock("./writeContract", async (importOriginal) => {
 
 const finalizeSpy = vi.mocked(writeContract.finalizeWrite);
 
+// The genuine finalizeWrite implementation, used by the contract-validation
+// tests below to run the real response-schema check against a tampered row.
+const { finalizeWrite: realFinalizeWrite } = await vi.importActual<
+  typeof import("./writeContract")
+>("./writeContract");
+
 const userId = `test-journal-tx-${Math.random().toString(36).slice(2, 10)}`;
 const TODAY = "2026-05-29";
 
@@ -282,6 +288,46 @@ describe("createEveningReportTx", () => {
     ).rejects.toThrow("finalize boom");
 
     expect(await eveningReportsForUser()).toHaveLength(0);
+  });
+});
+
+describe("response-contract validation rolls the save back", () => {
+  // Instead of throwing arbitrarily, these tests run the genuine finalizeWrite
+  // against a tampered serialized row so the real response schema rejects it,
+  // proving an un-serializable record never commits.
+  it("rolls back a body scan whose row violates the response schema", async () => {
+    finalizeSpy.mockImplementationOnce((row, schema) =>
+      realFinalizeWrite({ ...(row as object), energyLevel: "not-a-number" }, schema),
+    );
+
+    await expect(
+      createBodyScanTx(userId, {
+        scannedAt: new Date("2026-05-29T08:00:00.000Z"),
+        feelings: ["calm"],
+        energyLevel: 5,
+        physicalSensations: null,
+        notes: null,
+      }),
+    ).rejects.toThrow();
+
+    expect(await bodyScansForUser()).toHaveLength(0);
+  });
+
+  it("rolls back a habit whose row violates the response schema", async () => {
+    finalizeSpy.mockImplementationOnce((row, schema) =>
+      realFinalizeWrite({ ...(row as object), completedCount: "lots" }, schema),
+    );
+
+    await expect(
+      createHabitTx(userId, {
+        name: "Contract breaker",
+        description: null,
+        targetDays: 90,
+        startDate: TODAY,
+      }),
+    ).rejects.toThrow();
+
+    expect(await habitsForUser()).toHaveLength(0);
   });
 });
 

@@ -35,7 +35,7 @@ router.post("/morning-logs", requireAuth, async (req, res): Promise<void> => {
     miniGoals: parsed.data.miniGoals ?? [],
     notes: parsed.data.notes ?? null,
   });
-  res.status(201).json(GetMorningLogResponse.parse(log));
+  res.status(201).json(log);
 });
 
 router.get("/morning-logs/:id", requireAuth, async (req, res): Promise<void> => {
