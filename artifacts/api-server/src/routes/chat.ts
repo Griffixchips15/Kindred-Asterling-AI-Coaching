@@ -8,13 +8,18 @@ import {
   type User,
 } from "@workspace/db";
 import { SendChatMessageBody, AppendChatMessageBody } from "@workspace/api-zod";
-import { ai } from "@workspace/integrations-gemini-ai";
+import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { requireAuth } from "../middlewares/requireAuth";
 import { chatLimiter } from "../middlewares/rateLimiter";
 
 const router: IRouter = Router();
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+// Claude via Replit's managed Anthropic integration — no user-supplied API key
+// and no third-party billing setup required.
+const CHAT_MODEL = "claude-sonnet-4-6";
+// Bound the assistant reply length. Kindred is intentionally terse (1-3
+// sentences), so a small cap keeps replies tight and token cost low.
+const MAX_OUTPUT_TOKENS = 400;
 // Cap history sent to the model. Full history is still preserved in DB and
 // shown in the UI, but only the most recent turns are sent on each call so
 // that long sessions don't push token usage up or confuse the model with
@@ -24,7 +29,7 @@ const HISTORY_TURN_LIMIT = 24;
 // Mirrors the OpenAPI/Zod maxLength as a defense-in-depth measure so even a
 // drifted contract can't push oversized text into the prompt.
 const MAX_MESSAGE_CHARS = 4000;
-// Hard cap on the total characters of conversation history sent to Gemini on
+// Hard cap on the total characters of conversation history sent to the model on
 // any single /chat/send call. Even with per-message caps, 24 turns of
 // near-limit messages would otherwise total ~96KB of attacker-controlled
 // text. We trim oldest-first until the window fits this budget.
@@ -174,7 +179,7 @@ router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Re
   // Bounded SQL fetch: only pull the most recent HISTORY_TURN_LIMIT rows
   // instead of the entire conversation. Otherwise an attacker who has
   // already stored thousands of messages can force an O(N) DB read +
-  // serialize on every future /chat/send, even though the Gemini payload
+  // serialize on every future /chat/send, even though the model payload
   // itself is bounded by MAX_HISTORY_CHARS.
   const recentDesc = await db
     .select()
@@ -183,7 +188,7 @@ router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Re
     .orderBy(desc(messages.id))
     .limit(HISTORY_TURN_LIMIT);
   const recent = recentDesc.slice().reverse();
-  // Further trim oldest-first so the total characters forwarded to Gemini
+  // Further trim oldest-first so the total characters forwarded to the model
   // stay within MAX_HISTORY_CHARS, even if stored messages somehow exceed
   // the per-message cap. Always keep at least the most recent turn.
   const bounded: typeof recent = [];
@@ -194,45 +199,55 @@ router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Re
     bounded.unshift(recent[i]);
     total += len;
   }
-  const contents = bounded.map((m) => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: clipMessage(m.content) }],
+  // Anthropic's messages API requires the conversation to begin with a user
+  // turn. Our history can start with an assistant message (the onboarding
+  // greeting), so drop any leading assistant turns before mapping.
+  let firstUserIdx = bounded.findIndex((m) => m.role === "user");
+  if (firstUserIdx < 0) firstUserIdx = bounded.length;
+  const chatMessages = bounded.slice(firstUserIdx).map((m) => ({
+    role: (m.role === "assistant" ? "assistant" : "user") as "assistant" | "user",
+    content: clipMessage(m.content),
   }));
+
+  // The current user turn was just inserted above, so this should never be
+  // empty in normal flow. Guard explicitly: Anthropic rejects an empty
+  // messages array, and we'd rather surface a clean retryable 502 than a
+  // raw API error.
+  if (chatMessages.length === 0) {
+    res.status(502).json({
+      error: "assistant_unavailable",
+      reason: "no_user_turn",
+      message:
+        "Kindred couldn't put a reply together this time. Try sending that again.",
+    });
+    return;
+  }
 
   let assistantText: string | null = null;
   let failureReason: string | null = null;
   try {
-    const result = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents,
-      config: {
-        systemInstruction: buildSystemInstruction(userRow),
-        // gemini-2.5-flash enables internal "thinking" by default, which can
-        // consume the entire output budget and return an empty .text. Disable
-        // it for chat so every call yields a real reply.
-        thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 400,
-        temperature: 0.8,
-      },
+    const result = await anthropic.messages.create({
+      model: CHAT_MODEL,
+      max_tokens: MAX_OUTPUT_TOKENS,
+      system: buildSystemInstruction(userRow),
+      messages: chatMessages,
     });
-    const text = result.text?.trim();
-    if (text) {
-      assistantText = text;
+    const textParts = result.content
+      .map((block) => (block.type === "text" ? block.text : ""))
+      .join("")
+      .trim();
+    if (textParts) {
+      assistantText = textParts;
     } else {
-      const cand = result.candidates?.[0];
-      failureReason = cand?.finishReason ?? "empty_response";
+      failureReason = result.stop_reason ?? "empty_response";
       req.log.warn(
-        {
-          finishReason: cand?.finishReason,
-          safetyRatings: cand?.safetyRatings,
-          promptFeedback: result.promptFeedback,
-        },
-        "Gemini returned no text",
+        { stopReason: result.stop_reason },
+        "Claude returned no text",
       );
     }
   } catch (err) {
     failureReason = "exception";
-    req.log.error({ err }, "Gemini generateContent failed");
+    req.log.error({ err }, "Claude messages.create failed");
   }
 
   if (!assistantText) {

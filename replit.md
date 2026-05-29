@@ -1,6 +1,6 @@
 # Kindred-Asterling-AI-Coaching
 
-A personal wellness companion web app. Users journal their day (morning check-ins, body scans, evening reflections), track habits and medications, and chat with **Kindred**, a Gemini-powered AI coach that knows their profile and history.
+A personal wellness companion web app. Users journal their day (morning check-ins, body scans, evening reflections), track habits and medications, and chat with **Kindred**, a Claude-powered AI coach that knows their profile and history.
 
 ## Run & Operate
 
@@ -10,7 +10,7 @@ A personal wellness companion web app. Users journal their day (morning check-in
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks + Zod schemas from `lib/api-spec/openapi.yaml`
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only — production needs a separate push after deploy)
-- Required env (already configured): `DATABASE_URL`, `GEMINI_API_KEY`, `SESSION_SECRET`
+- Required env (already configured): `DATABASE_URL`, `SESSION_SECRET`, `AI_INTEGRATIONS_ANTHROPIC_BASE_URL`, `AI_INTEGRATIONS_ANTHROPIC_API_KEY` (the last two are managed by the Replit Anthropic integration — do not edit). `GEMINI_API_KEY` is no longer used by chat.
 
 ## Stack
 
@@ -18,7 +18,7 @@ A personal wellness companion web app. Users journal their day (morning check-in
 - API: Express 5 with Pino logging, OIDC (Replit Auth) sessions
 - DB: PostgreSQL + Drizzle ORM
 - Frontend: React + Vite + Tailwind + React Query + Wouter routing
-- AI: Google Gemini via `@workspace/integrations-gemini-ai`
+- AI: Anthropic Claude via `@workspace/integrations-anthropic-ai` (Replit-managed integration — no user API key, billed to Replit credits)
 - Validation: Zod (`zod/v4`) + `drizzle-zod`
 - API codegen: Orval (React Query hooks + Zod schemas from OpenAPI)
 - Integrations: Google Calendar (installed, available for future use)
@@ -53,7 +53,7 @@ Kindred-Asterling-AI-Coaching helps people care for themselves with structure an
 - **Habits** — daily habits with streak tracking
 - **Medications** — list with times, "X / Y taken today" counter, one-tap mark-as-taken
 - **Profile** — preferred name, birthday, bio, motivational quote, and "what Kindred should know" (struggles / strengths / interests) — all of which the AI references
-- **Chat with Kindred** — a Gemini-powered coach that reflects, asks specific (non-generic) follow-ups, and respects what's in your profile
+- **Chat with Kindred** — a Claude-powered coach that reflects, asks specific (non-generic) follow-ups, and respects what's in your profile
 - **Archive** — historical view of past entries
 
 ## User preferences
