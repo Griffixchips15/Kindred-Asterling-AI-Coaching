@@ -32,6 +32,7 @@ A personal wellness companion web app. Users journal their day (morning check-in
 - **Frontend pages:** `artifacts/kindred-coach/src/pages/*` (dashboard, morning, scans, evening, habits, medications, chat, profile, archive)
 - **Layout & nav:** `artifacts/kindred-coach/src/components/layout/app-layout.tsx` — collapsible sidebar (state persisted in localStorage)
 - **AI system prompt:** `artifacts/api-server/src/routes/chat.ts` → `buildSystemInstruction()`
+- **AI chat tools (function calling):** `artifacts/api-server/src/lib/chatTools.ts` — tool definitions + `runChatTool()` executor; the agentic loop lives in `/chat/send`
 - **Theme:** `artifacts/kindred-coach/src/hooks/use-theme.tsx` + `src/index.css` (light/dark + accent palettes)
 
 ## Architecture decisions
@@ -41,6 +42,7 @@ A personal wellness companion web app. Users journal their day (morning check-in
 - **Chat re-reads profile on every turn.** `buildSystemInstruction()` pulls fresh user fields (preferred name, struggles, strengths, interests, bio, motivational quote) from the DB on each `/chat/send`, so Profile edits take effect on the very next reply with no restart needed.
 - **Defense in depth on prompt size.** Profile fields have `maxLength` constraints in OpenAPI/Zod **and** are clipped server-side before being concatenated into the chat system prompt, so a drifted DB value can't bloat the prompt.
 - **Idempotent daily logs.** Endpoints like medication-log-for-today use unique constraints on `(userId, date)` so double-taps don't create duplicates.
+- **Chat tool-calling is server-scoped.** Kindred's tools (`chatTools.ts`) let Claude read the user's own habits/streaks, medication status, and recent morning/evening/body-scan logs mid-conversation. Every tool executes scoped to the session `req.user!.id` — the model never supplies identity — and outputs omit internal row IDs. The `/chat/send` agentic loop runs tools while `stop_reason === "tool_use"`, capped at 4 iterations.
 
 ## Product
 
@@ -53,7 +55,7 @@ Kindred-Asterling-AI-Coaching helps people care for themselves with structure an
 - **Habits** — daily habits with streak tracking
 - **Medications** — list with times, "X / Y taken today" counter, one-tap mark-as-taken
 - **Profile** — preferred name, birthday, bio, motivational quote, and "what Kindred should know" (struggles / strengths / interests) — all of which the AI references
-- **Chat with Kindred** — a Claude-powered coach that reflects, asks specific (non-generic) follow-ups, and respects what's in your profile
+- **Chat with Kindred** — a Claude-powered coach that reflects, asks specific (non-generic) follow-ups, and respects what's in your profile. Kindred can also pull your own recent data mid-conversation (morning check-ins, evening reflections, body scans, habit streaks, today's medications) when it's relevant — via Claude tool-calling, all scoped to your account
 - **Archive** — historical view of past entries
 
 ## User preferences

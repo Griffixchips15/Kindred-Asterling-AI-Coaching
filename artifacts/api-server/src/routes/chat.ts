@@ -9,8 +9,10 @@ import {
 } from "@workspace/db";
 import { SendChatMessageBody, AppendChatMessageBody } from "@workspace/api-zod";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
+import type Anthropic from "@anthropic-ai/sdk";
 import { requireAuth } from "../middlewares/requireAuth";
 import { chatLimiter } from "../middlewares/rateLimiter";
+import { chatTools, runChatTool } from "../lib/chatTools";
 
 const router: IRouter = Router();
 
@@ -100,6 +102,7 @@ function buildSystemInstruction(user: User | null): string {
     "Vary your openings and rhythm. Do not start consecutive replies the same way. It is fine — often better — to make a statement, share an observation, or simply sit with what they said without asking anything at all.",
     "If the user sends a short logistical message ('brb', 'heading to therapy', 'one sec'), reply with a short acknowledgement that names the thing they mentioned (e.g. 'Take your time at therapy.'). Never default to a generic 'tell me more'.",
     "Avoid sycophancy ('what a great question', 'that's amazing'). Avoid therapist clichés. Never give medical advice or diagnose.",
+    "You can quietly look things up about them when it genuinely helps: recent morning check-ins, evening reflections, body scans, habit streaks, and today's medications. Only look something up when the conversation actually calls for it — never for small talk or short logistical messages — and read only what you need. Weave anything you find in naturally, like you simply remember it; never mention tools, functions, data, lookups, or that you checked anything.",
   ];
   if (user?.birthday) parts.push(`Their birthday is ${user.birthday}.`);
   if (struggles) parts.push(`They are working through: ${struggles}.`);
@@ -225,24 +228,77 @@ router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Re
 
   let assistantText: string | null = null;
   let failureReason: string | null = null;
+  // Agentic tool loop: Claude may ask to read the user's own data (habits,
+  // medications, recent logs) before replying. We execute each requested tool
+  // scoped to THIS user, feed results back, and re-call until it produces a
+  // text reply. Capped so a misbehaving turn can't loop forever / burn tokens.
+  const MAX_TOOL_ITERATIONS = 4;
+  const convo: Anthropic.MessageParam[] = chatMessages.map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
+  const system = buildSystemInstruction(userRow);
   try {
-    const result = await anthropic.messages.create({
-      model: CHAT_MODEL,
-      max_tokens: MAX_OUTPUT_TOKENS,
-      system: buildSystemInstruction(userRow),
-      messages: chatMessages,
-    });
-    const textParts = result.content
-      .map((block) => (block.type === "text" ? block.text : ""))
-      .join("")
-      .trim();
-    if (textParts) {
-      assistantText = textParts;
-    } else {
-      failureReason = result.stop_reason ?? "empty_response";
+    for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
+      const result = await anthropic.messages.create({
+        model: CHAT_MODEL,
+        max_tokens: MAX_OUTPUT_TOKENS,
+        system,
+        messages: convo,
+        tools: chatTools,
+      });
+
+      if (result.stop_reason === "tool_use") {
+        // Record the assistant's tool-use turn, run each tool, and hand the
+        // results back as a user turn for the next iteration.
+        convo.push({ role: "assistant", content: result.content });
+        const toolResults: Anthropic.ToolResultBlockParam[] = [];
+        for (const block of result.content) {
+          if (block.type !== "tool_use") continue;
+          let output: string;
+          try {
+            output = await runChatTool(
+              block.name,
+              (block.input ?? {}) as Record<string, unknown>,
+              userId,
+            );
+          } catch (toolErr) {
+            req.log.error(
+              { err: toolErr, tool: block.name },
+              "chat tool execution failed",
+            );
+            output = JSON.stringify({ error: "tool_failed" });
+          }
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: output,
+          });
+        }
+        convo.push({ role: "user", content: toolResults });
+        continue;
+      }
+
+      const textParts = result.content
+        .map((block) => (block.type === "text" ? block.text : ""))
+        .join("")
+        .trim();
+      if (textParts) {
+        assistantText = textParts;
+      } else {
+        failureReason = result.stop_reason ?? "empty_response";
+        req.log.warn(
+          { stopReason: result.stop_reason },
+          "Claude returned no text",
+        );
+      }
+      break;
+    }
+    if (!assistantText && !failureReason) {
+      failureReason = "max_tool_iterations";
       req.log.warn(
-        { stopReason: result.stop_reason },
-        "Claude returned no text",
+        { maxIterations: MAX_TOOL_ITERATIONS },
+        "Claude did not finish within tool-iteration cap",
       );
     }
   } catch (err) {
