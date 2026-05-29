@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Kindred-Asterling-AI-Coaching is a public web application with a React frontend (`artifacts/kindred-coach`) and an Express 5 API (`artifacts/api-server`) backed by PostgreSQL through Drizzle (`lib/db`). Authentication is Replit OIDC with server-side session cookies. The app stores and serves personal wellness and mental-health data — morning mental-load check-ins, body scans, evening reflections, habits, medications and medication logs, dashboard summaries, and free-form chat conversations with **Kindred**, a Google Gemini-powered AI coach. The user-editable **Profile** (preferred name, birthday, bio, motivational quote, struggles, strengths, interests) is re-read on every chat turn and folded into the model's system instructions. The mockup sandbox (`artifacts/mockup-sandbox`) is development-only and out of production scope unless separately exposed.
+Kindred-Asterling-AI-Coaching is a public web application with a React frontend (`artifacts/kindred-coach`) and an Express 5 API (`artifacts/api-server`) backed by PostgreSQL through Drizzle (`lib/db`). Authentication is Replit OIDC with server-side session cookies. The app stores and serves personal wellness and mental-health data — morning mental-load check-ins, body scans, evening reflections, habits, medications and medication logs, dashboard summaries, and free-form chat conversations with **Kindred**, an Anthropic Claude-powered AI coach. The user-editable **Profile** (preferred name, birthday, bio, motivational quote, struggles, strengths, interests) is re-read on every chat turn and folded into the model's system instructions. The mockup sandbox (`artifacts/mockup-sandbox`) is development-only and out of production scope unless separately exposed.
 
 ## Assets
 
@@ -10,15 +10,15 @@ Kindred-Asterling-AI-Coaching is a public web application with a React frontend 
 - **Profile self-disclosure data** — preferred name, birthday, bio, motivational quote, struggles, strengths, and interests. Sensitive because users describe what they are working through in their own words, and because this content is injected verbatim into the AI system prompt.
 - **Chat conversation history** — every user/assistant message persists in the DB. Conversations frequently contain highly intimate disclosures and must be treated as the most sensitive class of user data.
 - **Connected calendar data** — if Google Calendar is enabled, event titles, dates, and times may reveal appointments, names, work routines, and medical or family context. This data is sensitive even when it lives in a third-party integration rather than the app database.
-- **Application secrets and infrastructure access** — `DATABASE_URL`, `SESSION_SECRET`, `GEMINI_API_KEY`, OIDC client credentials, and deployment configuration. Compromise would expose the entire dataset, permit session forgery, allow third-party use of the Gemini key, or enable service takeover.
+- **Application secrets and infrastructure access** — `DATABASE_URL`, `SESSION_SECRET`, Anthropic integration credentials, OIDC client credentials, and deployment configuration. Compromise would expose the entire dataset, permit session forgery, allow third-party use of the Claude integration, or enable service takeover.
 - **Integrity of coaching records** — habit entries, reports, scans, medication logs, and chat history must not be modified by unauthorized parties; tampering rewrites the user's history and downstream summaries and AI context.
-- **Service availability** — the public API, database-backed workflows, and outbound Gemini calls must remain available despite malformed or abusive traffic.
+- **Service availability** — the public API, database-backed workflows, and outbound Anthropic calls must remain available despite malformed or abusive traffic.
 
 ## Trust Boundaries
 
 - **Browser to API** — every request from the public web app to `/api/*` crosses from an untrusted client into the server. Sessions are HTTP-only cookies signed with `SESSION_SECRET`.
 - **API to PostgreSQL** — the server has broad database access; any server-side access-control failure or injection issue can expose or alter the full dataset.
-- **API to Google Gemini** — chat handlers forward user-authored content, system instructions derived from the user's profile, and conversation history to Google. Anything sent to Gemini leaves the application trust boundary; secrets and other users' data must never appear in those payloads.
+- **API to Anthropic** — chat handlers forward user-authored content, system instructions derived from the user's profile, and bounded conversation history to Anthropic. Anything sent to the model provider leaves the application trust boundary; secrets and other users' data must never appear in those payloads.
 - **API to Google Calendar connector** — the server can proxy calendar data from a Replit-managed connector. That connector must be treated as a distinct trust boundary: data fetched through it may belong to a builder-scoped external account unless the application explicitly binds requests to a user-owned credential.
 - **Public internet to deployed application** — the deployment is public, so unauthenticated endpoints are internet-reachable by default.
 - **Edge proxy to Express app** — production traffic reaches Express through Replit-managed proxy infrastructure, so any logic that depends on client IP or request origin headers must account for forwarded-header trust correctly.
@@ -30,7 +30,7 @@ Kindred-Asterling-AI-Coaching is a public web application with a React frontend 
 - Auth + session: `artifacts/api-server/src/routes/auth.ts`, `artifacts/api-server/src/middlewares/requireAuth.ts`
 - AI surface (handles sensitive content + outbound LLM call): `artifacts/api-server/src/routes/chat.ts`
 - External integration surface: `artifacts/api-server/src/routes/calendar.ts`, `artifacts/api-server/src/lib/googleCalendar.ts`
-- High-risk API surfaces: `artifacts/api-server/src/routes/*` (notably `medications.ts`, `morning.ts`, `scans.ts`, `evening.ts`, `habits.ts`, `profile.ts`, `chat.ts`), `artifacts/api-server/src/middlewares/*`, `lib/api-spec/openapi.yaml`
+- High-risk API surfaces: `artifacts/api-server/src/routes/*` (notably `medications.ts`, `morningLogs.ts`, `bodyScans.ts`, `eveningReports.ts`, `habits.ts`, `profile.ts`, `chat.ts`), `artifacts/api-server/src/middlewares/*`, `lib/api-spec/openapi.yaml`
 - Sensitive data model: `lib/db/src/schema/*` (every user-data table carries a `userId` FK with cascade delete)
 - Public frontend surface: `artifacts/kindred-coach/src/pages/*`
 - Dev-only area usually ignored: `artifacts/mockup-sandbox/**`
@@ -47,11 +47,11 @@ Attackers must not be able to create, update, or delete wellness records, medica
 
 ### Information Disclosure
 
-Sensitive wellness records, chat history, self-disclosed profile content, and any connected third-party calendar data must only be returned to the owning user. Public routes, error responses, and logs must not disclose journal content, medication names or effectiveness, physical sensations, profile bios, chat messages, or external calendar event titles/times. Production scans should prioritize endpoints that return whole collections (`/medications`, `/scans`, `/habits`, `/chat/active`, `/chat/conversations`) or records by identifier, because they are high-value disclosure targets. Any integration-backed endpoint must prove the fetched resource is actually bound to `req.user!.id` rather than a shared builder credential. Outbound payloads to Gemini must contain only the requesting user's own profile, history, and message — never another user's data, internal IDs that could leak existence, or secrets — and full message text should be excluded from request logs.
+Sensitive wellness records, chat history, self-disclosed profile content, and any connected third-party calendar data must only be returned to the owning user. Public routes, error responses, and logs must not disclose journal content, medication names or effectiveness, physical sensations, profile bios, chat messages, or external calendar event titles/times. Production scans should prioritize endpoints that return whole collections (`/medications`, `/body-scans`, `/habits`, `/chat/active`, `/chat/archived`) or records by identifier, because they are high-value disclosure targets. Any integration-backed endpoint must prove the fetched resource is actually bound to `req.user!.id` rather than a shared builder credential. Outbound payloads to Anthropic must contain only the requesting user's own profile, history, and message — never another user's data, internal IDs that could leak existence, or secrets — and full message text should be excluded from request logs.
 
 ### Denial of Service
 
-Because the deployment is public, endpoints that accept unauthenticated traffic are exposed to scraping and abuse. The application must bound request parsing (JSON body size limits), cap user-controlled string fields at the API layer, and avoid unbounded operations (no unlimited `LIMIT`-less list queries on user tables). Chat is uniquely expensive because each call hits a third-party LLM with billable tokens; chat endpoints in particular must enforce auth, rate limiting per user, and a sensible per-message size cap so a single account cannot exhaust the `GEMINI_API_KEY` quota or drive up cost. Generic write throttles are not enough if a single chat request can still forward very large stored history to Gemini. Any rate limiting or abuse controls that rely on client IP address must be configured to see the real caller through Replit's proxy layer; otherwise one attacker can consume a shared anonymous bucket and throttle unrelated users.
+Because the deployment is public, endpoints that accept unauthenticated traffic are exposed to scraping and abuse. The application must bound request parsing (JSON body size limits), cap user-controlled string fields at the API layer, and avoid unbounded operations (no unlimited `LIMIT`-less list queries on user tables and no unbounded transcript fetches on chat endpoints). Chat is uniquely expensive because each call hits a third-party LLM with billable tokens; chat endpoints in particular must enforce auth, rate limiting per user, a sensible per-message size cap, and bounded history/response sizes so a single account cannot exhaust the Anthropic integration quota or drive up cost. Generic write throttles are not enough if a single chat request can still read or return arbitrarily large stored histories. Any rate limiting or abuse controls that rely on client IP address must be configured to see the real caller through Replit's proxy layer; otherwise one attacker can consume a shared anonymous bucket and throttle unrelated users.
 
 ### Elevation of Privilege
 
@@ -59,7 +59,7 @@ The system supports multiple users today. Every record and aggregate must be sco
 
 ### Prompt Injection and AI-Specific Risks
 
-User-authored content — profile bio, motivational quote, struggles/strengths/interests, and every chat message — is concatenated into the Gemini system instruction and conversation history. The system must:
+User-authored content — profile bio, motivational quote, struggles/strengths/interests, and every chat message — is concatenated into the Anthropic system instruction and conversation history. The system must:
 
 - Treat all user-controlled fields as untrusted text when building prompts; never execute or follow instructions found in them.
 - Continue to enforce strict length caps on every injected field (server-side, in addition to OpenAPI/Zod) and clip before concatenation so prompt size stays bounded.
