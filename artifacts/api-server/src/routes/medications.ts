@@ -16,6 +16,10 @@ import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
+// A database executor: either the top-level `db` or a transaction handle. Used so
+// schedule reconciliation can run inside the same transaction as the med write.
+type DbExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 // Largest valid UTC offset is ±14h; clamp anything outside that (and NaN → 0)
 // so a malformed client value can't shift the day by an absurd amount.
 function normalizeTzOffset(raw: unknown): number {
@@ -81,12 +85,13 @@ function normalizeTimes(times: string[]): string[] {
 // they still count for days before today. Re-adding a time that was removed
 // earlier today simply re-opens that same entry (no double-count).
 async function reconcileScheduleEntries(
+  tx: DbExecutor,
   medicationId: number,
   userId: string,
   newTimes: string[],
   today: string,
 ): Promise<void> {
-  const open = await db
+  const open = await tx
     .select()
     .from(medicationScheduleEntriesTable)
     .where(
@@ -102,7 +107,7 @@ async function reconcileScheduleEntries(
   // Close entries for times no longer scheduled.
   for (const entry of open) {
     if (!target.has(entry.scheduledTime)) {
-      await db
+      await tx
         .update(medicationScheduleEntriesTable)
         .set({ endDate: today })
         .where(eq(medicationScheduleEntriesTable.id, entry.id));
@@ -112,7 +117,7 @@ async function reconcileScheduleEntries(
   // Open entries for newly scheduled times (or re-open one closed earlier today).
   for (const time of target) {
     if (openByTime.has(time)) continue;
-    const [reopened] = await db
+    const [reopened] = await tx
       .update(medicationScheduleEntriesTable)
       .set({ endDate: null })
       .where(
@@ -125,7 +130,7 @@ async function reconcileScheduleEntries(
       )
       .returning();
     if (reopened) continue;
-    await db.insert(medicationScheduleEntriesTable).values({
+    await tx.insert(medicationScheduleEntriesTable).values({
       medicationId,
       userId,
       scheduledTime: time,
@@ -277,17 +282,20 @@ router.post("/medications", requireAuth, async (req, res): Promise<void> => {
   }
   const userId = req.user!.id;
   const times = normalizeTimes(parsed.data.times);
-  const [created] = await db
-    .insert(medicationsTable)
-    .values({
-      userId,
-      name: parsed.data.name.trim(),
-      dosage: parsed.data.dosage.trim(),
-      times,
-      notes: parsed.data.notes ?? null,
-    })
-    .returning();
-  await reconcileScheduleEntries(created.id, userId, times, todayDateStr());
+  const created = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(medicationsTable)
+      .values({
+        userId,
+        name: parsed.data.name.trim(),
+        dosage: parsed.data.dosage.trim(),
+        times,
+        notes: parsed.data.notes ?? null,
+      })
+      .returning();
+    await reconcileScheduleEntries(tx, row.id, userId, times, todayDateStr());
+    return row;
+  });
   res.status(201).json(JSON.parse(JSON.stringify(created)));
 });
 
@@ -304,21 +312,25 @@ router.patch("/medications/:id", requireAuth, async (req, res): Promise<void> =>
   }
   const userId = req.user!.id;
   const times = normalizeTimes(parsed.data.times);
-  const [updated] = await db
-    .update(medicationsTable)
-    .set({
-      name: parsed.data.name.trim(),
-      dosage: parsed.data.dosage.trim(),
-      times,
-      notes: parsed.data.notes ?? null,
-    })
-    .where(and(eq(medicationsTable.id, id), eq(medicationsTable.userId, userId)))
-    .returning();
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(medicationsTable)
+      .set({
+        name: parsed.data.name.trim(),
+        dosage: parsed.data.dosage.trim(),
+        times,
+        notes: parsed.data.notes ?? null,
+      })
+      .where(and(eq(medicationsTable.id, id), eq(medicationsTable.userId, userId)))
+      .returning();
+    if (!row) return null;
+    await reconcileScheduleEntries(tx, id, userId, times, todayDateStr());
+    return row;
+  });
   if (!updated) {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  await reconcileScheduleEntries(id, userId, times, todayDateStr());
   res.json(JSON.parse(JSON.stringify(updated)));
 });
 
