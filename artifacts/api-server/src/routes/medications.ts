@@ -5,6 +5,7 @@ import {
   CreateMedicationBody,
   UpdateMedicationBody,
   LogMedicationTakenBody,
+  UnlogMedicationTakenBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -21,6 +22,17 @@ function sevenDayWindowStartDateStr(): string {
   return d.toISOString().split("T")[0];
 }
 
+function lastSevenDays(): string[] {
+  // Oldest first: [today-6 ... today].
+  const days: string[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().split("T")[0]);
+  }
+  return days;
+}
+
 function parseId(raw: string | string[] | undefined): number | null {
   const v = Array.isArray(raw) ? raw[0] : raw;
   if (v === undefined) return null;
@@ -29,22 +41,28 @@ function parseId(raw: string | string[] | undefined): number | null {
   return n;
 }
 
+// Normalize a list of "HH:MM" times: trim, de-duplicate, and sort ascending.
+function normalizeTimes(times: string[]): string[] {
+  return Array.from(new Set(times.map((t) => t.trim()))).sort();
+}
+
 router.get("/medications", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
   const meds = await db
     .select()
     .from(medicationsTable)
     .where(eq(medicationsTable.userId, userId))
-    .orderBy(asc(medicationsTable.timeOfDay));
+    .orderBy(asc(medicationsTable.name));
 
   const today = todayDateStr();
   const todays = await db
     .select()
     .from(medicationLogsTable)
     .where(and(eq(medicationLogsTable.userId, userId), eq(medicationLogsTable.date, today)));
-  const todayMap = new Map<number, { takenAt: string; effectiveness: number | null }>();
+  // Map keyed by `${medicationId}|${scheduledTime}` → today's log for that dose.
+  const todayMap = new Map<string, { takenAt: string; effectiveness: number | null }>();
   for (const l of todays) {
-    todayMap.set(l.medicationId, {
+    todayMap.set(`${l.medicationId}|${l.scheduledTime}`, {
       takenAt: new Date(l.takenAt).toISOString(),
       effectiveness: l.effectiveness ?? null,
     });
@@ -74,18 +92,68 @@ router.get("/medications", requireAuth, async (req, res): Promise<void> => {
   }
 
   const result = meds.map((m) => {
-    const t = todayMap.get(m.id) ?? null;
+    const times = normalizeTimes(m.times);
     const r = recentMap.get(m.id) ?? { avg: null, cnt: 0 };
+    const doses = times.map((scheduledTime) => {
+      const t = todayMap.get(`${m.id}|${scheduledTime}`) ?? null;
+      return {
+        scheduledTime,
+        takenAt: t?.takenAt ?? null,
+        effectiveness: t?.effectiveness ?? null,
+      };
+    });
     return {
       ...JSON.parse(JSON.stringify(m)),
-      takenToday: t?.takenAt ?? null,
-      effectivenessToday: t?.effectiveness ?? null,
+      times,
+      doses,
       recentEffectivenessAvg: r.avg,
       recentEffectivenessCount: r.cnt,
     };
   });
   res.json(result);
 });
+
+router.get(
+  "/medications/weekly-report",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const userId = req.user!.id;
+    const meds = await db
+      .select()
+      .from(medicationsTable)
+      .where(eq(medicationsTable.userId, userId))
+      .orderBy(asc(medicationsTable.name));
+
+    const sinceDate = sevenDayWindowStartDateStr();
+    const logs = await db
+      .select()
+      .from(medicationLogsTable)
+      .where(
+        and(
+          eq(medicationLogsTable.userId, userId),
+          gte(medicationLogsTable.date, sinceDate),
+        ),
+      );
+
+    res.json({
+      days: lastSevenDays(),
+      medications: meds.map((m) => ({
+        id: m.id,
+        name: m.name,
+        dosage: m.dosage,
+        times: normalizeTimes(m.times),
+        createdDate: new Date(m.createdAt).toISOString().split("T")[0],
+      })),
+      logs: logs.map((l) => ({
+        medicationId: l.medicationId,
+        date: typeof l.date === "string" ? l.date : String(l.date),
+        scheduledTime: l.scheduledTime,
+        takenAt: new Date(l.takenAt).toISOString(),
+        effectiveness: l.effectiveness ?? null,
+      })),
+    });
+  },
+);
 
 router.post("/medications", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreateMedicationBody.safeParse(req.body);
@@ -100,7 +168,7 @@ router.post("/medications", requireAuth, async (req, res): Promise<void> => {
       userId,
       name: parsed.data.name.trim(),
       dosage: parsed.data.dosage.trim(),
-      timeOfDay: parsed.data.timeOfDay,
+      times: normalizeTimes(parsed.data.times),
       notes: parsed.data.notes ?? null,
     })
     .returning();
@@ -124,7 +192,7 @@ router.patch("/medications/:id", requireAuth, async (req, res): Promise<void> =>
     .set({
       name: parsed.data.name.trim(),
       dosage: parsed.data.dosage.trim(),
-      timeOfDay: parsed.data.timeOfDay,
+      times: normalizeTimes(parsed.data.times),
       notes: parsed.data.notes ?? null,
     })
     .where(and(eq(medicationsTable.id, id), eq(medicationsTable.userId, userId)))
@@ -160,16 +228,12 @@ router.post("/medications/:id/log", requireAuth, async (req, res): Promise<void>
     res.status(400).json({ error: "Invalid id" });
     return;
   }
-  // Body is optional; when present, it can carry an effectiveness rating.
-  const bodyToParse =
-    req.body && typeof req.body === "object" && Object.keys(req.body).length > 0
-      ? req.body
-      : {};
-  const parsed = LogMedicationTakenBody.safeParse(bodyToParse);
+  const parsed = LogMedicationTakenBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const scheduledTime = parsed.data.scheduledTime;
   const effectiveness = parsed.data.effectiveness ?? null;
 
   const userId = req.user!.id;
@@ -181,8 +245,14 @@ router.post("/medications/:id/log", requireAuth, async (req, res): Promise<void>
     res.status(404).json({ error: "Not found" });
     return;
   }
+  // The dose must be one of the medication's scheduled times.
+  if (!normalizeTimes(med.times).includes(scheduledTime)) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
   const today = todayDateStr();
-  // True idempotency via DB-level unique (user_id, medication_id, date).
+  // True idempotency via DB-level unique (user_id, medication_id, date, scheduled_time).
   // Only overwrite an existing rating when caller supplied one.
   const setOnConflict =
     effectiveness !== null
@@ -190,12 +260,13 @@ router.post("/medications/:id/log", requireAuth, async (req, res): Promise<void>
       : { medicationId: medicationLogsTable.medicationId };
   const [log] = await db
     .insert(medicationLogsTable)
-    .values({ medicationId: id, userId, date: today, effectiveness })
+    .values({ medicationId: id, userId, date: today, scheduledTime, effectiveness })
     .onConflictDoUpdate({
       target: [
         medicationLogsTable.userId,
         medicationLogsTable.medicationId,
         medicationLogsTable.date,
+        medicationLogsTable.scheduledTime,
       ],
       set: setOnConflict,
     })
@@ -209,6 +280,11 @@ router.delete("/medications/:id/log", requireAuth, async (req, res): Promise<voi
     res.status(400).json({ error: "Invalid id" });
     return;
   }
+  const parsed = UnlogMedicationTakenBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
   const userId = req.user!.id;
   const today = todayDateStr();
   const [removed] = await db
@@ -218,6 +294,7 @@ router.delete("/medications/:id/log", requireAuth, async (req, res): Promise<voi
         eq(medicationLogsTable.medicationId, id),
         eq(medicationLogsTable.userId, userId),
         eq(medicationLogsTable.date, today),
+        eq(medicationLogsTable.scheduledTime, parsed.data.scheduledTime),
       ),
     )
     .returning();

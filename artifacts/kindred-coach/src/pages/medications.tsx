@@ -9,6 +9,7 @@ import {
   logMedicationTaken,
   unlogMedicationTaken,
   type MedicationWithStatus,
+  type MedicationDoseStatus,
 } from "@workspace/api-client-react";
 import { Pill, Plus, Pencil, Trash2, Check, X, Clock, Sparkles } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -17,12 +18,13 @@ import { cn } from "@/lib/utils";
 type FormState = {
   name: string;
   dosage: string;
-  timeOfDay: string;
+  times: string[];
   notes: string;
 };
 
-const EMPTY_FORM: FormState = { name: "", dosage: "", timeOfDay: "08:00", notes: "" };
+const EMPTY_FORM: FormState = { name: "", dosage: "", times: ["08:00"], notes: "" };
 const RATING_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function formatTimeLabel(hhmm: string): string {
   const [h, m] = hhmm.split(":").map(Number);
@@ -36,6 +38,12 @@ function ratingTone(n: number): string {
   if (n <= 3) return "text-amber-600 dark:text-amber-400";
   if (n <= 6) return "text-foreground";
   return "text-primary";
+}
+
+function normalizeTimes(times: string[]): string[] {
+  return Array.from(new Set(times.map((t) => t.trim())))
+    .filter((t) => TIME_RE.test(t))
+    .sort();
 }
 
 export default function Medications() {
@@ -57,7 +65,7 @@ export default function Medications() {
     setForm({
       name: m.name,
       dosage: m.dosage,
-      timeOfDay: m.timeOfDay,
+      times: m.times.length > 0 ? [...m.times] : ["08:00"],
       notes: m.notes ?? "",
     });
     setEditingId(m.id);
@@ -74,13 +82,14 @@ export default function Medications() {
 
   async function handleSave() {
     if (!form.name.trim() || !form.dosage.trim()) return;
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(form.timeOfDay)) return;
+    const times = normalizeTimes(form.times);
+    if (times.length === 0) return;
     setBusy(true);
     try {
       const payload = {
         name: form.name.trim(),
         dosage: form.dosage.trim(),
-        timeOfDay: form.timeOfDay,
+        times,
         notes: form.notes.trim() ? form.notes.trim() : null,
       };
       if (editingId === "new") {
@@ -107,13 +116,13 @@ export default function Medications() {
     }
   }
 
-  async function toggleTaken(m: MedicationWithStatus) {
+  async function toggleDose(m: MedicationWithStatus, dose: MedicationDoseStatus) {
     setBusy(true);
     try {
-      if (m.takenToday) {
-        await unlogMedicationTaken(m.id);
+      if (dose.takenAt) {
+        await unlogMedicationTaken(m.id, { scheduledTime: dose.scheduledTime });
       } else {
-        await logMedicationTaken(m.id, {});
+        await logMedicationTaken(m.id, { scheduledTime: dose.scheduledTime });
       }
       await refresh();
     } finally {
@@ -121,19 +130,26 @@ export default function Medications() {
     }
   }
 
-  async function rateEffectiveness(m: MedicationWithStatus, score: number) {
+  async function rateDose(m: MedicationWithStatus, dose: MedicationDoseStatus, score: number) {
     setBusy(true);
     try {
-      // Logging is idempotent on the server — this both marks-taken (if needed)
-      // and sets the effectiveness in one call.
-      await logMedicationTaken(m.id, { effectiveness: score });
+      // Logging is idempotent on the server — this both marks the dose taken
+      // (if needed) and sets its effectiveness in one call.
+      await logMedicationTaken(m.id, {
+        scheduledTime: dose.scheduledTime,
+        effectiveness: score,
+      });
       await refresh();
     } finally {
       setBusy(false);
     }
   }
 
-  const todayCount = meds.filter((m) => m.takenToday).length;
+  const totalDoses = meds.reduce((sum, m) => sum + m.doses.length, 0);
+  const takenDoses = meds.reduce(
+    (sum, m) => sum + m.doses.filter((d) => d.takenAt).length,
+    0,
+  );
 
   return (
     <div className="space-y-6">
@@ -156,9 +172,9 @@ export default function Medications() {
 
       {!isLoading && meds.length > 0 && (
         <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm flex items-center justify-between">
-          <span className="text-muted-foreground">Today's intake</span>
-          <span className="font-medium">
-            {todayCount} / {meds.length} taken
+          <span className="text-muted-foreground">Today's doses</span>
+          <span className="font-medium" data-testid="dose-counter">
+            {takenDoses} / {totalDoses} taken
           </span>
         </div>
       )}
@@ -199,10 +215,10 @@ export default function Medications() {
             <MedRow
               key={m.id}
               med={m}
-              onToggle={() => toggleTaken(m)}
+              onToggleDose={(dose) => toggleDose(m, dose)}
               onEdit={() => startEdit(m)}
               onDelete={() => handleDelete(m.id)}
-              onRate={(score) => rateEffectiveness(m, score)}
+              onRateDose={(dose, score) => rateDose(m, dose, score)}
               busy={busy}
             />
           ),
@@ -214,62 +230,41 @@ export default function Medications() {
 
 function MedRow({
   med,
-  onToggle,
+  onToggleDose,
   onEdit,
   onDelete,
-  onRate,
+  onRateDose,
   busy,
 }: {
   med: MedicationWithStatus;
-  onToggle: () => void;
+  onToggleDose: (dose: MedicationDoseStatus) => void;
   onEdit: () => void;
   onDelete: () => void;
-  onRate: (score: number) => void;
+  onRateDose: (dose: MedicationDoseStatus, score: number) => void;
   busy: boolean;
 }) {
-  const taken = !!med.takenToday;
-  const todayScore = med.effectivenessToday ?? null;
   const avg = med.recentEffectivenessAvg;
   const avgCount = med.recentEffectivenessCount;
+  const allTaken = med.doses.length > 0 && med.doses.every((d) => d.takenAt);
 
   return (
     <div
       className={cn(
         "rounded-lg border bg-card p-4 transition-colors",
-        taken ? "border-primary/40 bg-primary/5" : "border-border",
+        allTaken ? "border-primary/40 bg-primary/5" : "border-border",
       )}
       data-testid={`med-row-${med.id}`}
     >
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onToggle}
-          disabled={busy}
-          className={cn(
-            "w-10 h-10 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
-            taken
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-border hover:border-primary/60",
-          )}
-          aria-label={taken ? "Mark as not taken" : "Mark as taken"}
-          data-testid={`toggle-med-${med.id}`}
-        >
-          {taken && <Check className="w-5 h-5" strokeWidth={3} />}
-        </button>
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <Pill className="w-5 h-5 text-primary" strokeWidth={2} />
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2 flex-wrap">
             <h3 className="font-medium truncate">{med.name}</h3>
             <span className="text-sm text-muted-foreground">{med.dosage}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1 flex-wrap">
-            <Clock className="w-3.5 h-3.5" />
-            <span>{formatTimeLabel(med.timeOfDay)}</span>
-            {taken && med.takenToday && (
-              <span className="text-primary">
-                · taken {format(parseISO(med.takenToday), "p")}
-              </span>
-            )}
             {avg !== null && avgCount > 0 && (
-              <span className="ml-auto flex items-center gap-1 text-muted-foreground">
+              <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
                 <Sparkles className="w-3 h-3" />
                 7-day avg{" "}
                 <span className={cn("font-medium", ratingTone(Math.round(avg)))}>
@@ -305,17 +300,87 @@ function MedRow({
         </div>
       </div>
 
-      {/* Effectiveness rating row */}
-      <div className="mt-3 pl-13 sm:pl-13">
+      {/* Per-dose check-off + rating */}
+      <div className="mt-4 space-y-3">
+        {med.doses.map((dose) => (
+          <DoseControl
+            key={dose.scheduledTime}
+            med={med}
+            dose={dose}
+            onToggle={() => onToggleDose(dose)}
+            onRate={(score) => onRateDose(dose, score)}
+            busy={busy}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DoseControl({
+  med,
+  dose,
+  onToggle,
+  onRate,
+  busy,
+}: {
+  med: MedicationWithStatus;
+  dose: MedicationDoseStatus;
+  onToggle: () => void;
+  onRate: (score: number) => void;
+  busy: boolean;
+}) {
+  const taken = !!dose.takenAt;
+  const todayScore = dose.effectiveness ?? null;
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg border p-3",
+        taken ? "border-primary/30 bg-primary/5" : "border-border/70",
+      )}
+      data-testid={`dose-${med.id}-${dose.scheduledTime}`}
+    >
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onToggle}
+          disabled={busy}
+          className={cn(
+            "w-9 h-9 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+            taken
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border hover:border-primary/60",
+          )}
+          aria-label={taken ? "Mark dose as not taken" : "Mark dose as taken"}
+          data-testid={`toggle-dose-${med.id}-${dose.scheduledTime}`}
+        >
+          {taken && <Check className="w-4 h-4" strokeWidth={3} />}
+        </button>
+        <div className="flex items-center gap-1.5 text-sm">
+          <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="font-medium">{formatTimeLabel(dose.scheduledTime)}</span>
+          {taken && dose.takenAt && (
+            <span className="text-xs text-primary">
+              · taken {format(parseISO(dose.takenAt), "p")}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-2.5">
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
-          <span>How well is it working today?</span>
+          <span>How well is this dose working today?</span>
           {todayScore !== null && (
             <span className={cn("font-medium", ratingTone(todayScore))}>
               {todayScore}/10
             </span>
           )}
         </div>
-        <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Effectiveness 1 to 10">
+        <div
+          className="flex flex-wrap gap-1"
+          role="radiogroup"
+          aria-label="Effectiveness 1 to 10"
+        >
           {RATING_VALUES.map((n) => {
             const selected = todayScore === n;
             return (
@@ -326,7 +391,7 @@ function MedRow({
                 role="radio"
                 aria-checked={selected}
                 aria-label={`Rate ${n} out of 10`}
-                data-testid={`rate-med-${med.id}-${n}`}
+                data-testid={`rate-dose-${med.id}-${dose.scheduledTime}-${n}`}
                 className={cn(
                   "w-7 h-7 sm:w-8 sm:h-8 text-xs font-medium rounded-md border transition-colors",
                   selected
@@ -339,9 +404,6 @@ function MedRow({
             );
           })}
         </div>
-        <p className="text-[11px] text-muted-foreground/70 mt-1.5">
-          1 = not helping · 10 = working really well. Rating also marks the dose as taken.
-        </p>
       </div>
     </div>
   );
@@ -364,6 +426,22 @@ function MedForm({
 }) {
   const inputClass =
     "w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30";
+
+  function setTime(idx: number, value: string) {
+    const next = [...form.times];
+    next[idx] = value;
+    setForm({ ...form, times: next });
+  }
+  function addTime() {
+    setForm({ ...form, times: [...form.times, "20:00"] });
+  }
+  function removeTime(idx: number) {
+    if (form.times.length <= 1) return;
+    setForm({ ...form, times: form.times.filter((_, i) => i !== idx) });
+  }
+
+  const validTimes = normalizeTimes(form.times).length;
+
   return (
     <div className="rounded-lg border border-border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between">
@@ -397,15 +475,44 @@ function MedForm({
             data-testid="form-dosage"
           />
         </div>
-        <div>
-          <label className="block text-xs text-muted-foreground mb-1">Time</label>
-          <input
-            type="time"
-            value={form.timeOfDay}
-            onChange={(e) => setForm({ ...form, timeOfDay: e.target.value })}
-            className={inputClass}
-            data-testid="form-time"
-          />
+        <div className="sm:col-span-2">
+          <label className="block text-xs text-muted-foreground mb-1">
+            Scheduled times
+          </label>
+          <div className="space-y-2">
+            {form.times.map((t, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <input
+                  type="time"
+                  value={t}
+                  onChange={(e) => setTime(idx, e.target.value)}
+                  className={cn(inputClass, "max-w-[10rem]")}
+                  data-testid={`form-time-${idx}`}
+                />
+                <button
+                  onClick={() => removeTime(idx)}
+                  disabled={form.times.length <= 1}
+                  className="p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 transition-colors"
+                  aria-label="Remove time"
+                  data-testid={`remove-time-${idx}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={addTime}
+            className="mt-2 flex items-center gap-1.5 text-sm text-primary hover:underline"
+            data-testid="add-time"
+          >
+            <Plus className="w-4 h-4" /> Add another time
+          </button>
+          {validTimes === 0 && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1.5">
+              Add at least one valid time.
+            </p>
+          )}
         </div>
         <div className="sm:col-span-2">
           <label className="block text-xs text-muted-foreground mb-1">Notes (optional)</label>
@@ -427,7 +534,7 @@ function MedForm({
         </button>
         <button
           onClick={onSave}
-          disabled={busy || !form.name.trim() || !form.dosage.trim()}
+          disabled={busy || !form.name.trim() || !form.dosage.trim() || validTimes === 0}
           className="px-3 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           data-testid="form-save"
         >

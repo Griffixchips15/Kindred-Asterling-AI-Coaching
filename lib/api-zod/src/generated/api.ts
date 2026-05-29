@@ -514,7 +514,9 @@ export const GetArchivedChatResponse = zod.object({
 /**
  * @summary List the current user's medications with today's intake status
  */
-export const listMedicationsResponseTwoEffectivenessTodayMax = 10;
+export const listMedicationsResponseOneTimesItemRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+
+export const listMedicationsResponseTwoDosesItemEffectivenessMax = 10;
 
 
 
@@ -522,13 +524,16 @@ export const ListMedicationsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "dosage": zod.string(),
-  "timeOfDay": zod.string().describe('HH:MM 24-hour clock time the medication should be taken'),
+  "times": zod.array(zod.string().regex(listMedicationsResponseOneTimesItemRegExp)).min(1).describe('One or more HH:MM 24-hour scheduled times for this medication'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string()
 }).and(zod.object({
-  "takenToday": zod.string().nullable().describe('ISO timestamp of today\'s intake, or null if not yet taken'),
-  "effectivenessToday": zod.number().min(1).max(listMedicationsResponseTwoEffectivenessTodayMax).nullable().describe('1-10 effectiveness rating for today\'s dose, if rated'),
-  "recentEffectivenessAvg": zod.number().nullable().describe('Average effectiveness over the last 7 days, or null if no ratings yet'),
+  "doses": zod.array(zod.object({
+  "scheduledTime": zod.string().describe('HH:MM scheduled time for this dose'),
+  "takenAt": zod.string().nullable().describe('ISO timestamp of today\'s intake for this dose, or null if not taken yet'),
+  "effectiveness": zod.number().min(1).max(listMedicationsResponseTwoDosesItemEffectivenessMax).nullable().describe('1-10 effectiveness rating for this dose today, if rated')
+})).describe('Today\'s status for each scheduled dose, in time order'),
+  "recentEffectivenessAvg": zod.number().nullable().describe('Average effectiveness over the last 7 days across all doses, or null if no ratings yet'),
   "recentEffectivenessCount": zod.number().describe('Number of rated doses in the last 7 days')
 }))
 export const ListMedicationsResponse = zod.array(ListMedicationsResponseItem)
@@ -539,13 +544,15 @@ export const ListMedicationsResponse = zod.array(ListMedicationsResponseItem)
  */
 
 
-export const createMedicationBodyTimeOfDayRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+export const createMedicationBodyTimesItemRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+export const createMedicationBodyTimesMax = 12;
+
 
 
 export const CreateMedicationBody = zod.object({
   "name": zod.string().min(1),
   "dosage": zod.string().min(1),
-  "timeOfDay": zod.string().regex(createMedicationBodyTimeOfDayRegExp),
+  "times": zod.array(zod.string().regex(createMedicationBodyTimesItemRegExp)).min(1).max(createMedicationBodyTimesMax),
   "notes": zod.string().nullish()
 })
 
@@ -559,21 +566,27 @@ export const UpdateMedicationParams = zod.object({
 
 
 
-export const updateMedicationBodyTimeOfDayRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+export const updateMedicationBodyTimesItemRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+export const updateMedicationBodyTimesMax = 12;
+
 
 
 export const UpdateMedicationBody = zod.object({
   "name": zod.string().min(1),
   "dosage": zod.string().min(1),
-  "timeOfDay": zod.string().regex(updateMedicationBodyTimeOfDayRegExp),
+  "times": zod.array(zod.string().regex(updateMedicationBodyTimesItemRegExp)).min(1).max(updateMedicationBodyTimesMax),
   "notes": zod.string().nullish()
 })
+
+export const updateMedicationResponseTimesItemRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+
+
 
 export const UpdateMedicationResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "dosage": zod.string(),
-  "timeOfDay": zod.string().describe('HH:MM 24-hour clock time the medication should be taken'),
+  "times": zod.array(zod.string().regex(updateMedicationResponseTimesItemRegExp)).min(1).describe('One or more HH:MM 24-hour scheduled times for this medication'),
   "notes": zod.string().nullish(),
   "createdAt": zod.string()
 })
@@ -588,26 +601,57 @@ export const DeleteMedicationParams = zod.object({
 
 
 /**
- * @summary Mark a medication as taken today (idempotent); optionally rate effectiveness 1-10
+ * @summary Raw 7-day dose data for all medications, for client-side on-time/missed/upcoming labeling
+ */
+export const GetMedicationWeeklyReportResponse = zod.object({
+  "days": zod.array(zod.string()).describe('The 7 day-date strings (YYYY-MM-DD), oldest first, that the grid covers'),
+  "medications": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "dosage": zod.string(),
+  "times": zod.array(zod.string()),
+  "createdDate": zod.string().describe('YYYY-MM-DD the medication was created; days before this are not applicable in the grid')
+})),
+  "logs": zod.array(zod.object({
+  "medicationId": zod.number(),
+  "date": zod.string(),
+  "scheduledTime": zod.string(),
+  "takenAt": zod.string(),
+  "effectiveness": zod.number().nullable()
+})).describe('Every dose log in the window; client matches by medicationId + date + scheduledTime')
+})
+
+
+/**
+ * @summary Mark a specific scheduled dose as taken today (idempotent); optionally rate effectiveness 1-10
  */
 export const LogMedicationTakenParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const logMedicationTakenBodyScheduledTimeRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
 export const logMedicationTakenBodyEffectivenessMax = 10;
 
 
 
 export const LogMedicationTakenBody = zod.object({
+  "scheduledTime": zod.string().regex(logMedicationTakenBodyScheduledTimeRegExp).describe('Which scheduled dose (HH:MM) is being marked taken'),
   "effectiveness": zod.number().min(1).max(logMedicationTakenBodyEffectivenessMax).nullish().describe('How effective this dose felt, on a 1-10 scale')
 })
 
 
 /**
- * @summary Remove today's taken log for a medication
+ * @summary Remove today's taken log for a specific scheduled dose
  */
 export const UnlogMedicationTakenParams = zod.object({
   "id": zod.coerce.number()
+})
+
+export const unlogMedicationTakenBodyScheduledTimeRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+
+
+export const UnlogMedicationTakenBody = zod.object({
+  "scheduledTime": zod.string().regex(unlogMedicationTakenBodyScheduledTimeRegExp).describe('Which scheduled dose (HH:MM) to act on')
 })
 
 

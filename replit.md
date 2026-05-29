@@ -29,7 +29,7 @@ A personal wellness companion web app. Users journal their day (morning check-in
 - **API contract (source of truth):** `lib/api-spec/openapi.yaml` — never hand-edit generated client/zod files
 - **API routes:** `artifacts/api-server/src/routes/*` — all data routes are scoped to `req.user!.id` behind `requireAuth`
 - **Auth:** `artifacts/api-server/src/routes/auth.ts` — Replit OIDC + session cookies
-- **Frontend pages:** `artifacts/kindred-coach/src/pages/*` (dashboard, morning, scans, evening, habits, medications, chat, profile, archive)
+- **Frontend pages:** `artifacts/kindred-coach/src/pages/*` (dashboard, morning, scans, evening, habits, medications, reports, chat, profile, archive)
 - **Layout & nav:** `artifacts/kindred-coach/src/components/layout/app-layout.tsx` — collapsible sidebar (state persisted in localStorage)
 - **AI system prompt:** `artifacts/api-server/src/routes/chat.ts` → `buildSystemInstruction()`
 - **AI chat tools (function calling):** `artifacts/api-server/src/lib/chatTools.ts` — tool definitions + `runChatTool()` executor; the agentic loop lives in `/chat/send`
@@ -53,7 +53,8 @@ Kindred-Asterling-AI-Coaching helps people care for themselves with structure an
 - **Body Scans** — log physical sensations and how medications are landing
 - **Evening** — reflection prompts to close the day
 - **Habits** — daily habits with streak tracking
-- **Medications** — list with times, "X / Y taken today" counter, one-tap mark-as-taken
+- **Medications** — each med can have multiple scheduled times per day; every dose has its own taken-checkbox and 1–10 effectiveness rating, with an "X / Y doses taken today" counter
+- **Reports** — one combined 7-day grid of all medications together; each scheduled dose shows On time / Late / Missed / Upcoming, judged against a 1-hour window using the device's local time
 - **Profile** — preferred name, birthday, bio, motivational quote, and "what Kindred should know" (struggles / strengths / interests) — all of which the AI references
 - **Chat with Kindred** — a Claude-powered coach that reflects, asks specific (non-generic) follow-ups, and respects what's in your profile. Kindred can also pull your own recent data mid-conversation (morning check-ins, evening reflections, body scans, habit streaks, today's medications) when it's relevant — via Claude tool-calling, all scoped to your account
 - **Archive** — historical view of past entries
@@ -69,6 +70,7 @@ Kindred-Asterling-AI-Coaching helps people care for themselves with structure an
 - **Always restart the `artifacts/api-server: API Server` workflow** after editing anything under `artifacts/api-server/src/**` — esbuild bundle won't auto-reload.
 - **After changing `openapi.yaml`,** run `pnpm --filter @workspace/api-spec run codegen` before typechecking — otherwise the frontend will reference stale generated hooks.
 - **After changing `lib/db/src/schema/**`,** run `pnpm --filter @workspace/db run push` to apply to dev DB. Production DB needs a separate push after deploy.
+- **Multi-dose medications migration:** medications now store a `times` text[] (not a single `time_of_day`) and `medication_logs` carry a `scheduled_time` (unique per user+med+date+time). On a prod DB that still has the old `time_of_day`, a plain `drizzle-kit push` would drop data — first run a data-preserving migration that backfills `times` from `time_of_day` and `scheduled_time` from the owning med before dropping the old column.
 - **Do not run `pnpm dev` from the workspace root** — use the per-artifact workflows (they set `PORT` / `BASE_PATH`).
 - **Codegen names follow Orval conventions:** request bodies are e.g. `CreateMedicationBody` / `UpdateMedicationBody`, not `MedicationInput`.
 - **Express 5 quirk:** `req.params.id` is typed `string | string[] | undefined`; route handlers use a `parseId()` helper to normalize.

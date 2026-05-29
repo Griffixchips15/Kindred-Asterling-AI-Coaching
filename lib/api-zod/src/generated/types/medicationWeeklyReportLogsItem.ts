@@ -6,16 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface MedicationLog {
-  id: number;
+export type MedicationWeeklyReportLogsItem = {
   medicationId: number;
   date: string;
   scheduledTime: string;
   takenAt: string;
-  /**
-     * @minimum 1
-     * @maximum 10
-     * @nullable
-     */
+  /** @nullable */
   effectiveness: number | null;
-}
+};

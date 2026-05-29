@@ -9,6 +9,7 @@ import Scans from "@/pages/scans";
 import Evening from "@/pages/evening";
 import Habits from "@/pages/habits";
 import Medications from "@/pages/medications";
+import Reports from "@/pages/reports";
 import Profile from "@/pages/profile";
 import CalendarPage from "@/pages/calendar";
 import Chat from "@/pages/chat";
@@ -77,6 +78,7 @@ function Router() {
           <Route path="/evening" component={Evening} />
           <Route path="/habits" component={Habits} />
           <Route path="/medications" component={Medications} />
+          <Route path="/reports" component={Reports} />
           <Route path="/profile" component={Profile} />
           <Route path="/calendar" component={CalendarPage} />
           <Route path="/chat" component={Chat} />

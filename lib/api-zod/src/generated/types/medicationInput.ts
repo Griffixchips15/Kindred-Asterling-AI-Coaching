@@ -11,8 +11,11 @@ export interface MedicationInput {
   name: string;
   /** @minLength 1 */
   dosage: string;
-  /** @pattern ^([01]\d|2[0-3]):[0-5]\d$ */
-  timeOfDay: string;
+  /**
+     * @minItems 1
+     * @maxItems 12
+     */
+  times: string[];
   /** @nullable */
   notes?: string | null;
 }

@@ -10,8 +10,11 @@ export interface Medication {
   id: number;
   name: string;
   dosage: string;
-  /** HH:MM 24-hour clock time the medication should be taken */
-  timeOfDay: string;
+  /**
+     * One or more HH:MM 24-hour scheduled times for this medication
+     * @minItems 1
+     */
+  times: string[];
   /** @nullable */
   notes?: string | null;
   createdAt: string;

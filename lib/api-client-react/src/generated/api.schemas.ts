@@ -292,8 +292,11 @@ export interface Medication {
   id: number;
   name: string;
   dosage: string;
-  /** HH:MM 24-hour clock time the medication should be taken */
-  timeOfDay: string;
+  /**
+     * One or more HH:MM 24-hour scheduled times for this medication
+     * @minItems 1
+     */
+  times: string[];
   /** @nullable */
   notes?: string | null;
   createdAt: string;
@@ -304,27 +307,37 @@ export interface MedicationInput {
   name: string;
   /** @minLength 1 */
   dosage: string;
-  /** @pattern ^([01]\d|2[0-3]):[0-5]\d$ */
-  timeOfDay: string;
+  /**
+     * @minItems 1
+     * @maxItems 12
+     */
+  times: string[];
   /** @nullable */
   notes?: string | null;
 }
 
-export type MedicationWithStatus = Medication & ({
+export interface MedicationDoseStatus {
+  /** HH:MM scheduled time for this dose */
+  scheduledTime: string;
   /**
-     * ISO timestamp of today's intake, or null if not yet taken
+     * ISO timestamp of today's intake for this dose, or null if not taken yet
      * @nullable
      */
-  takenToday: string | null;
+  takenAt: string | null;
   /**
-     * 1-10 effectiveness rating for today's dose, if rated
+     * 1-10 effectiveness rating for this dose today, if rated
      * @minimum 1
      * @maximum 10
      * @nullable
      */
-  effectivenessToday: number | null;
+  effectiveness: number | null;
+}
+
+export type MedicationWithStatus = Medication & ({
+  /** Today's status for each scheduled dose, in time order */
+  doses: MedicationDoseStatus[];
   /**
-     * Average effectiveness over the last 7 days, or null if no ratings yet
+     * Average effectiveness over the last 7 days across all doses, or null if no ratings yet
      * @nullable
      */
   recentEffectivenessAvg: number | null;
@@ -336,6 +349,7 @@ export interface MedicationLog {
   id: number;
   medicationId: number;
   date: string;
+  scheduledTime: string;
   takenAt: string;
   /**
      * @minimum 1
@@ -345,7 +359,20 @@ export interface MedicationLog {
   effectiveness: number | null;
 }
 
+export interface MedicationDoseRef {
+  /**
+     * Which scheduled dose (HH:MM) to act on
+     * @pattern ^([01]\d|2[0-3]):[0-5]\d$
+     */
+  scheduledTime: string;
+}
+
 export interface MedicationLogInput {
+  /**
+     * Which scheduled dose (HH:MM) is being marked taken
+     * @pattern ^([01]\d|2[0-3]):[0-5]\d$
+     */
+  scheduledTime: string;
   /**
      * How effective this dose felt, on a 1-10 scale
      * @minimum 1
@@ -353,6 +380,32 @@ export interface MedicationLogInput {
      * @nullable
      */
   effectiveness?: number | null;
+}
+
+export type MedicationWeeklyReportMedicationsItem = {
+  id: number;
+  name: string;
+  dosage: string;
+  times: string[];
+  /** YYYY-MM-DD the medication was created; days before this are not applicable in the grid */
+  createdDate: string;
+};
+
+export type MedicationWeeklyReportLogsItem = {
+  medicationId: number;
+  date: string;
+  scheduledTime: string;
+  takenAt: string;
+  /** @nullable */
+  effectiveness: number | null;
+};
+
+export interface MedicationWeeklyReport {
+  /** The 7 day-date strings (YYYY-MM-DD), oldest first, that the grid covers */
+  days: string[];
+  medications: MedicationWeeklyReportMedicationsItem[];
+  /** Every dose log in the window; client matches by medicationId + date + scheduledTime */
+  logs: MedicationWeeklyReportLogsItem[];
 }
 
 export interface MoodTrendPoint {

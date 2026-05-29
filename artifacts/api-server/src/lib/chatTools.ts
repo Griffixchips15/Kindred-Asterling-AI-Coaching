@@ -83,7 +83,7 @@ export const chatTools: Anthropic.Tool[] = [
   {
     name: "get_medications_status",
     description:
-      "Get the user's medications (name, dosage, time of day, notes) and whether each has been taken today. Use when the conversation is about their medication, doses, or whether they've taken something today.",
+      "Get the user's medications (name, dosage, notes) along with each scheduled dose time and whether that specific dose has been taken today. Medications can have multiple doses per day. Use when the conversation is about their medication, doses, or whether they've taken something today.",
     input_schema: {
       type: "object",
       properties: {},
@@ -216,14 +216,19 @@ async function getMedicationsStatus(userId: string): Promise<unknown> {
         eq(medicationLogsTable.date, today),
       ),
     );
-  const takenSet = new Set(todays.map((l) => l.medicationId));
-  return meds.map((m) => ({
-    name: m.name,
-    dosage: m.dosage,
-    timeOfDay: m.timeOfDay,
-    notes: m.notes,
-    takenToday: takenSet.has(m.id),
-  }));
+  const takenSet = new Set(todays.map((l) => `${l.medicationId}|${l.scheduledTime}`));
+  return meds.map((m) => {
+    const times = Array.from(new Set(m.times.map((t) => t.trim()))).sort();
+    return {
+      name: m.name,
+      dosage: m.dosage,
+      notes: m.notes,
+      doses: times.map((scheduledTime) => ({
+        scheduledTime,
+        takenToday: takenSet.has(`${m.id}|${scheduledTime}`),
+      })),
+    };
+  });
 }
 
 // Execute a tool call. ALWAYS scoped to the passed userId, which is derived

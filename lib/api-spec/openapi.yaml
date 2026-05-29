@@ -643,11 +643,24 @@ paths:
         '404':
           description: Not found
 
+  /medications/weekly-report:
+    get:
+      operationId: getMedicationWeeklyReport
+      tags: [medications]
+      summary: Raw 7-day dose data for all medications, for client-side on-time/missed/upcoming labeling
+      responses:
+        '200':
+          description: Weekly report data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicationWeeklyReport'
+
   /medications/{id}/log:
     post:
       operationId: logMedicationTaken
       tags: [medications]
-      summary: Mark a medication as taken today (idempotent); optionally rate effectiveness 1-10
+      summary: Mark a specific scheduled dose as taken today (idempotent); optionally rate effectiveness 1-10
       parameters:
         - name: id
           in: path
@@ -655,7 +668,7 @@ paths:
           schema:
             type: integer
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
@@ -672,13 +685,19 @@ paths:
     delete:
       operationId: unlogMedicationTaken
       tags: [medications]
-      summary: Remove today's taken log for a medication
+      summary: Remove today's taken log for a specific scheduled dose
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicationDoseRef'
       responses:
         '204':
           description: Removed
@@ -1214,7 +1233,7 @@ components:
 
     Medication:
       type: object
-      required: [id, name, dosage, timeOfDay, createdAt]
+      required: [id, name, dosage, times, createdAt]
       properties:
         id:
           type: integer
@@ -1222,9 +1241,13 @@ components:
           type: string
         dosage:
           type: string
-        timeOfDay:
-          type: string
-          description: HH:MM 24-hour clock time the medication should be taken
+        times:
+          type: array
+          description: One or more HH:MM 24-hour scheduled times for this medication
+          minItems: 1
+          items:
+            type: string
+            pattern: '^([01]\d|2[0-3]):[0-5]\d$'
         notes:
           type: ["string", "null"]
         createdAt:
@@ -1232,7 +1255,7 @@ components:
 
     MedicationInput:
       type: object
-      required: [name, dosage, timeOfDay]
+      required: [name, dosage, times]
       properties:
         name:
           type: string
@@ -1240,42 +1263,61 @@ components:
         dosage:
           type: string
           minLength: 1
-        timeOfDay:
-          type: string
-          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+        times:
+          type: array
+          minItems: 1
+          maxItems: 12
+          items:
+            type: string
+            pattern: '^([01]\d|2[0-3]):[0-5]\d$'
         notes:
           type: ["string", "null"]
+
+    MedicationDoseStatus:
+      type: object
+      required: [scheduledTime, takenAt, effectiveness]
+      properties:
+        scheduledTime:
+          type: string
+          description: HH:MM scheduled time for this dose
+        takenAt:
+          type: ["string", "null"]
+          description: ISO timestamp of today's intake for this dose, or null if not taken yet
+        effectiveness:
+          type: ["integer", "null"]
+          description: 1-10 effectiveness rating for this dose today, if rated
+          minimum: 1
+          maximum: 10
 
     MedicationWithStatus:
       allOf:
         - $ref: '#/components/schemas/Medication'
         - type: object
-          required: [takenToday, effectivenessToday, recentEffectivenessAvg, recentEffectivenessCount]
+          required: [doses, recentEffectivenessAvg, recentEffectivenessCount]
           properties:
-            takenToday:
-              type: ["string", "null"]
-              description: ISO timestamp of today's intake, or null if not yet taken
-            effectivenessToday:
-              type: ["integer", "null"]
-              description: 1-10 effectiveness rating for today's dose, if rated
-              minimum: 1
-              maximum: 10
+            doses:
+              type: array
+              description: Today's status for each scheduled dose, in time order
+              items:
+                $ref: '#/components/schemas/MedicationDoseStatus'
             recentEffectivenessAvg:
               type: ["number", "null"]
-              description: Average effectiveness over the last 7 days, or null if no ratings yet
+              description: Average effectiveness over the last 7 days across all doses, or null if no ratings yet
             recentEffectivenessCount:
               type: integer
               description: Number of rated doses in the last 7 days
 
     MedicationLog:
       type: object
-      required: [id, medicationId, date, takenAt, effectiveness]
+      required: [id, medicationId, date, scheduledTime, takenAt, effectiveness]
       properties:
         id:
           type: integer
         medicationId:
           type: integer
         date:
+          type: string
+        scheduledTime:
           type: string
         takenAt:
           type: string
@@ -1284,15 +1326,76 @@ components:
           minimum: 1
           maximum: 10
 
+    MedicationDoseRef:
+      type: object
+      required: [scheduledTime]
+      properties:
+        scheduledTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: Which scheduled dose (HH:MM) to act on
+      additionalProperties: false
+
     MedicationLogInput:
       type: object
+      required: [scheduledTime]
       properties:
+        scheduledTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: Which scheduled dose (HH:MM) is being marked taken
         effectiveness:
           type: ["integer", "null"]
           minimum: 1
           maximum: 10
           description: How effective this dose felt, on a 1-10 scale
       additionalProperties: false
+
+    MedicationWeeklyReport:
+      type: object
+      required: [days, medications, logs]
+      properties:
+        days:
+          type: array
+          description: The 7 day-date strings (YYYY-MM-DD), oldest first, that the grid covers
+          items:
+            type: string
+        medications:
+          type: array
+          items:
+            type: object
+            required: [id, name, dosage, times, createdDate]
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+              dosage:
+                type: string
+              times:
+                type: array
+                items:
+                  type: string
+              createdDate:
+                type: string
+                description: YYYY-MM-DD the medication was created; days before this are not applicable in the grid
+        logs:
+          type: array
+          description: Every dose log in the window; client matches by medicationId + date + scheduledTime
+          items:
+            type: object
+            required: [medicationId, date, scheduledTime, takenAt, effectiveness]
+            properties:
+              medicationId:
+                type: integer
+              date:
+                type: string
+              scheduledTime:
+                type: string
+              takenAt:
+                type: string
+              effectiveness:
+                type: ["integer", "null"]
 
     MoodTrendPoint:
       type: object

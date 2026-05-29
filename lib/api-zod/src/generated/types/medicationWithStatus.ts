@@ -6,22 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Medication } from './medication';
+import type { MedicationDoseStatus } from './medicationDoseStatus';
 
 export type MedicationWithStatus = Medication & ({
+  /** Today's status for each scheduled dose, in time order */
+  doses: MedicationDoseStatus[];
   /**
-     * ISO timestamp of today's intake, or null if not yet taken
-     * @nullable
-     */
-  takenToday: string | null;
-  /**
-     * 1-10 effectiveness rating for today's dose, if rated
-     * @minimum 1
-     * @maximum 10
-     * @nullable
-     */
-  effectivenessToday: number | null;
-  /**
-     * Average effectiveness over the last 7 days, or null if no ratings yet
+     * Average effectiveness over the last 7 days across all doses, or null if no ratings yet
      * @nullable
      */
   recentEffectivenessAvg: number | null;

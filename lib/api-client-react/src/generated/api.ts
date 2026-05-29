@@ -45,9 +45,11 @@ import type {
   HealthStatus,
   LogoutSuccess,
   Medication,
+  MedicationDoseRef,
   MedicationInput,
   MedicationLog,
   MedicationLogInput,
+  MedicationWeeklyReport,
   MedicationWithStatus,
   MobileTokenExchangeRequest,
   MobileTokenExchangeSuccess,
@@ -2598,6 +2600,83 @@ export const useDeleteMedication = <TError = ErrorType<void>,
       return useMutation(getDeleteMedicationMutationOptions(options));
     }
 
+export const getGetMedicationWeeklyReportUrl = () => {
+
+
+
+
+  return `/api/medications/weekly-report`
+}
+
+/**
+ * @summary Raw 7-day dose data for all medications, for client-side on-time/missed/upcoming labeling
+ */
+export const getMedicationWeeklyReport = async ( options?: RequestInit): Promise<MedicationWeeklyReport> => {
+
+  return customFetch<MedicationWeeklyReport>(getGetMedicationWeeklyReportUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMedicationWeeklyReportQueryKey = () => {
+    return [
+    `/api/medications/weekly-report`
+    ] as const;
+    }
+
+
+export const getGetMedicationWeeklyReportQueryOptions = <TData = Awaited<ReturnType<typeof getMedicationWeeklyReport>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMedicationWeeklyReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMedicationWeeklyReportQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMedicationWeeklyReport>>> = ({ signal }) => getMedicationWeeklyReport({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMedicationWeeklyReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMedicationWeeklyReportQueryResult = NonNullable<Awaited<ReturnType<typeof getMedicationWeeklyReport>>>
+export type GetMedicationWeeklyReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Raw 7-day dose data for all medications, for client-side on-time/missed/upcoming labeling
+ */
+
+export function useGetMedicationWeeklyReport<TData = Awaited<ReturnType<typeof getMedicationWeeklyReport>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMedicationWeeklyReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMedicationWeeklyReportQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getLogMedicationTakenUrl = (id: number,) => {
 
 
@@ -2607,10 +2686,10 @@ export const getLogMedicationTakenUrl = (id: number,) => {
 }
 
 /**
- * @summary Mark a medication as taken today (idempotent); optionally rate effectiveness 1-10
+ * @summary Mark a specific scheduled dose as taken today (idempotent); optionally rate effectiveness 1-10
  */
 export const logMedicationTaken = async (id: number,
-    medicationLogInput?: MedicationLogInput, options?: RequestInit): Promise<MedicationLog> => {
+    medicationLogInput: MedicationLogInput, options?: RequestInit): Promise<MedicationLog> => {
 
   return customFetch<MedicationLog>(getLogMedicationTakenUrl(id),
   {
@@ -2626,8 +2705,8 @@ export const logMedicationTaken = async (id: number,
 
 
 export const getLogMedicationTakenMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logMedicationTaken>>, TError,{id: number;data?: BodyType<MedicationLogInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof logMedicationTaken>>, TError,{id: number;data?: BodyType<MedicationLogInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logMedicationTaken>>, TError,{id: number;data: BodyType<MedicationLogInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof logMedicationTaken>>, TError,{id: number;data: BodyType<MedicationLogInput>}, TContext> => {
 
 const mutationKey = ['logMedicationTaken'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -2639,7 +2718,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logMedicationTaken>>, {id: number;data?: BodyType<MedicationLogInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logMedicationTaken>>, {id: number;data: BodyType<MedicationLogInput>}> = (props) => {
           const {id,data} = props ?? {};
 
           return  logMedicationTaken(id,data,requestOptions)
@@ -2653,18 +2732,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type LogMedicationTakenMutationResult = NonNullable<Awaited<ReturnType<typeof logMedicationTaken>>>
-    export type LogMedicationTakenMutationBody = BodyType<MedicationLogInput> | undefined
+    export type LogMedicationTakenMutationBody = BodyType<MedicationLogInput>
     export type LogMedicationTakenMutationError = ErrorType<void>
 
     /**
- * @summary Mark a medication as taken today (idempotent); optionally rate effectiveness 1-10
+ * @summary Mark a specific scheduled dose as taken today (idempotent); optionally rate effectiveness 1-10
  */
 export const useLogMedicationTaken = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logMedicationTaken>>, TError,{id: number;data?: BodyType<MedicationLogInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logMedicationTaken>>, TError,{id: number;data: BodyType<MedicationLogInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof logMedicationTaken>>,
         TError,
-        {id: number;data?: BodyType<MedicationLogInput>},
+        {id: number;data: BodyType<MedicationLogInput>},
         TContext
       > => {
       return useMutation(getLogMedicationTakenMutationOptions(options));
@@ -2679,16 +2758,18 @@ export const getUnlogMedicationTakenUrl = (id: number,) => {
 }
 
 /**
- * @summary Remove today's taken log for a medication
+ * @summary Remove today's taken log for a specific scheduled dose
  */
-export const unlogMedicationTaken = async (id: number, options?: RequestInit): Promise<void> => {
+export const unlogMedicationTaken = async (id: number,
+    medicationDoseRef: MedicationDoseRef, options?: RequestInit): Promise<void> => {
 
   return customFetch<void>(getUnlogMedicationTakenUrl(id),
   {
     ...options,
-    method: 'DELETE'
-
-
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      medicationDoseRef,)
   }
 );}
 
@@ -2696,8 +2777,8 @@ export const unlogMedicationTaken = async (id: number, options?: RequestInit): P
 
 
 export const getUnlogMedicationTakenMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlogMedicationTaken>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof unlogMedicationTaken>>, TError,{id: number}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlogMedicationTaken>>, TError,{id: number;data: BodyType<MedicationDoseRef>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unlogMedicationTaken>>, TError,{id: number;data: BodyType<MedicationDoseRef>}, TContext> => {
 
 const mutationKey = ['unlogMedicationTaken'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -2709,10 +2790,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unlogMedicationTaken>>, {id: number}> = (props) => {
-          const {id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unlogMedicationTaken>>, {id: number;data: BodyType<MedicationDoseRef>}> = (props) => {
+          const {id,data} = props ?? {};
 
-          return  unlogMedicationTaken(id,requestOptions)
+          return  unlogMedicationTaken(id,data,requestOptions)
         }
 
 
@@ -2723,18 +2804,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type UnlogMedicationTakenMutationResult = NonNullable<Awaited<ReturnType<typeof unlogMedicationTaken>>>
-
+    export type UnlogMedicationTakenMutationBody = BodyType<MedicationDoseRef>
     export type UnlogMedicationTakenMutationError = ErrorType<void>
 
     /**
- * @summary Remove today's taken log for a medication
+ * @summary Remove today's taken log for a specific scheduled dose
  */
 export const useUnlogMedicationTaken = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlogMedicationTaken>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlogMedicationTaken>>, TError,{id: number;data: BodyType<MedicationDoseRef>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof unlogMedicationTaken>>,
         TError,
-        {id: number},
+        {id: number;data: BodyType<MedicationDoseRef>},
         TContext
       > => {
       return useMutation(getUnlogMedicationTakenMutationOptions(options));
