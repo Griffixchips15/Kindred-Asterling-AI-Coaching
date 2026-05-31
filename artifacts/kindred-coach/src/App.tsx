@@ -17,6 +17,7 @@ import Archive from "@/pages/archive";
 import NotFound from "@/pages/not-found";
 import { useAuth } from "@workspace/replit-auth-web";
 import { ThemeProvider } from "@/hooks/use-theme";
+import logoPoster from "@/assets/brand/logo-poster.jpg";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,10 +41,14 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-6 bg-background px-6 text-center">
-        <div>
-          <h1 className="font-serif text-3xl text-primary tracking-tight">Kindred Coach</h1>
-          <p className="mt-2 text-muted-foreground text-sm">Your personal daily wellness companion</p>
+      <div className="flex h-screen flex-col items-center justify-center gap-8 bg-background px-6 text-center">
+        <div className="flex flex-col items-center">
+          <img
+            src={logoPoster}
+            alt="Kindred Asterling — AI Coaching"
+            className="w-60 max-w-[78vw] rounded-2xl shadow-2xl ring-1 ring-border/40"
+          />
+          <p className="mt-5 text-muted-foreground text-sm">Your personal daily wellness companion</p>
         </div>
         <button
           onClick={login}

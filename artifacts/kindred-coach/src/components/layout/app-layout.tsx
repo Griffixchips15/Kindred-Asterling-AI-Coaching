@@ -18,6 +18,7 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import logoMark from "@/assets/brand/logo-mark.png";
 import { ReactNode, useEffect, useState } from "react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { format, parseISO } from "date-fns";
@@ -261,11 +262,26 @@ export function AppLayout({ children }: { children: ReactNode }) {
             collapsed ? "p-3 flex-col gap-2" : "p-6"
           )}
         >
-          {!collapsed && (
-            <div className="min-w-0">
-              <h1 className="text-xl font-serif text-primary tracking-tight font-medium">Kindred</h1>
-              <p className="text-sm text-muted-foreground mt-1 tracking-wide">Daily Wellness</p>
+          {!collapsed ? (
+            <div className="flex items-center gap-3 min-w-0">
+              <img
+                src={logoMark}
+                alt="Kindred Asterling"
+                className="w-10 h-10 rounded-lg object-cover shrink-0 ring-1 ring-border/50"
+              />
+              <div className="min-w-0">
+                <h1 className="text-lg font-serif text-primary tracking-tight font-medium leading-tight truncate">
+                  Kindred Asterling
+                </h1>
+                <p className="text-xs text-muted-foreground mt-0.5 tracking-wide">AI Coaching</p>
+              </div>
             </div>
+          ) : (
+            <img
+              src={logoMark}
+              alt="Kindred Asterling"
+              className="w-9 h-9 rounded-lg object-cover ring-1 ring-border/50"
+            />
           )}
           <Tooltip>
             <TooltipTrigger asChild>
