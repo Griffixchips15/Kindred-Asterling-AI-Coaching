@@ -32,8 +32,8 @@ app.use(
 );
 app.use(cors({ credentials: true, origin: true }));
 app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "32kb" }));
+app.use(express.urlencoded({ extended: true, limit: "32kb" }));
 app.use(authMiddleware);
 app.use(generalLimiter);
 app.use((req, res, next) => {

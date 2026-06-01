@@ -9,5 +9,6 @@
 export interface HabitEntryInput {
   date: string;
   completed: boolean;
+  /** @maxLength 500 */
   notes?: string;
 }

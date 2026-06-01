@@ -7,15 +7,24 @@
  */
 
 export interface MedicationInput {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
   name: string;
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
   dosage: string;
   /**
      * @minItems 1
      * @maxItems 12
      */
   times: string[];
-  /** @nullable */
+  /**
+     * @maxLength 500
+     * @nullable
+     */
   notes?: string | null;
 }

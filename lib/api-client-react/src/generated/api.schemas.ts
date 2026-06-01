@@ -84,7 +84,9 @@ export interface MorningLog {
 export interface MorningLogInput {
   date: string;
   mentalLoadLevel: string;
+  /** @maxItems 10 */
   miniGoals: string[];
+  /** @maxLength 2000 */
   notes?: string;
 }
 
@@ -102,9 +104,12 @@ export interface BodyScan {
 
 export interface BodyScanInput {
   scannedAt?: string;
+  /** @maxItems 20 */
   feelings: string[];
   energyLevel: number;
+  /** @maxLength 2000 */
   physicalSensations?: string;
+  /** @maxLength 2000 */
   notes?: string;
 }
 
@@ -126,9 +131,13 @@ export interface EveningReport {
 export interface EveningReportInput {
   date: string;
   medicationEffectiveness: number;
+  /** @maxLength 500 */
   overallMood?: string;
+  /** @maxLength 2000 */
   wins?: string;
+  /** @maxLength 2000 */
   challenges?: string;
+  /** @maxLength 2000 */
   tomorrowIntent?: string;
 }
 
@@ -144,14 +153,24 @@ export interface Habit {
 }
 
 export interface HabitInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
   name: string;
+  /** @maxLength 500 */
   description?: string;
   targetDays: number;
   startDate?: string;
 }
 
 export interface HabitUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
   name?: string;
+  /** @maxLength 500 */
   description?: string;
   targetDays?: number;
 }
@@ -169,6 +188,7 @@ export interface HabitEntry {
 export interface HabitEntryInput {
   date: string;
   completed: boolean;
+  /** @maxLength 500 */
   notes?: string;
 }
 
@@ -308,16 +328,25 @@ export interface Medication {
 }
 
 export interface MedicationInput {
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
   name: string;
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
   dosage: string;
   /**
      * @minItems 1
      * @maxItems 12
      */
   times: string[];
-  /** @nullable */
+  /**
+     * @maxLength 500
+     * @nullable
+     */
   notes?: string | null;
 }
 

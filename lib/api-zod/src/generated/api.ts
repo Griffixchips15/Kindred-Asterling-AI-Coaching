@@ -124,11 +124,19 @@ export const ListMorningLogsResponse = zod.array(ListMorningLogsResponseItem)
 /**
  * @summary Create a morning baseline log
  */
+export const createMorningLogBodyMiniGoalsItemMax = 200;
+
+export const createMorningLogBodyMiniGoalsMax = 10;
+
+export const createMorningLogBodyNotesMax = 2000;
+
+
+
 export const CreateMorningLogBody = zod.object({
   "date": zod.string(),
   "mentalLoadLevel": zod.string(),
-  "miniGoals": zod.array(zod.string()),
-  "notes": zod.string().optional()
+  "miniGoals": zod.array(zod.string().max(createMorningLogBodyMiniGoalsItemMax)).max(createMorningLogBodyMiniGoalsMax),
+  "notes": zod.string().max(createMorningLogBodyNotesMax).optional()
 })
 
 
@@ -167,12 +175,22 @@ export const ListBodyScansResponse = zod.array(ListBodyScansResponseItem)
 /**
  * @summary Log a body scan
  */
+export const createBodyScanBodyFeelingsItemMax = 100;
+
+export const createBodyScanBodyFeelingsMax = 20;
+
+export const createBodyScanBodyPhysicalSensationsMax = 2000;
+
+export const createBodyScanBodyNotesMax = 2000;
+
+
+
 export const CreateBodyScanBody = zod.object({
   "scannedAt": zod.string().optional(),
-  "feelings": zod.array(zod.string()),
+  "feelings": zod.array(zod.string().max(createBodyScanBodyFeelingsItemMax)).max(createBodyScanBodyFeelingsMax),
   "energyLevel": zod.number(),
-  "physicalSensations": zod.string().optional(),
-  "notes": zod.string().optional()
+  "physicalSensations": zod.string().max(createBodyScanBodyPhysicalSensationsMax).optional(),
+  "notes": zod.string().max(createBodyScanBodyNotesMax).optional()
 })
 
 
@@ -195,13 +213,23 @@ export const ListEveningReportsResponse = zod.array(ListEveningReportsResponseIt
 /**
  * @summary Create an evening report
  */
+export const createEveningReportBodyOverallMoodMax = 500;
+
+export const createEveningReportBodyWinsMax = 2000;
+
+export const createEveningReportBodyChallengesMax = 2000;
+
+export const createEveningReportBodyTomorrowIntentMax = 2000;
+
+
+
 export const CreateEveningReportBody = zod.object({
   "date": zod.string(),
   "medicationEffectiveness": zod.number(),
-  "overallMood": zod.string().optional(),
-  "wins": zod.string().optional(),
-  "challenges": zod.string().optional(),
-  "tomorrowIntent": zod.string().optional()
+  "overallMood": zod.string().max(createEveningReportBodyOverallMoodMax).optional(),
+  "wins": zod.string().max(createEveningReportBodyWinsMax).optional(),
+  "challenges": zod.string().max(createEveningReportBodyChallengesMax).optional(),
+  "tomorrowIntent": zod.string().max(createEveningReportBodyTomorrowIntentMax).optional()
 })
 
 
@@ -223,9 +251,15 @@ export const ListHabitsResponse = zod.array(ListHabitsResponseItem)
 /**
  * @summary Create a new habit
  */
+export const createHabitBodyNameMax = 100;
+
+export const createHabitBodyDescriptionMax = 500;
+
+
+
 export const CreateHabitBody = zod.object({
-  "name": zod.string(),
-  "description": zod.string().optional(),
+  "name": zod.string().min(1).max(createHabitBodyNameMax),
+  "description": zod.string().max(createHabitBodyDescriptionMax).optional(),
   "targetDays": zod.number(),
   "startDate": zod.string().optional()
 })
@@ -238,9 +272,15 @@ export const UpdateHabitParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const updateHabitBodyNameMax = 100;
+
+export const updateHabitBodyDescriptionMax = 500;
+
+
+
 export const UpdateHabitBody = zod.object({
-  "name": zod.string().optional(),
-  "description": zod.string().optional(),
+  "name": zod.string().min(1).max(updateHabitBodyNameMax).optional(),
+  "description": zod.string().max(updateHabitBodyDescriptionMax).optional(),
   "targetDays": zod.number().optional()
 })
 
@@ -288,10 +328,14 @@ export const LogHabitEntryParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const logHabitEntryBodyNotesMax = 500;
+
+
+
 export const LogHabitEntryBody = zod.object({
   "date": zod.string(),
   "completed": zod.boolean(),
-  "notes": zod.string().optional()
+  "notes": zod.string().max(logHabitEntryBodyNotesMax).optional()
 })
 
 
@@ -571,18 +615,22 @@ export const ListMedicationsResponse = zod.array(ListMedicationsResponseItem)
 /**
  * @summary Create a medication entry
  */
+export const createMedicationBodyNameMax = 100;
 
+export const createMedicationBodyDosageMax = 100;
 
 export const createMedicationBodyTimesItemRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
 export const createMedicationBodyTimesMax = 12;
 
+export const createMedicationBodyNotesMax = 500;
+
 
 
 export const CreateMedicationBody = zod.object({
-  "name": zod.string().min(1),
-  "dosage": zod.string().min(1),
+  "name": zod.string().min(1).max(createMedicationBodyNameMax),
+  "dosage": zod.string().min(1).max(createMedicationBodyDosageMax),
   "times": zod.array(zod.string().regex(createMedicationBodyTimesItemRegExp)).min(1).max(createMedicationBodyTimesMax),
-  "notes": zod.string().nullish()
+  "notes": zod.string().max(createMedicationBodyNotesMax).nullish()
 })
 
 
@@ -593,18 +641,22 @@ export const UpdateMedicationParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const updateMedicationBodyNameMax = 100;
 
+export const updateMedicationBodyDosageMax = 100;
 
 export const updateMedicationBodyTimesItemRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
 export const updateMedicationBodyTimesMax = 12;
 
+export const updateMedicationBodyNotesMax = 500;
+
 
 
 export const UpdateMedicationBody = zod.object({
-  "name": zod.string().min(1),
-  "dosage": zod.string().min(1),
+  "name": zod.string().min(1).max(updateMedicationBodyNameMax),
+  "dosage": zod.string().min(1).max(updateMedicationBodyDosageMax),
   "times": zod.array(zod.string().regex(updateMedicationBodyTimesItemRegExp)).min(1).max(updateMedicationBodyTimesMax),
-  "notes": zod.string().nullish()
+  "notes": zod.string().max(updateMedicationBodyNotesMax).nullish()
 })
 
 export const updateMedicationResponseTimesItemRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');

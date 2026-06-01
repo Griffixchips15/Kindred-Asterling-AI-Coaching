@@ -13,11 +13,22 @@ import type Anthropic from "@anthropic-ai/sdk";
 
 const DEFAULT_LIMIT = 7;
 const MAX_LIMIT = 30;
+// Per-field clip limits for tool outputs. Keeps individual fields from
+// bloating a tool result even when the DB contains near-limit stored values.
+const TOOL_FIELD_SHORT = 200;   // names, dosage, mood strings
+const TOOL_FIELD_LONG  = 1000;  // notes, sensations, wins/challenges
 
 function clampLimit(n: unknown): number {
   const v =
     typeof n === "number" && Number.isFinite(n) ? Math.floor(n) : DEFAULT_LIMIT;
   return Math.max(1, Math.min(MAX_LIMIT, v));
+}
+
+function clipStr(s: string | null | undefined, max: number): string | null {
+  if (!s) return null;
+  const t = s.trim();
+  if (!t) return null;
+  return t.length > max ? t.slice(0, max) + "…" : t;
 }
 
 function todayDateStr(): string {
@@ -104,8 +115,8 @@ async function getRecentMorningLogs(
   return rows.map((r) => ({
     date: r.date,
     mentalLoadLevel: r.mentalLoadLevel,
-    miniGoals: r.miniGoals,
-    notes: r.notes,
+    miniGoals: (r.miniGoals ?? []).map((g) => clipStr(g, TOOL_FIELD_SHORT)).filter(Boolean),
+    notes: clipStr(r.notes, TOOL_FIELD_LONG),
   }));
 }
 
@@ -121,10 +132,10 @@ async function getRecentEveningReports(
     .limit(limit);
   return rows.map((r) => ({
     date: r.date,
-    overallMood: r.overallMood,
-    wins: r.wins,
-    challenges: r.challenges,
-    tomorrowIntent: r.tomorrowIntent,
+    overallMood: clipStr(r.overallMood, TOOL_FIELD_SHORT),
+    wins: clipStr(r.wins, TOOL_FIELD_LONG),
+    challenges: clipStr(r.challenges, TOOL_FIELD_LONG),
+    tomorrowIntent: clipStr(r.tomorrowIntent, TOOL_FIELD_LONG),
     medicationEffectiveness: r.medicationEffectiveness,
   }));
 }
@@ -141,10 +152,10 @@ async function getRecentBodyScans(
     .limit(limit);
   return rows.map((r) => ({
     scannedAt: new Date(r.scannedAt).toISOString(),
-    feelings: r.feelings,
+    feelings: (r.feelings ?? []).map((f) => clipStr(f, TOOL_FIELD_SHORT)).filter(Boolean),
     energyLevel: r.energyLevel,
-    physicalSensations: r.physicalSensations,
-    notes: r.notes,
+    physicalSensations: clipStr(r.physicalSensations, TOOL_FIELD_LONG),
+    notes: clipStr(r.notes, TOOL_FIELD_LONG),
   }));
 }
 
@@ -190,8 +201,8 @@ async function getHabitsWithStreaks(userId: string): Promise<unknown> {
       }
 
       return {
-        name: habit.name,
-        description: habit.description,
+        name: clipStr(habit.name, TOOL_FIELD_SHORT),
+        description: clipStr(habit.description, TOOL_FIELD_LONG),
         targetDays: habit.targetDays,
         currentStreak,
         longestStreak,
@@ -220,9 +231,9 @@ async function getMedicationsStatus(userId: string): Promise<unknown> {
   return meds.map((m) => {
     const times = Array.from(new Set(m.times.map((t) => t.trim()))).sort();
     return {
-      name: m.name,
-      dosage: m.dosage,
-      notes: m.notes,
+      name: clipStr(m.name, TOOL_FIELD_SHORT),
+      dosage: clipStr(m.dosage, TOOL_FIELD_SHORT),
+      notes: clipStr(m.notes, TOOL_FIELD_LONG),
       doses: times.map((scheduledTime) => ({
         scheduledTime,
         takenToday: takenSet.has(`${m.id}|${scheduledTime}`),

@@ -8,8 +8,11 @@
 
 export interface BodyScanInput {
   scannedAt?: string;
+  /** @maxItems 20 */
   feelings: string[];
   energyLevel: number;
+  /** @maxLength 2000 */
   physicalSensations?: string;
+  /** @maxLength 2000 */
   notes?: string;
 }

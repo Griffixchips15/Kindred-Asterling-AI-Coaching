@@ -9,8 +9,12 @@
 export interface EveningReportInput {
   date: string;
   medicationEffectiveness: number;
+  /** @maxLength 500 */
   overallMood?: string;
+  /** @maxLength 2000 */
   wins?: string;
+  /** @maxLength 2000 */
   challenges?: string;
+  /** @maxLength 2000 */
   tomorrowIntent?: string;
 }

@@ -40,6 +40,13 @@ const MAX_HISTORY_CHARS = 24000;
 // endpoints. Bounds DB read size and response payload regardless of how many
 // messages a conversation has accumulated.
 const MESSAGE_RESPONSE_LIMIT = 100;
+// Hard cap on the serialized JSON string returned by any single tool call
+// before it is appended to the Anthropic request. Per-field clipping in
+// chatTools.ts is the first line of defence; this is the final backstop so a
+// large result set (e.g. many habits/medications) can't still exceed a safe
+// size. At ~8KB per tool call and ≤4 iterations the worst-case tool payload
+// added to the prompt stays well under 32KB.
+const MAX_TOOL_OUTPUT_CHARS = 8000;
 // Slightly higher cap for the archive export path where the user explicitly
 // wants a fuller transcript, but still bounded to prevent oversized reads.
 const ARCHIVE_MESSAGE_LIMIT = 500;
@@ -269,11 +276,15 @@ router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Re
           if (block.type !== "tool_use") continue;
           let output: string;
           try {
-            output = await runChatTool(
+            const raw = await runChatTool(
               block.name,
               (block.input ?? {}) as Record<string, unknown>,
               userId,
             );
+            output =
+              raw.length > MAX_TOOL_OUTPUT_CHARS
+                ? raw.slice(0, MAX_TOOL_OUTPUT_CHARS)
+                : raw;
           } catch (toolErr) {
             req.log.error(
               { err: toolErr, tool: block.name },

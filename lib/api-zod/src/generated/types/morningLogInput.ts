@@ -9,6 +9,8 @@
 export interface MorningLogInput {
   date: string;
   mentalLoadLevel: string;
+  /** @maxItems 10 */
   miniGoals: string[];
+  /** @maxLength 2000 */
   notes?: string;
 }
