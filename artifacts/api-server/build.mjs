@@ -29,6 +29,9 @@ async function buildAll() {
     // - use path traversal to read files (e.g. @google-cloud/secret-manager loads sibling .proto files)
     external: [
       "*.node",
+      // pdfkit pulls in fontkit -> @swc/helpers/brotli, which break when bundled
+      // (transitive deps only resolve relative to pdfkit's own node_modules).
+      "pdfkit",
       "sharp",
       "better-sqlite3",
       "sqlite3",

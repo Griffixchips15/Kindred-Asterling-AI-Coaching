@@ -11,6 +11,7 @@ import calendarRouter from "./calendar";
 import profileRouter from "./profile";
 import chatRouter from "./chat";
 import medicationsRouter from "./medications";
+import weeklyReportRouter from "./weeklyReport";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(calendarRouter);
 router.use(profileRouter);
 router.use(chatRouter);
 router.use(medicationsRouter);
+router.use(weeklyReportRouter);
 
 export default router;
