@@ -4,7 +4,7 @@ import {
   type MedicationWeeklyReportLogsItem,
   type MedicationWeeklyReportMedicationsItemScheduleItem,
 } from "@workspace/api-client-react";
-import { CalendarRange, Pill } from "lucide-react";
+import { CalendarRange, Pill, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type DoseState = "onTime" | "missed" | "upcoming";
@@ -111,11 +111,21 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-serif text-primary tracking-tight">Reports</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Your last 7 days of medication doses at a glance — whether each was taken on time or missed.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-serif text-primary tracking-tight">Reports</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Your last 7 days of medication doses at a glance — whether each was taken on time or missed.
+          </p>
+        </div>
+        <a
+          href="/api/weekly-report/pdf"
+          className="shrink-0 inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-muted transition-colors"
+          data-testid="button-download-weekly-pdf"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Download PDF
+        </a>
       </header>
 
       {/* Legend */}
