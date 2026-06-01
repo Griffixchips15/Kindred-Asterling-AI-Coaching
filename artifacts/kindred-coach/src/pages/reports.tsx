@@ -7,6 +7,18 @@ import {
 import { CalendarRange, Pill, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+async function downloadWeeklyPDF() {
+  const res = await fetch("/api/weekly-report/pdf", { credentials: "include" });
+  if (!res.ok) return;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "kindred-weekly-summary.pdf";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 type DoseState = "onTime" | "missed" | "upcoming";
 
 function formatTimeLabel(hhmm: string): string {
@@ -111,22 +123,23 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-serif text-primary tracking-tight">Reports</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Your last 7 days of medication doses at a glance — whether each was taken on time or missed.
-          </p>
-        </div>
-        <a
-          href="/api/weekly-report/pdf"
-          className="shrink-0 inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-muted transition-colors"
+      <header>
+        <h1 className="text-2xl font-serif text-primary tracking-tight">Reports</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Your last 7 days of medication doses at a glance — whether each was taken on time or missed.
+        </p>
+      </header>
+
+      <div className="flex justify-end mb-4">
+        <button
+          onClick={downloadWeeklyPDF}
+          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors"
           data-testid="button-download-weekly-pdf"
         >
-          <Download className="w-3.5 h-3.5" />
-          Download PDF
-        </a>
-      </header>
+          <Download className="h-4 w-4" />
+          Download Weekly Summary
+        </button>
+      </div>
 
       {/* Legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs">
