@@ -228,7 +228,28 @@ describe("auth is required", () => {
 });
 
 describe("GET /chat/active", () => {
-  it("returns an active conversation for the owner", async () => {
+  it("returns null when no active conversation exists (read-only — never creates)", async () => {
+    // GET must not insert any rows; it returns null for a new user.
+    const res = await api("GET", "/chat/active", { token: tokenA });
+    expect(res.status).toBe(200);
+    expect(res.body).toBeNull();
+
+    // Confirm zero conversations were written.
+    const rows = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.userId, userAId));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("returns the active conversation after it has been created by POST", async () => {
+    // A POST creates the conversation; the subsequent GET should return it.
+    mockReplyOnce("Hello there.");
+    await api("POST", "/chat/send", {
+      token: tokenA,
+      body: { content: "hi" },
+    });
+
     const res = await api("GET", "/chat/active", { token: tokenA });
     expect(res.status).toBe(200);
     const conv = res.body as ConvWithMessages;
@@ -244,6 +265,18 @@ describe("GET /chat/active", () => {
   });
 
   it("gives each user their own conversation, never a shared one", async () => {
+    // Create separate conversations for each user via POST first.
+    mockReplyOnce("Reply for A.");
+    await api("POST", "/chat/send", {
+      token: tokenA,
+      body: { content: "hello from A" },
+    });
+    mockReplyOnce("Reply for B.");
+    await api("POST", "/chat/send", {
+      token: tokenB,
+      body: { content: "hello from B" },
+    });
+
     const a = (await api("GET", "/chat/active", { token: tokenA }))
       .body as ConvWithMessages;
     const b = (await api("GET", "/chat/active", { token: tokenB }))

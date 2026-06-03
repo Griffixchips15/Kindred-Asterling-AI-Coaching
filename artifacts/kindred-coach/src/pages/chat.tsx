@@ -127,11 +127,28 @@ export default function Chat() {
   const voiceSupported = useMemo(() => getSpeechRecognitionCtor() !== null, []);
 
   const onboarded = !!authUser?.onboardedAt;
-  const messages: ChatMessage[] = conv?.messages ?? [];
+  const storedMessages: ChatMessage[] = conv?.messages ?? [];
+  // When the user hasn't completed onboarding and no messages have been stored
+  // yet, render the first onboarding prompt as a static client-side bubble.
+  // This avoids having GET /chat/active perform DB writes (which would be a
+  // CSRF risk under SameSite=Lax). The server only creates the conversation
+  // record on the first POST (send/append), which SameSite=Lax blocks from
+  // cross-site origins.
+  const virtualFirstMessage: ChatMessage[] =
+    !onboarded && authUser && storedMessages.length === 0
+      ? [
+          {
+            id: -1,
+            conversationId: -1,
+            role: "assistant",
+            content: ONBOARDING[0].prompt(authUser),
+            createdAt: new Date().toISOString(),
+          } as ChatMessage,
+        ]
+      : [];
+  const messages: ChatMessage[] = virtualFirstMessage.length > 0 ? virtualFirstMessage : storedMessages;
 
   // Determine onboarding step from current profile state.
-  // The first prompt is seeded server-side by GET /chat/active (idempotent),
-  // so the client only needs to decide which step we're on for input behavior.
   const currentStep: OnboardingStep | null = useMemo(() => {
     if (onboarded || !authUser) return null;
     for (const step of ONBOARDING) {

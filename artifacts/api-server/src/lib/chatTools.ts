@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import {
   db,
   morningLogsTable,
@@ -17,6 +17,10 @@ const MAX_LIMIT = 30;
 // bloating a tool result even when the DB contains near-limit stored values.
 const TOOL_FIELD_SHORT = 200;   // names, dosage, mood strings
 const TOOL_FIELD_LONG  = 1000;  // notes, sensations, wins/challenges
+// Streak logic only looks back 90 days, so fetching older entries is waste.
+// Cap habits returned to prevent O(N habits × N entries) fan-out queries.
+const HABIT_ENTRY_LOOKBACK_DAYS = 90;
+const MAX_HABITS = 50;
 
 function clampLimit(n: unknown): number {
   const v =
@@ -160,10 +164,21 @@ async function getRecentBodyScans(
 }
 
 async function getHabitsWithStreaks(userId: string): Promise<unknown> {
+  // Cap the number of habits to prevent O(N habits × N entries) fan-out.
   const habits = await db
     .select()
     .from(habitsTable)
-    .where(eq(habitsTable.userId, userId));
+    .where(eq(habitsTable.userId, userId))
+    .limit(MAX_HABITS);
+
+  // Streak math only looks back HABIT_ENTRY_LOOKBACK_DAYS days, so fetching
+  // older entries is pure waste. Compute the cutoff date once and reuse it
+  // across all per-habit queries so the DB work is bounded regardless of
+  // how much history the user has accumulated.
+  const today = new Date();
+  const cutoff = new Date(today);
+  cutoff.setDate(cutoff.getDate() - HABIT_ENTRY_LOOKBACK_DAYS);
+  const cutoffStr = cutoff.toISOString().split("T")[0];
 
   return Promise.all(
     habits.map(async (habit) => {
@@ -175,18 +190,19 @@ async function getHabitsWithStreaks(userId: string): Promise<unknown> {
             eq(habitEntriesTable.userId, userId),
             eq(habitEntriesTable.habitId, habit.id),
             eq(habitEntriesTable.completed, true),
+            gte(habitEntriesTable.date, cutoffStr),
           ),
         )
-        .orderBy(desc(habitEntriesTable.date));
+        .orderBy(desc(habitEntriesTable.date))
+        .limit(HABIT_ENTRY_LOOKBACK_DAYS);
 
       // Mirror the streak math used by the dashboard so the AI and the UI
       // always agree on the numbers.
       let currentStreak = 0;
       let longestStreak = 0;
       let tempStreak = 0;
-      const today = new Date();
       const completedDates = entries.map((e) => e.date);
-      for (let i = 0; i < 90; i++) {
+      for (let i = 0; i < HABIT_ENTRY_LOOKBACK_DAYS; i++) {
         const d = new Date(today);
         d.setDate(d.getDate() - i);
         const ds = d.toISOString().split("T")[0];

@@ -132,24 +132,24 @@ function buildSystemInstruction(user: User | null): string {
   return parts.join(" ");
 }
 
-const ONBOARDING_FIRST_PROMPT = (firstName: string | null | undefined): string =>
-  `Hi${firstName ? " " + firstName : ""} — I'm Kindred, your daily wellness companion. I'd love to get to know you a little. What should I call you?`;
-
+// GET /chat/active is intentionally read-only. Authenticated GET routes must
+// be side-effect free so that SameSite=Lax cookies cannot be used for CSRF
+// (a cross-site top-level navigation with GET would otherwise create DB rows).
+// Conversation creation and onboarding message seeding happen on the first
+// POST (send/append), which SameSite=Lax blocks from cross-site origins.
+// The frontend renders the first onboarding prompt client-side when the
+// messages array is empty and the user has not completed onboarding.
 router.get("/chat/active", requireAuth, async (req: Request, res: Response): Promise<void> => {
   const userId = req.user!.id;
-  const userRow = await getCurrentUserRow(userId);
-  const conv = await getOrCreateActive(userId);
-  const existing = await db
+  const [conv] = await db
     .select()
-    .from(messages)
-    .where(eq(messages.conversationId, conv.id))
+    .from(conversations)
+    .where(and(eq(conversations.userId, userId), eq(conversations.status, "active")))
+    .orderBy(desc(conversations.createdAt))
     .limit(1);
-  if (existing.length === 0 && userRow && !userRow.onboardedAt) {
-    await db.insert(messages).values({
-      conversationId: conv.id,
-      role: "assistant",
-      content: ONBOARDING_FIRST_PROMPT(userRow.firstName),
-    });
+  if (!conv) {
+    res.json(null);
+    return;
   }
   const full = await loadWithMessages(conv.id, MESSAGE_RESPONSE_LIMIT);
   res.json(JSON.parse(JSON.stringify(full)));
