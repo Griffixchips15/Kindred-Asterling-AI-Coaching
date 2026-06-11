@@ -16,7 +16,8 @@ router.get("/evening-reports", requireAuth, async (req, res): Promise<void> => {
     .select()
     .from(eveningReportsTable)
     .where(eq(eveningReportsTable.userId, userId))
-    .orderBy(desc(eveningReportsTable.createdAt));
+    .orderBy(desc(eveningReportsTable.createdAt))
+    .limit(365);
   res.json(ListEveningReportsResponse.parse(JSON.parse(JSON.stringify(reports))));
 });
 

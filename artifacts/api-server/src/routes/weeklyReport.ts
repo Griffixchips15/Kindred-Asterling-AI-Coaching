@@ -31,19 +31,22 @@ router.get("/weekly-report/pdf", requireAuth, async (req, res): Promise<void> =>
   const morningLogs = await db
     .select()
     .from(morningLogsTable)
-    .where(and(eq(morningLogsTable.userId, userId), gte(morningLogsTable.date, startDate)));
+    .where(and(eq(morningLogsTable.userId, userId), gte(morningLogsTable.date, startDate)))
+    .limit(50);
   morningLogs.sort((a, b) => a.date.localeCompare(b.date));
 
   const eveningReports = await db
     .select()
     .from(eveningReportsTable)
-    .where(and(eq(eveningReportsTable.userId, userId), gte(eveningReportsTable.date, startDate)));
+    .where(and(eq(eveningReportsTable.userId, userId), gte(eveningReportsTable.date, startDate)))
+    .limit(50);
   eveningReports.sort((a, b) => a.date.localeCompare(b.date));
 
   const bodyScans = await db
     .select()
     .from(bodyScansTable)
-    .where(and(eq(bodyScansTable.userId, userId), gte(bodyScansTable.scannedAt, new Date(startDate))));
+    .where(and(eq(bodyScansTable.userId, userId), gte(bodyScansTable.scannedAt, new Date(startDate))))
+    .limit(50);
   bodyScans.sort((a, b) => a.scannedAt.getTime() - b.scannedAt.getTime());
 
   res.setHeader("Content-Type", "application/pdf");

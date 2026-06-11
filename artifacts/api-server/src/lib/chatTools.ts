@@ -1,4 +1,4 @@
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import {
   db,
   morningLogsTable,
@@ -228,21 +228,34 @@ async function getHabitsWithStreaks(userId: string): Promise<unknown> {
   );
 }
 
+// Cap medications read for chat use so query + serialization work is bounded
+// before truncation. A normal user won't hit this limit; it only blocks abuse.
+const MAX_CHAT_MEDICATIONS = 50;
+
 async function getMedicationsStatus(userId: string): Promise<unknown> {
   const meds = await db
     .select()
     .from(medicationsTable)
-    .where(eq(medicationsTable.userId, userId));
+    .where(eq(medicationsTable.userId, userId))
+    .limit(MAX_CHAT_MEDICATIONS);
   const today = todayDateStr();
-  const todays = await db
-    .select()
-    .from(medicationLogsTable)
-    .where(
-      and(
-        eq(medicationLogsTable.userId, userId),
-        eq(medicationLogsTable.date, today),
-      ),
-    );
+  // Scope the logs query to only the medication IDs just fetched (the capped
+  // list) so we never read today's logs for medications outside that set.
+  // This ensures the query + takenSet construction work is O(cap), not O(total).
+  const medIds = meds.map((m) => m.id);
+  const todays =
+    medIds.length > 0
+      ? await db
+          .select()
+          .from(medicationLogsTable)
+          .where(
+            and(
+              eq(medicationLogsTable.userId, userId),
+              eq(medicationLogsTable.date, today),
+              inArray(medicationLogsTable.medicationId, medIds),
+            ),
+          )
+      : [];
   const takenSet = new Set(todays.map((l) => `${l.medicationId}|${l.scheduledTime}`));
   return meds.map((m) => {
     const times = Array.from(new Set(m.times.map((t) => t.trim()))).sort();

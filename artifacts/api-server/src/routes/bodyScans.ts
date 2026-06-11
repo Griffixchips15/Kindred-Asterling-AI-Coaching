@@ -16,7 +16,8 @@ router.get("/body-scans", requireAuth, async (req, res): Promise<void> => {
     .select()
     .from(bodyScansTable)
     .where(eq(bodyScansTable.userId, userId))
-    .orderBy(desc(bodyScansTable.scannedAt));
+    .orderBy(desc(bodyScansTable.scannedAt))
+    .limit(365);
   res.json(ListBodyScansResponse.parse(JSON.parse(JSON.stringify(scans))));
 });
 

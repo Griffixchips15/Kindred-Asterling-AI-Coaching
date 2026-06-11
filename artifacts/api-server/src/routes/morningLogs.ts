@@ -18,7 +18,8 @@ router.get("/morning-logs", requireAuth, async (req, res): Promise<void> => {
     .select()
     .from(morningLogsTable)
     .where(eq(morningLogsTable.userId, userId))
-    .orderBy(desc(morningLogsTable.createdAt));
+    .orderBy(desc(morningLogsTable.createdAt))
+    .limit(365);
   res.json(ListMorningLogsResponse.parse(JSON.parse(JSON.stringify(logs))));
 });
 

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, lte, or, isNull, sql } from "drizzle-orm";
 import {
   db,
   medicationsTable,
@@ -85,7 +85,8 @@ router.get("/medications", requireAuth, async (req, res): Promise<void> => {
     .select()
     .from(medicationsTable)
     .where(eq(medicationsTable.userId, userId))
-    .orderBy(asc(medicationsTable.name));
+    .orderBy(asc(medicationsTable.name))
+    .limit(100);
 
   const today = todayDateStr(tzOffset);
   const todays = await db
@@ -169,10 +170,24 @@ router.get(
         ),
       );
 
+    // Only fetch schedule entries that overlap the 7-day reporting window.
+    // An entry overlaps if it started at or before today AND it either has no
+    // end date (still active) or ended on/after the window start (endDate is
+    // exclusive, so endDate >= sinceDate means in effect on at least one day).
+    const today = todayDateStr(tzOffset);
     const scheduleEntries = await db
       .select()
       .from(medicationScheduleEntriesTable)
-      .where(eq(medicationScheduleEntriesTable.userId, userId));
+      .where(
+        and(
+          eq(medicationScheduleEntriesTable.userId, userId),
+          lte(medicationScheduleEntriesTable.startDate, today),
+          or(
+            isNull(medicationScheduleEntriesTable.endDate),
+            gte(medicationScheduleEntriesTable.endDate, sinceDate),
+          ),
+        ),
+      );
     const scheduleByMed = new Map<
       number,
       { scheduledTime: string; startDate: string; endDate: string | null }[]

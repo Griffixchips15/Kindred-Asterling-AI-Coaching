@@ -23,7 +23,8 @@ router.get("/habits", requireAuth, async (req, res): Promise<void> => {
     .select()
     .from(habitsTable)
     .where(eq(habitsTable.userId, userId))
-    .orderBy(desc(habitsTable.createdAt));
+    .orderBy(desc(habitsTable.createdAt))
+    .limit(100);
 
   const withCounts = await Promise.all(
     habits.map(async (habit) => {
@@ -131,7 +132,8 @@ router.get("/habits/:id/entries", requireAuth, async (req, res): Promise<void> =
     .select()
     .from(habitEntriesTable)
     .where(eq(habitEntriesTable.habitId, params.data.id))
-    .orderBy(desc(habitEntriesTable.date));
+    .orderBy(desc(habitEntriesTable.date))
+    .limit(365);
   res.json(JSON.parse(JSON.stringify(entries)));
 });
 

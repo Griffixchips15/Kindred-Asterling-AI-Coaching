@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, gte } from "drizzle-orm";
 import { db, morningLogsTable, eveningReportsTable, bodyScansTable, habitsTable, habitEntriesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -57,12 +57,23 @@ router.get("/dashboard/today", requireAuth, async (req, res): Promise<void> => {
   });
 });
 
+// Streak logic only looks back STREAK_LOOKBACK_DAYS; fetching older entries
+// is waste and creates unbounded O(N habits × N entries) cost per request.
+const STREAK_LOOKBACK_DAYS = 90;
+const MAX_DASHBOARD_HABITS = 50;
+
 router.get("/dashboard/streaks", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
   const habits = await db
     .select()
     .from(habitsTable)
-    .where(eq(habitsTable.userId, userId));
+    .where(eq(habitsTable.userId, userId))
+    .limit(MAX_DASHBOARD_HABITS);
+
+  const today = new Date();
+  const cutoff = new Date(today);
+  cutoff.setDate(cutoff.getDate() - STREAK_LOOKBACK_DAYS);
+  const cutoffStr = cutoff.toISOString().split("T")[0];
 
   const streaks = await Promise.all(
     habits.map(async (habit) => {
@@ -72,15 +83,16 @@ router.get("/dashboard/streaks", requireAuth, async (req, res): Promise<void> =>
         .where(
           and(
             eq(habitEntriesTable.habitId, habit.id),
-            eq(habitEntriesTable.completed, true)
+            eq(habitEntriesTable.completed, true),
+            gte(habitEntriesTable.date, cutoffStr)
           )
         )
-        .orderBy(desc(habitEntriesTable.date));
+        .orderBy(desc(habitEntriesTable.date))
+        .limit(STREAK_LOOKBACK_DAYS);
 
       let currentStreak = 0;
       let longestStreak = 0;
       let tempStreak = 0;
-      const today = new Date();
       const completedDates = entries.map((e) => e.date);
 
       for (let i = 0; i < 90; i++) {
