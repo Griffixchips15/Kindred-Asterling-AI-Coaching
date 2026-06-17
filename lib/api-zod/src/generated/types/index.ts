@@ -52,4 +52,5 @@ export * from './moodTrendPoint';
 export * from './morningLog';
 export * from './morningLogInput';
 export * from './profileUpdateInput';
+export * from './subscriptionStatus';
 export * from './todaySummary';

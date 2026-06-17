@@ -5,6 +5,20 @@
  * Kindred Coach API
  * OpenAPI spec version: 0.1.0
  */
+export interface SubscriptionStatus {
+  /** Whether the user currently has access. */
+  active: boolean;
+  /** Resolved status (active, inactive, bypass, etc.). */
+  status: string;
+  /** @nullable */
+  currentPeriodEnd: string | null;
+  /**
+     * Link to the Square store page where users subscribe.
+     * @nullable
+     */
+  subscribeUrl: string | null;
+}
+
 export interface AuthUser {
   id: string;
   /** @nullable */

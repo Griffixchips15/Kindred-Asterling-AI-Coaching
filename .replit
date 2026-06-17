@@ -140,3 +140,4 @@ channel = "stable-25_05"
 
 [userenv.shared]
 CALENDAR_OWNER_USER_ID = "50312031"
+SQUARE_ENVIRONMENT = "production"

@@ -9,6 +9,21 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Get the current user's subscription access status
+ */
+export const GetSubscriptionStatusHeader = zod.object({
+  "Authorization": zod.string().optional().describe('Opaque session token — `Bearer <sid>`.')
+})
+
+export const GetSubscriptionStatusResponse = zod.object({
+  "active": zod.boolean().describe('Whether the user currently has access.'),
+  "status": zod.string().describe('Resolved status (active, inactive, bypass, etc.).'),
+  "currentPeriodEnd": zod.coerce.date().nullable(),
+  "subscribeUrl": zod.string().nullable().describe('Link to the Square store page where users subscribe.')
+})
+
+
+/**
  * @summary Get the currently authenticated user
  */
 export const GetCurrentAuthUserHeader = zod.object({

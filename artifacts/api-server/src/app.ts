@@ -32,7 +32,16 @@ app.use(
 );
 app.use(cors({ credentials: true, origin: true }));
 app.use(cookieParser());
-app.use(express.json({ limit: "32kb" }));
+app.use(
+  express.json({
+    limit: "32kb",
+    verify: (req, _res, buf) => {
+      // Preserve the raw body so the Square webhook route can verify its HMAC
+      // signature over the exact bytes Square sent.
+      (req as unknown as { rawBody?: Buffer }).rawBody = buf;
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: "32kb" }));
 app.use(authMiddleware);
 app.use(generalLimiter);

@@ -31,8 +31,30 @@ tags:
     description: Medication schedule and intake log
   - name: chat
     description: AI coaching chat and archive
+  - name: subscription
+    description: Square subscription access status
 
 paths:
+  /subscription/status:
+    get:
+      tags: [subscription]
+      operationId: getSubscriptionStatus
+      summary: Get the current user's subscription access status
+      security:
+        - sessionCookie: []
+        - bearerSession: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '200':
+          description: Subscription status resolved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionStatus'
+        '401':
+          description: Not authenticated.
   /auth/user:
     get:
       tags: [Auth]
@@ -828,6 +850,22 @@ components:
       schema:
         type: string
   schemas:
+    SubscriptionStatus:
+      type: object
+      required: [active, status, currentPeriodEnd, subscribeUrl]
+      properties:
+        active:
+          type: boolean
+          description: Whether the user currently has access.
+        status:
+          type: string
+          description: Resolved status (active, inactive, bypass, etc.).
+        currentPeriodEnd:
+          type: [string, 'null']
+          format: date-time
+        subscribeUrl:
+          type: [string, 'null']
+          description: Link to the Square store page where users subscribe.
     AuthUser:
       type: object
       required: [id, email, firstName, lastName, profileImageUrl, preferredName, birthday, struggles, strengths, interests, bio, motivationalQuote, onboardedAt]

@@ -12,11 +12,21 @@ import profileRouter from "./profile";
 import chatRouter from "./chat";
 import medicationsRouter from "./medications";
 import weeklyReportRouter from "./weeklyReport";
+import subscriptionRouter from "./subscription";
+import { requireAuth } from "../middlewares/requireAuth";
+import { requireSubscription } from "../middlewares/requireSubscription";
 
 const router: IRouter = Router();
 
+// Open routes: health, auth, and the subscription status/webhook endpoints.
 router.use(healthRouter);
 router.use(authRouter);
+router.use(subscriptionRouter);
+
+// Everything below requires an authenticated user with an active subscription.
+router.use(requireAuth);
+router.use(requireSubscription);
+
 router.use(morningLogsRouter);
 router.use(bodyScansRouter);
 router.use(eveningReportsRouter);

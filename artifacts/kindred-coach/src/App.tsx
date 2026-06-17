@@ -16,6 +16,7 @@ import Chat from "@/pages/chat";
 import Archive from "@/pages/archive";
 import NotFound from "@/pages/not-found";
 import { useAuth } from "@workspace/replit-auth-web";
+import { useGetSubscriptionStatus, getGetSubscriptionStatusQueryKey } from "@workspace/api-client-react";
 import { ThemeProvider } from "@/hooks/use-theme";
 import logoPoster from "@/assets/brand/logo-poster.jpg";
 
@@ -63,6 +64,75 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function SubscriptionGate({ children }: { children: React.ReactNode }) {
+  const { data, isLoading, isFetching, refetch } = useGetSubscriptionStatus({
+    query: { queryKey: getGetSubscriptionStatusQueryKey() },
+  });
+  const { logout } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <p className="text-muted-foreground text-sm">Loading...</p>
+      </div>
+    );
+  }
+
+  if (data?.active) {
+    return <>{children}</>;
+  }
+
+  const subscribeUrl = data?.subscribeUrl ?? null;
+
+  return (
+    <div className="flex h-screen flex-col items-center justify-center gap-7 bg-background px-6 text-center">
+      <div className="flex flex-col items-center">
+        <img
+          src={logoPoster}
+          alt="Kindred Asterling — AI Coaching"
+          className="w-48 max-w-[70vw] rounded-2xl shadow-2xl ring-1 ring-border/40"
+        />
+        <h1 className="mt-6 text-2xl font-serif text-foreground tracking-tight">
+          Subscribe to continue
+        </h1>
+        <p className="mt-3 max-w-sm text-muted-foreground text-sm leading-relaxed">
+          Kindred Asterling is a subscription. Subscribe using the same email you
+          sign in with here, and you'll have full access right away.
+        </p>
+      </div>
+      <div className="flex w-full max-w-xs flex-col items-stretch gap-3">
+        {subscribeUrl ? (
+          <a
+            href={subscribeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            Subscribe
+          </a>
+        ) : (
+          <p className="text-muted-foreground text-xs">
+            The subscription link is being set up — please check back shortly.
+          </p>
+        )}
+        <button
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="rounded-lg border border-border px-6 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-60"
+        >
+          {isFetching ? "Checking..." : "I've subscribed — check again"}
+        </button>
+        <button
+          onClick={logout}
+          className="text-muted-foreground text-xs hover:text-foreground transition-colors"
+        >
+          Log out
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function OnboardingGate({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [location] = useLocation();
@@ -102,7 +172,9 @@ function App() {
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <AuthGate>
-            <Router />
+            <SubscriptionGate>
+              <Router />
+            </SubscriptionGate>
           </AuthGate>
         </WouterRouter>
         <Toaster />
