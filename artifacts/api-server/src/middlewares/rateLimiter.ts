@@ -15,7 +15,11 @@ export const generalLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: keyByUserOrIp,
   message: { error: "Too many requests, please try again later." },
-  skip: (req) => req.method === "GET" && req.path.startsWith("/api/healthz"),
+  skip: (req) =>
+    req.method === "GET" &&
+    (req.path === "/api" ||
+      req.path === "/api/" ||
+      req.path.startsWith("/api/healthz")),
 });
 
 export const writeLimiter = rateLimit({
