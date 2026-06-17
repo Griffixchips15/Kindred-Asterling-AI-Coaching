@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, sql, desc, gte } from "drizzle-orm";
+import { eq, and, sql, desc, gte, inArray } from "drizzle-orm";
 import { db, morningLogsTable, eveningReportsTable, bodyScansTable, habitsTable, habitEntriesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -41,7 +41,7 @@ router.get("/dashboard/today", requireAuth, async (req, res): Promise<void> => {
             and(
               eq(habitEntriesTable.date, today),
               eq(habitEntriesTable.completed, true),
-              sql`habit_id = ANY(${sql.raw(`ARRAY[${habitIds.join(",")}]`)})`
+              inArray(habitEntriesTable.habitId, habitIds)
             )
           )
       : [{ count: 0 }];
