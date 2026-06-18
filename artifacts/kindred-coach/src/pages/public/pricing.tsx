@@ -60,7 +60,7 @@ export default function Pricing() {
               <CardDescription>For the ongoing work.</CardDescription>
               <div className="mt-2 flex items-baseline gap-1">
                 <span className="font-serif text-4xl font-medium text-foreground">
-                  $99
+                  $49.99
                 </span>
                 <span className="text-muted-foreground">/ year</span>
               </div>
@@ -94,7 +94,7 @@ export default function Pricing() {
               <CardDescription>One payment. Forever.</CardDescription>
               <div className="mt-2 flex items-baseline gap-1">
                 <span className="font-serif text-4xl font-medium text-foreground">
-                  $299
+                  $79.99
                 </span>
                 <span className="text-muted-foreground">once</span>
               </div>
