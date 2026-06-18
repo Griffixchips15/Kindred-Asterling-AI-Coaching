@@ -62,7 +62,7 @@ catalog:
   tailwind-merge: ^3.3.1
   tailwindcss: ^4.1.14
   tsx: ^4.21.0
-  vite: ^7.3.2
+  vite: ^7.3.5
   wouter: ^3.3.5
   zod: ^3.25.76
 
@@ -157,6 +157,16 @@ overrides:
   "@expo/ngrok-bin>@expo/ngrok-bin-win32-x64": "-"
   # drizzle-kit uses esbuild internally on an older version that's vulnerable, this overrides it
   "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
-  esbuild: "0.27.3"
+  esbuild: "0.28.1"
+  # Fix GHSA-6v5v-wf23-fmfq: markdown-it quadratic-complexity DoS in smartquotes
+  markdown-it: ">=14.2.0"
+  # Fix GHSA-h67p-54hq-rp68: js-yaml quadratic-complexity DoS in merge key handling
+  js-yaml: ">=4.2.0"
+  # Fix GHSA-f38q-mgvj-vph7: protobufjs schema-derived names can shadow runtime properties
+  protobufjs: ">=7.6.3"
+  # Fix GHSA-4x5r-pxfx-6jf8: @babel/core arbitrary file read via sourceMappingURL
+  "@babel/core": ">=7.29.6"
+  # Fix GHSA-fx2h-pf6j-xcff / GHSA-v6wh-96g9-6wx3: vite server.fs.deny bypass and UNC path disclosure
+  vite: ">=7.3.5"
   # Fix GHSA-q8mj-m7cp-5q26: qs DoS via stringify with comma-format arrays
   qs: ">=6.15.2"
