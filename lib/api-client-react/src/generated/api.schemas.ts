@@ -19,6 +19,27 @@ export interface SubscriptionStatus {
   subscribeUrl: string | null;
 }
 
+/**
+ * Which plan the user is purchasing.
+ */
+export type CreateCheckoutInputPlanType = typeof CreateCheckoutInputPlanType[keyof typeof CreateCheckoutInputPlanType];
+
+
+export const CreateCheckoutInputPlanType = {
+  yearly: 'yearly',
+  lifetime: 'lifetime',
+} as const;
+
+export interface CreateCheckoutInput {
+  /** Which plan the user is purchasing. */
+  planType: CreateCheckoutInputPlanType;
+}
+
+export interface CheckoutLink {
+  /** Square-hosted checkout URL to redirect the buyer to. */
+  checkoutUrl: string;
+}
+
 export interface AuthUser {
   id: string;
   /** @nullable */

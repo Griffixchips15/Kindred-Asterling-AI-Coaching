@@ -32,6 +32,8 @@ import type {
   ChatConversation,
   ChatConversationWithMessages,
   ChatSendInput,
+  CheckoutLink,
+  CreateCheckoutInput,
   ErrorEnvelope,
   EveningReport,
   EveningReportInput,
@@ -151,6 +153,77 @@ export function useGetSubscriptionStatus<TData = Awaited<ReturnType<typeof getSu
 
 
 
+
+export const getCreateCheckoutUrl = () => {
+
+
+
+
+  return `/api/subscription/checkout`
+}
+
+/**
+ * @summary Create a Square hosted checkout link for the selected plan
+ */
+export const createCheckout = async (createCheckoutInput: CreateCheckoutInput, options?: RequestInit): Promise<CheckoutLink> => {
+
+  return customFetch<CheckoutLink>(getCreateCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      createCheckoutInput,)
+  }
+);}
+
+
+
+
+export const getCreateCheckoutMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCheckout>>, TError,{data: BodyType<CreateCheckoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCheckout>>, TError,{data: BodyType<CreateCheckoutInput>}, TContext> => {
+
+const mutationKey = ['createCheckout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCheckout>>, {data: BodyType<CreateCheckoutInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCheckout(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof createCheckout>>>
+    export type CreateCheckoutMutationBody = BodyType<CreateCheckoutInput>
+    export type CreateCheckoutMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a Square hosted checkout link for the selected plan
+ */
+export const useCreateCheckout = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCheckout>>, TError,{data: BodyType<CreateCheckoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCheckout>>,
+        TError,
+        {data: BodyType<CreateCheckoutInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCheckoutMutationOptions(options));
+    }
 
 export const getGetCurrentAuthUserUrl = () => {
 

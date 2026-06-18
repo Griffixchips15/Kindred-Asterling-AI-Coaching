@@ -1,8 +1,21 @@
-import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
+import {
+  Switch,
+  Route,
+  Router as WouterRouter,
+  useLocation,
+  Redirect,
+  Link,
+} from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/app-layout";
+import { PublicLayout } from "@/components/layout/public-layout";
+import Landing from "@/pages/public/landing";
+import About from "@/pages/public/about";
+import Science from "@/pages/public/science";
+import Pricing from "@/pages/public/pricing";
+import PaymentSuccess from "@/pages/public/payment-success";
 import Dashboard from "@/pages/dashboard";
 import Morning from "@/pages/morning";
 import Scans from "@/pages/scans";
@@ -82,8 +95,6 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  const subscribeUrl = data?.subscribeUrl ?? null;
-
   return (
     <div className="flex h-screen flex-col items-center justify-center gap-7 bg-background px-6 text-center">
       <div className="flex flex-col items-center">
@@ -96,25 +107,17 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
           Subscribe to continue
         </h1>
         <p className="mt-3 max-w-sm text-muted-foreground text-sm leading-relaxed">
-          Kindred Asterling is a subscription. Subscribe using the same email you
-          sign in with here, and you'll have full access right away.
+          Kindred Asterling is a subscription. Pick a plan and complete checkout
+          with the same email you sign in with — access unlocks right away.
         </p>
       </div>
       <div className="flex w-full max-w-xs flex-col items-stretch gap-3">
-        {subscribeUrl ? (
-          <a
-            href={subscribeUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            Subscribe
-          </a>
-        ) : (
-          <p className="text-muted-foreground text-xs">
-            The subscription link is being set up — please check back shortly.
-          </p>
-        )}
+        <Link
+          href="~/pricing"
+          className="rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          View plans
+        </Link>
         <button
           onClick={() => refetch()}
           disabled={isFetching}
@@ -142,7 +145,7 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function Router() {
+function AppRouter() {
   return (
     <AppLayout>
       <OnboardingGate>
@@ -169,16 +172,50 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <AuthGate>
-            <SubscriptionGate>
-              <Router />
-            </SubscriptionGate>
-          </AuthGate>
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Switch>
+              <Route path="/">
+                <PublicLayout>
+                  <Landing />
+                </PublicLayout>
+              </Route>
+              <Route path="/about">
+                <PublicLayout>
+                  <About />
+                </PublicLayout>
+              </Route>
+              <Route path="/science">
+                <PublicLayout>
+                  <Science />
+                </PublicLayout>
+              </Route>
+              <Route path="/pricing">
+                <PublicLayout>
+                  <Pricing />
+                </PublicLayout>
+              </Route>
+              <Route path="/payment-success">
+                <PublicLayout>
+                  <PaymentSuccess />
+                </PublicLayout>
+              </Route>
+              <Route path="/app" nest>
+                <AuthGate>
+                  <SubscriptionGate>
+                    <AppRouter />
+                  </SubscriptionGate>
+                </AuthGate>
+              </Route>
+              <Route>
+                <PublicLayout>
+                  <NotFound />
+                </PublicLayout>
+              </Route>
+            </Switch>
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

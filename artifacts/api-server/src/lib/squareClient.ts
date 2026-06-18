@@ -17,6 +17,58 @@ export function isSquareConfigured(): boolean {
   return Boolean(process.env.SQUARE_ACCESS_TOKEN);
 }
 
+// In-app checkout needs the access token plus the location and both product
+// variation ids. Until those are set, the checkout endpoint reports 503.
+export function isCheckoutConfigured(): boolean {
+  return Boolean(
+    process.env.SQUARE_ACCESS_TOKEN &&
+      process.env.SQUARE_LOCATION_ID &&
+      process.env.SQUARE_YEARLY_VARIATION_ID &&
+      process.env.SQUARE_LIFETIME_VARIATION_ID,
+  );
+}
+
+export type CheckoutPlan = "yearly" | "lifetime";
+
+// Create a Square-hosted checkout (payment link) for one of our two plans. The
+// buyer email is prefilled from the signed-in user so the payment lands on the
+// same email we match entitlement against. Returns the hosted checkout URL.
+export async function createSubscriptionCheckoutLink(params: {
+  planType: CheckoutPlan;
+  buyerEmail: string | null;
+  redirectUrl: string;
+}): Promise<string> {
+  const locationId = process.env.SQUARE_LOCATION_ID;
+  const variationId =
+    params.planType === "yearly"
+      ? process.env.SQUARE_YEARLY_VARIATION_ID
+      : process.env.SQUARE_LIFETIME_VARIATION_ID;
+  if (!locationId || !variationId) {
+    throw new Error("Square checkout is not configured");
+  }
+  const body: Record<string, unknown> = {
+    idempotency_key: crypto.randomUUID(),
+    order: {
+      location_id: locationId,
+      line_items: [{ quantity: "1", catalog_object_id: variationId }],
+    },
+    checkout_options: {
+      redirect_url: params.redirectUrl,
+      ask_for_shipping_address: false,
+    },
+  };
+  const email = params.buyerEmail?.trim();
+  if (email) {
+    body.pre_populated_data = { buyer_email: email };
+  }
+  const data = await squarePost("/v2/online-checkout/payment-links", body);
+  const url = data?.payment_link?.url;
+  if (typeof url !== "string" || !url) {
+    throw new Error("Square did not return a checkout URL");
+  }
+  return url;
+}
+
 export interface SquareSubscriptionResult {
   active: boolean;
   squareCustomerId: string | null;

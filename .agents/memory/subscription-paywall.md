@@ -5,7 +5,14 @@ description: How the whole-app Square subscription gate is designed and the non-
 
 # Whole-app Square subscription paywall
 
-The entire app is gated: a signed-in user gets nothing until they have an ACTIVE Square subscription. There is **no in-app checkout** — users subscribe on the owner's **external Square store page** (`SQUARE_STORE_URL`).
+The entire app is gated: a signed-in user gets nothing until they have an ACTIVE Square subscription. The actual coaching app lives behind a Wouter nested route `/app`; public marketing pages (`/`, `/about`, `/science`, `/pricing`, `/payment-success`) are ungated.
+
+## In-app checkout (Square hosted payment links)
+Checkout is **in-app**, not an external store link. `POST /api/subscription/checkout` (behind `requireAuth`, NOT `requireSubscription`) creates a Square hosted payment link and returns `{checkoutUrl}`; the frontend redirects there. Requiring auth means the buyer email is the signed-in email — so entitlement matching is automatic — and anonymous traffic can't trigger billable Square calls.
+- Plan IDs come from env: `SQUARE_LOCATION_ID`, `SQUARE_YEARLY_VARIATION_ID`, `SQUARE_LIFETIME_VARIATION_ID`. `isCheckoutConfigured()` requires all three plus `SQUARE_ACCESS_TOKEN`; route returns **503** when unconfigured, **502** on Square error. Until these IDs are set the checkout dead-ends at 503 (expected) — the owner still gets in via `SUBSCRIPTION_BYPASS_EMAILS`.
+- Square redirects to `/payment-success` after payment; that page re-checks `/api/subscription/status` before entering `/app`, because entitlement is granted async via the webhook → cached row (status may lag a few seconds).
+- `SubscriptionGate` sends non-subscribed signed-in users to in-app `/pricing` (Wouter `~/pricing` to escape the `/app` nest), keeping a "check again" refetch + log out.
+- `SQUARE_STORE_URL` (the old external store page) is legacy/optional; the primary path is now in-app.
 
 ## Trust anchor: email matching
 Entitlement is matched by **email**: the app login email (Replit OIDC) must equal the Square payer's email. Identity is always derived from the session (`req.user`), never from client input. This is the core trust assumption — it relies on the OIDC email claim being owned by the user.

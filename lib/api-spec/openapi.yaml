@@ -55,6 +55,34 @@ paths:
                 $ref: '#/components/schemas/SubscriptionStatus'
         '401':
           description: Not authenticated.
+  /subscription/checkout:
+    post:
+      tags: [subscription]
+      operationId: createCheckout
+      summary: Create a Square hosted checkout link for the selected plan
+      security:
+        - sessionCookie: []
+        - bearerSession: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCheckoutInput'
+      responses:
+        '200':
+          description: Checkout link created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutLink'
+        '401':
+          description: Not authenticated.
+        '503':
+          description: Checkout is not configured yet.
   /auth/user:
     get:
       tags: [Auth]
@@ -866,6 +894,21 @@ components:
         subscribeUrl:
           type: [string, 'null']
           description: Link to the Square store page where users subscribe.
+    CreateCheckoutInput:
+      type: object
+      required: [planType]
+      properties:
+        planType:
+          type: string
+          enum: [yearly, lifetime]
+          description: Which plan the user is purchasing.
+    CheckoutLink:
+      type: object
+      required: [checkoutUrl]
+      properties:
+        checkoutUrl:
+          type: string
+          description: Square-hosted checkout URL to redirect the buyer to.
     AuthUser:
       type: object
       required: [id, email, firstName, lastName, profileImageUrl, preferredName, birthday, struggles, strengths, interests, bio, motivationalQuote, onboardedAt]

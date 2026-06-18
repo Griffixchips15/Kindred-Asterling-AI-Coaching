@@ -24,6 +24,22 @@ export const GetSubscriptionStatusResponse = zod.object({
 
 
 /**
+ * @summary Create a Square hosted checkout link for the selected plan
+ */
+export const CreateCheckoutHeader = zod.object({
+  "Authorization": zod.string().optional().describe('Opaque session token — `Bearer <sid>`.')
+})
+
+export const CreateCheckoutBody = zod.object({
+  "planType": zod.enum(['yearly', 'lifetime']).describe('Which plan the user is purchasing.')
+})
+
+export const CreateCheckoutResponse = zod.object({
+  "checkoutUrl": zod.string().describe('Square-hosted checkout URL to redirect the buyer to.')
+})
+
+
+/**
  * @summary Get the currently authenticated user
  */
 export const GetCurrentAuthUserHeader = zod.object({
