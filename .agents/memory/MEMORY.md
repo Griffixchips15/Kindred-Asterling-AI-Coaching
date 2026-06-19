@@ -2,4 +2,5 @@
 - [DB date serialization](db-date-serialization.md) — Drizzle returns JS Date objects but Zod expects strings; always wrap results in JSON.parse(JSON.stringify(...)) before .parse().
 - [Journal write rollback pattern](write-rollback-tests.md) — multi-step saves are wrapped in db.transaction + tested by mocking a per-module seam to throw and asserting no rows persist.
 - [Publish DB migration gotcha](publish-db-migration.md) — non-castable column changes (e.g. text→text[]) fail publish's auto-migration; fix is the "Copy development data to production" radio (default is "Cancel"), after mirroring real prod data into dev.
+- [Auth provider options](auth-provider-options.md) — app uses Replit Auth (OIDC); Replit→Clerk migration is NOT supported — don't hand-roll it. Passkeys are blocked until that lands; only the app's own welcome screen can be branded.
 - [Subscription paywall (Square)](subscription-paywall.md) — whole-app gate by email-matched Square subscription; must fail closed (never grant from stale cache); webhook HMAC over URL+raw body.
