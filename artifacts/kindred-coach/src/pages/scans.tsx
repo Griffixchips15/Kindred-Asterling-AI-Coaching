@@ -1,22 +1,25 @@
 import { useCreateBodyScan, useListBodyScans, getListBodyScansQueryKey } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { ScanLine, Clock } from "lucide-react";
+import { ScanLine, Clock, Search, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { FEELINGS_WHEEL, searchFeelings } from "@/lib/feelings-wheel";
 
-const FEELINGS = [
-  "Calm", "Anxious", "Focused", "Scattered", "Grounded", "Overwhelmed",
-  "Hopeful", "Tired", "Restless", "Content", "Irritable", "Energized",
-  "Sad", "Grateful", "Numb", "Present", "Disconnected", "Peaceful",
-  "Tense", "Light", "Heavy", "Clear",
-];
+const MAX_FEELINGS = 20;
 
 export default function Scans() {
   const { toast } = useToast();
@@ -25,14 +28,29 @@ export default function Scans() {
   const createScan = useCreateBodyScan();
 
   const [selectedFeelings, setSelectedFeelings] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
   const [energyLevel, setEnergyLevel] = useState(5);
   const [physicalSensations, setPhysicalSensations] = useState("");
   const [notes, setNotes] = useState("");
 
+  const trimmedQuery = query.trim();
+  const searchResults = useMemo(() => searchFeelings(trimmedQuery), [trimmedQuery]);
+
   const toggleFeeling = (feeling: string) => {
-    setSelectedFeelings((prev) =>
-      prev.includes(feeling) ? prev.filter((f) => f !== feeling) : [...prev, feeling]
-    );
+    setSelectedFeelings((prev) => {
+      if (prev.includes(feeling)) {
+        return prev.filter((f) => f !== feeling);
+      }
+      if (prev.length >= MAX_FEELINGS) {
+        toast({
+          title: `That's the max (${MAX_FEELINGS})`,
+          description: "Remove one to add another.",
+          variant: "destructive",
+        });
+        return prev;
+      }
+      return [...prev, feeling];
+    });
   };
 
   const handleSubmit = () => {
@@ -54,11 +72,37 @@ export default function Scans() {
           toast({ title: "Body scan logged", description: "Check-in recorded." });
           queryClient.invalidateQueries({ queryKey: getListBodyScansQueryKey() });
           setSelectedFeelings([]);
+          setQuery("");
           setEnergyLevel(5);
           setPhysicalSensations("");
           setNotes("");
         },
       }
+    );
+  };
+
+  const FeelingPill = ({ label, hint }: { label: string; hint?: string }) => {
+    const active = selectedFeelings.includes(label);
+    return (
+      <button
+        type="button"
+        onClick={() => toggleFeeling(label)}
+        data-testid={`feeling-${label.toLowerCase().replace(/\s+/g, "-")}`}
+        aria-pressed={active}
+        className={cn(
+          "px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-150",
+          active
+            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+            : "bg-background text-foreground border-border hover:border-primary/50 hover:bg-primary/5"
+        )}
+      >
+        {label}
+        {hint && (
+          <span className={cn("ml-1.5 text-xs", active ? "text-primary-foreground/70" : "text-muted-foreground")}>
+            {hint}
+          </span>
+        )}
+      </button>
     );
   };
 
@@ -76,27 +120,97 @@ export default function Scans() {
         <CardContent className="p-6 space-y-7">
           <div className="space-y-3">
             <Label className="text-base font-medium">What are you feeling right now?</Label>
-            <p className="text-sm text-muted-foreground">Select all that apply.</p>
-            <div className="flex flex-wrap gap-2">
-              {FEELINGS.map((feeling) => {
-                const active = selectedFeelings.includes(feeling);
-                return (
+            <p className="text-sm text-muted-foreground">
+              Search or browse the feelings wheel. Tag up to {MAX_FEELINGS}.
+            </p>
+
+            {selectedFeelings.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/40 p-3">
+                <span className="text-xs font-medium text-muted-foreground mr-1">
+                  {selectedFeelings.length} selected
+                </span>
+                {selectedFeelings.map((f) => (
                   <button
-                    key={feeling}
-                    onClick={() => toggleFeeling(feeling)}
-                    data-testid={`feeling-${feeling.toLowerCase()}`}
-                    className={cn(
-                      "px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-150 border",
-                      active
-                        ? "bg-primary text-primary-foreground border-primary shadow-sm scale-105"
-                        : "bg-background text-foreground border-border hover:border-primary/50 hover:bg-primary/5"
-                    )}
+                    key={f}
+                    type="button"
+                    onClick={() => toggleFeeling(f)}
+                    data-testid={`selected-${f.toLowerCase().replace(/\s+/g, "-")}`}
+                    className="group flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
                   >
-                    {feeling}
+                    {f}
+                    <X className="h-3.5 w-3.5 opacity-70 group-hover:opacity-100" />
                   </button>
-                );
-              })}
+                ))}
+              </div>
+            )}
+
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search feelings (e.g. anxious, hopeful, numb)…"
+                className="pl-9 bg-background"
+                data-testid="input-feeling-search"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Clear search"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
+
+            {trimmedQuery ? (
+              searchResults.length > 0 ? (
+                <div className="flex flex-wrap gap-2 pt-1" data-testid="search-results">
+                  {searchResults.map((f) => (
+                    <FeelingPill
+                      key={f.label}
+                      label={f.label}
+                      hint={f.core !== f.label ? f.core : undefined}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="pt-2 text-sm text-muted-foreground">
+                  No feelings match "{trimmedQuery}".
+                </p>
+              )
+            ) : (
+              <Accordion type="multiple" className="w-full">
+                {FEELINGS_WHEEL.map((core) => (
+                  <AccordionItem key={core.name} value={core.name}>
+                    <AccordionTrigger
+                      className="text-base hover:no-underline"
+                      data-testid={`core-${core.name.toLowerCase()}`}
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <span className={cn("h-2.5 w-2.5 rounded-full", core.dot)} />
+                        {core.name}
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-3 pt-1">
+                        <FeelingPill label={core.name} />
+                        {core.groups.map((g) => (
+                          <div key={g.secondary} className="flex flex-wrap gap-2">
+                            <FeelingPill label={g.secondary} />
+                            {g.tertiary.map((t) => (
+                              <FeelingPill key={t} label={t} />
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            )}
           </div>
 
           <div className="space-y-4">

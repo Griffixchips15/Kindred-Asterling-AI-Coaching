@@ -35,6 +35,7 @@ A personal wellness companion web app. Users journal their day (morning check-in
 - **Subscription/paywall (frontend):** `SubscriptionGate` in `artifacts/kindred-coach/src/App.tsx`; in-app checkout button `artifacts/kindred-coach/src/components/checkout-button.tsx`
 - **Marketing site (frontend):** public pages in `artifacts/kindred-coach/src/pages/public/*` (landing, about, science, pricing, payment-success) wrapped by `artifacts/kindred-coach/src/components/layout/public-layout.tsx`. Routing: the coaching app lives behind a Wouter nested route `/app` (gated); public pages are at `/`, `/about`, `/science`, `/pricing`, `/payment-success`
 - **Frontend pages:** `artifacts/kindred-coach/src/pages/*` (dashboard, morning, scans, evening, habits, medications, reports, chat, profile, archive)
+- **Feelings Wheel data:** `artifacts/kindred-coach/src/lib/feelings-wheel.ts` — the Body Scan emotion picker's source data (7 cores → secondary → tertiary), plus `ALL_FEELINGS` (deduped flat list) and `searchFeelings()`. Emotions are stored as plain `string[]` on the body scan (no enum), so this file is purely a frontend authoring surface — editing it changes the picker without any backend/openapi change
 - **Layout & nav:** `artifacts/kindred-coach/src/components/layout/app-layout.tsx` — collapsible sidebar (state persisted in localStorage)
 - **AI system prompt:** `artifacts/api-server/src/routes/chat.ts` → `buildSystemInstruction()`
 - **AI chat tools (function calling):** `artifacts/api-server/src/lib/chatTools.ts` — tool definitions + `runChatTool()` executor; the agentic loop lives in `/chat/send`
@@ -59,7 +60,7 @@ Kindred-Asterling-AI-Coaching helps people care for themselves with structure an
 
 - **Dashboard** — daily affirmation, streak summaries, and quick links into the day's check-ins
 - **Morning** — mental-load check-in to start the day
-- **Body Scans** — log physical sensations and how medications are landing
+- **Body Scans** — tag emotions via a searchable Feelings Wheel (browse 7 core emotions → secondary → tertiary, or search across all of them; tag up to 20), plus an energy slider, physical sensations, and notes
 - **Evening** — reflection prompts to close the day
 - **Habits** — daily habits with streak tracking
 - **Medications** — each med can have multiple scheduled times per day; every dose has its own taken-checkbox and 1–10 effectiveness rating, with an "X / Y doses taken today" counter
