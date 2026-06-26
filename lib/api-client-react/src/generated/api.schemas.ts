@@ -328,6 +328,18 @@ export interface ReminderSettingsUpdateInput {
   eveningTime?: string;
   smsEnabled?: boolean;
   emailEnabled?: boolean;
+  /**
+     * Phone number in E.164 format (e.g. +14155550123) for SMS reminders. Saved on the user profile in the same transaction.
+     * @maxLength 32
+     * @nullable
+     */
+  phone?: string | null;
+  /**
+     * IANA timezone name (e.g. America/New_York) used to schedule reminders. Saved on the user profile in the same transaction.
+     * @maxLength 64
+     * @nullable
+     */
+  timezone?: string | null;
 }
 
 export interface ChatMessage {

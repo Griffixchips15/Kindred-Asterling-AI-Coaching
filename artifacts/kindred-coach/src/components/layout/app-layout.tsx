@@ -8,6 +8,7 @@ import {
   Pill,
   BarChart3,
   CalendarDays,
+  Bell,
   User,
   LogOut,
   Palette,
@@ -134,6 +135,7 @@ const navItems = [
   { icon: Pill, label: "Medications", href: "/medications" },
   { icon: BarChart3, label: "Reports", href: "/reports" },
   { icon: CalendarDays, label: "Calendar", href: "/calendar" },
+  { icon: Bell, label: "Reminders", href: "/reminders" },
   { icon: User, label: "Profile", href: "/profile" },
   { icon: ArchiveIcon, label: "Archive", href: "/archive" },
 ];

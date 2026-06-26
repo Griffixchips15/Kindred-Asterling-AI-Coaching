@@ -1350,6 +1350,14 @@ components:
           type: boolean
         emailEnabled:
           type: boolean
+        phone:
+          type: [string, 'null']
+          maxLength: 32
+          description: Phone number in E.164 format (e.g. +14155550123) for SMS reminders. Saved on the user profile in the same transaction.
+        timezone:
+          type: [string, 'null']
+          maxLength: 64
+          description: IANA timezone name (e.g. America/New_York) used to schedule reminders. Saved on the user profile in the same transaction.
       additionalProperties: false
 
     ChatMessage:

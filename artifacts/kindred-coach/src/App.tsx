@@ -24,6 +24,7 @@ import Habits from "@/pages/habits";
 import Medications from "@/pages/medications";
 import Reports from "@/pages/reports";
 import Profile from "@/pages/profile";
+import Reminders from "@/pages/reminders";
 import CalendarPage from "@/pages/calendar";
 import Chat from "@/pages/chat";
 import Archive from "@/pages/archive";
@@ -189,6 +190,7 @@ function AppRouter() {
           <Route path="/medications" component={Medications} />
           <Route path="/reports" component={Reports} />
           <Route path="/profile" component={Profile} />
+          <Route path="/reminders" component={Reminders} />
           <Route path="/calendar" component={CalendarPage} />
           <Route path="/chat" component={Chat} />
           <Route path="/archive" component={Archive} />

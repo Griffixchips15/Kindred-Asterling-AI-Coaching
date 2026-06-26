@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, reminderSettingsTable } from "@workspace/db";
+import { db, reminderSettingsTable, usersTable } from "@workspace/db";
 import {
   GetReminderSettingsResponse,
   UpdateReminderSettingsBody,
@@ -55,11 +55,27 @@ router.patch("/reminder-settings", requireAuth, async (req, res): Promise<void> 
   if (data.smsEnabled !== undefined) updates.smsEnabled = data.smsEnabled;
   if (data.emailEnabled !== undefined) updates.emailEnabled = data.emailEnabled;
 
-  const [updated] = await db
-    .update(reminderSettingsTable)
-    .set(updates)
-    .where(eq(reminderSettingsTable.userId, userId))
-    .returning();
+  // phone + timezone live on the user profile but are edited from the same
+  // Reminders form, so we persist all of it in one transaction — either the
+  // whole save succeeds or none of it does (no partial saved state).
+  const userUpdates: Record<string, unknown> = {};
+  if (data.phone !== undefined) userUpdates.phone = data.phone;
+  if (data.timezone !== undefined) userUpdates.timezone = data.timezone;
+
+  const updated = await db.transaction(async (tx) => {
+    if (Object.keys(userUpdates).length > 0) {
+      await tx
+        .update(usersTable)
+        .set(userUpdates)
+        .where(eq(usersTable.id, userId));
+    }
+    const [row] = await tx
+      .update(reminderSettingsTable)
+      .set(updates)
+      .where(eq(reminderSettingsTable.userId, userId))
+      .returning();
+    return row;
+  });
 
   res.json(GetReminderSettingsResponse.parse(JSON.parse(JSON.stringify(updated))));
 });

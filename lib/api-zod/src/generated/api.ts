@@ -479,6 +479,10 @@ export const GetReminderSettingsResponse = zod.object({
  */
 export const updateReminderSettingsBodyMorningTimeRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
 export const updateReminderSettingsBodyEveningTimeRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+export const updateReminderSettingsBodyPhoneMax = 32;
+
+export const updateReminderSettingsBodyTimezoneMax = 64;
+
 
 
 export const UpdateReminderSettingsBody = zod.object({
@@ -488,7 +492,9 @@ export const UpdateReminderSettingsBody = zod.object({
   "eveningEnabled": zod.boolean().optional(),
   "eveningTime": zod.string().regex(updateReminderSettingsBodyEveningTimeRegExp).optional(),
   "smsEnabled": zod.boolean().optional(),
-  "emailEnabled": zod.boolean().optional()
+  "emailEnabled": zod.boolean().optional(),
+  "phone": zod.string().max(updateReminderSettingsBodyPhoneMax).nullish().describe('Phone number in E.164 format (e.g. +14155550123) for SMS reminders. Saved on the user profile in the same transaction.'),
+  "timezone": zod.string().max(updateReminderSettingsBodyTimezoneMax).nullish().describe('IANA timezone name (e.g. America\/New_York) used to schedule reminders. Saved on the user profile in the same transaction.')
 })
 
 export const updateReminderSettingsResponseMorningTimeRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');

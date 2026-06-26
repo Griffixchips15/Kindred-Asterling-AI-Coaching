@@ -107,7 +107,7 @@ isValidation = true
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
-integrations = ["google-calendar:1.0.0"]
+integrations = ["google-calendar:1.0.0", "twilio:1.0.0"]
 
 [postMerge]
 path = "scripts/post-merge.sh"

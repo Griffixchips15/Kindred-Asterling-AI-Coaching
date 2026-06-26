@@ -1,6 +1,7 @@
-- [Replit Auth setup](replit-auth-setup.md) — auth is fully wired; userId columns on all 5 data tables scope data per user.
-- [DB date serialization](db-date-serialization.md) — Drizzle returns JS Date objects but Zod expects strings; always wrap results in JSON.parse(JSON.stringify(...)) before .parse().
-- [Journal write rollback pattern](write-rollback-tests.md) — multi-step saves are wrapped in db.transaction + tested by mocking a per-module seam to throw and asserting no rows persist.
-- [Publish DB migration gotcha](publish-db-migration.md) — non-castable column changes (e.g. text→text[]) fail publish's auto-migration; fix is the "Copy development data to production" radio (default is "Cancel"), after mirroring real prod data into dev.
-- [Auth provider options](auth-provider-options.md) — app uses Replit Auth (OIDC); Replit→Clerk migration is NOT supported — don't hand-roll it. Passkeys are blocked until that lands; only the app's own welcome screen can be branded.
-- [Subscription paywall (Square)](subscription-paywall.md) — whole-app gate by email-matched Square subscription; must fail closed (never grant from stale cache); webhook HMAC over URL+raw body.
+- [Replit Auth setup](replit-auth-setup.md) — auth fully wired; every data table has a userId FK scoping data per user.
+- [DB date serialization](db-date-serialization.md) — Drizzle returns Date objects; wrap rows in JSON.parse(JSON.stringify(...)) before Zod .parse().
+- [Journal write rollback pattern](write-rollback-tests.md) — multi-step saves use db.transaction; tested by mocking a seam to throw and asserting no rows persist.
+- [Publish DB migration gotcha](publish-db-migration.md) — non-castable column changes (text→text[]) break publish auto-migration; use "Copy development data to production".
+- [Auth provider options](auth-provider-options.md) — app uses Replit Auth (OIDC); Replit→Clerk migration unsupported, don't hand-roll; passkeys blocked until then.
+- [Subscription paywall (Square)](subscription-paywall.md) — email-matched whole-app gate; must fail closed (never grant from stale cache); webhook HMAC over URL+raw body.
+- [Reminders scheduler](reminders-scheduler.md) — in-process cron needs always-on (Reserved VM); senders fail SOFT; reserve-before-send dedupe + 10-min catch-up window.
