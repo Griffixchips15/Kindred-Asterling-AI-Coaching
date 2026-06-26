@@ -65,6 +65,10 @@ export interface AuthUser {
   /** @nullable */
   motivationalQuote: string | null;
   /** @nullable */
+  phone: string | null;
+  /** @nullable */
+  timezone: string | null;
+  /** @nullable */
   onboardedAt: string | null;
 }
 
@@ -280,8 +284,50 @@ export interface ProfileUpdateInput {
      * @nullable
      */
   motivationalQuote?: string | null;
+  /**
+     * Phone number in E.164 format (e.g. +14155550123) for SMS reminders.
+     * @maxLength 32
+     * @nullable
+     */
+  phone?: string | null;
+  /**
+     * IANA timezone name (e.g. America/New_York) used to schedule reminders.
+     * @maxLength 64
+     * @nullable
+     */
+  timezone?: string | null;
   /** @nullable */
   onboardedAt?: string | null;
+}
+
+export interface ReminderSettings {
+  morningEnabled: boolean;
+  /**
+     * Local time (HH:MM, 24h) for the morning check-in reminder.
+     * @pattern ^([01]\d|2[0-3]):[0-5]\d$
+     */
+  morningTime: string;
+  medicationEnabled: boolean;
+  eveningEnabled: boolean;
+  /**
+     * Local time (HH:MM, 24h) for the evening reflection reminder.
+     * @pattern ^([01]\d|2[0-3]):[0-5]\d$
+     */
+  eveningTime: string;
+  smsEnabled: boolean;
+  emailEnabled: boolean;
+}
+
+export interface ReminderSettingsUpdateInput {
+  morningEnabled?: boolean;
+  /** @pattern ^([01]\d|2[0-3]):[0-5]\d$ */
+  morningTime?: string;
+  medicationEnabled?: boolean;
+  eveningEnabled?: boolean;
+  /** @pattern ^([01]\d|2[0-3]):[0-5]\d$ */
+  eveningTime?: string;
+  smsEnabled?: boolean;
+  emailEnabled?: boolean;
 }
 
 export interface ChatMessage {

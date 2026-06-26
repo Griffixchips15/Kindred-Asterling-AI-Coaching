@@ -12,37 +12,10 @@ import {
   type AuthUser,
 } from "@workspace/api-client-react";
 import { useGetCurrentAuthUser } from "@workspace/api-client-react";
-import { Send, Archive, Loader2, Mic, MicOff } from "lucide-react";
+import { Send, Archive, Loader2, Mic, Square } from "lucide-react";
 import { useLocation } from "wouter";
-
-// Minimal local typings for the Web Speech API. Browser support is patchy
-// (Chrome/Edge/Safari yes, Firefox no), so we feature-detect at runtime and
-// hide the mic button on unsupported browsers.
-type SpeechRecognitionResult = { transcript: string };
-type SpeechRecognitionAlternatives = { 0: SpeechRecognitionResult; isFinal: boolean };
-interface SpeechRecognitionEventLike {
-  resultIndex: number;
-  results: ArrayLike<SpeechRecognitionAlternatives>;
-}
-interface SpeechRecognitionLike {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: ((e: SpeechRecognitionEventLike) => void) | null;
-  onerror: ((e: Event) => void) | null;
-  onend: (() => void) | null;
-  start(): void;
-  stop(): void;
-}
-type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
-function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
-  if (typeof window === "undefined") return null;
-  const w = window as unknown as {
-    SpeechRecognition?: SpeechRecognitionCtor;
-    webkitSpeechRecognition?: SpeechRecognitionCtor;
-  };
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-}
+import { SpeakButton } from "@/components/speak-button";
+import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 
 const TEXTAREA_MAX_HEIGHT_PX = 160;
 
@@ -88,8 +61,11 @@ const ONBOARDING: OnboardingStep[] = [
 
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
+  // Only offer "read aloud" on Kindred's real, persisted replies — skip the
+  // virtual onboarding bubble (negative id) which has no server message yet.
+  const canSpeak = !isUser && message.id > 0 && message.content.trim().length > 0;
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+    <div className={`flex flex-col ${isUser ? "items-end" : "items-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
       <div
         className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
           isUser
@@ -101,6 +77,11 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           <p key={i} className={i > 0 ? "mt-1" : ""}>{line}</p>
         ))}
       </div>
+      {canSpeak && (
+        <div className="mt-1 pl-1">
+          <SpeakButton text={message.content} />
+        </div>
+      )}
     </div>
   );
 }
@@ -116,15 +97,24 @@ export default function Chat() {
   const [sending, setSending] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [listening, setListening] = useState(false);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  // Snapshot of draft text at the moment dictation started, so live transcript
-  // updates append to (not overwrite) anything the user had already typed.
-  const dictationBaseRef = useRef<string>("");
-  const voiceSupported = useMemo(() => getSpeechRecognitionCtor() !== null, []);
+  // MediaRecorder-based dictation (works on mobile browsers where the Web
+  // Speech API is unavailable). Transcribed text is appended to the draft.
+  const {
+    status: voiceStatus,
+    error: voiceError,
+    setError: setVoiceError,
+    supported: voiceSupported,
+    stop: stopDictation,
+    toggle: toggleDictation,
+  } = useVoiceRecorder((text) =>
+    setDraft((prev) => {
+      const joiner = prev && !prev.endsWith(" ") ? " " : "";
+      return prev + joiner + text;
+    }),
+  );
+  const listening = voiceStatus === "recording";
 
   const onboarded = !!authUser?.onboardedAt;
   const storedMessages: ChatMessage[] = conv?.messages ?? [];
@@ -169,78 +159,6 @@ export default function Chat() {
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT_PX)}px`;
   }, [draft, currentStep]);
-
-  // Stop dictation when the component unmounts so the mic indicator doesn't
-  // hang around after the user navigates away.
-  useEffect(() => {
-    return () => {
-      try {
-        recognitionRef.current?.stop();
-      } catch {
-        // ignore — recognition may not have started
-      }
-    };
-  }, []);
-
-  function stopDictation() {
-    try {
-      recognitionRef.current?.stop();
-    } catch {
-      // ignore
-    }
-    setListening(false);
-  }
-
-  function startDictation() {
-    const Ctor = getSpeechRecognitionCtor();
-    if (!Ctor) {
-      setVoiceError("Voice input isn't supported in this browser.");
-      return;
-    }
-    setVoiceError(null);
-    dictationBaseRef.current = draft;
-    const rec = new Ctor();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = typeof navigator !== "undefined" ? navigator.language || "en-US" : "en-US";
-    rec.onresult = (e) => {
-      let appended = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        appended += e.results[i][0].transcript;
-      }
-      const base = dictationBaseRef.current;
-      const joiner = base && !base.endsWith(" ") && appended && !appended.startsWith(" ") ? " " : "";
-      setDraft(base + joiner + appended);
-    };
-    rec.onerror = (e: Event & { error?: string }) => {
-      const code = e.error;
-      if (code === "not-allowed" || code === "service-not-allowed") {
-        setVoiceError("Microphone access was blocked. Enable it in your browser settings.");
-      } else if (code !== "aborted" && code !== "no-speech") {
-        setVoiceError("Voice input ran into a problem. Try again.");
-      }
-      setListening(false);
-    };
-    rec.onend = () => {
-      setListening(false);
-    };
-    recognitionRef.current = rec;
-    try {
-      rec.start();
-      setListening(true);
-    } catch {
-      setVoiceError("Couldn't start voice input. Try again.");
-      setListening(false);
-    }
-  }
-
-  function toggleDictation() {
-    if (listening) {
-      stopDictation();
-    } else {
-      startDictation();
-    }
-  }
 
   async function handleSend() {
     const text = draft.trim();
@@ -430,7 +348,7 @@ export default function Chat() {
             <button
               type="button"
               onClick={toggleDictation}
-              disabled={sending}
+              disabled={sending || voiceStatus === "transcribing"}
               aria-label={listening ? "Stop voice input" : "Start voice input"}
               title={listening ? "Stop voice input" : "Start voice input"}
               className={`flex items-center justify-center w-11 h-11 rounded-full transition-colors shrink-0 disabled:opacity-40 ${
@@ -440,7 +358,13 @@ export default function Chat() {
               }`}
               data-testid="chat-mic"
             >
-              {listening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              {voiceStatus === "transcribing" ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : listening ? (
+                <Square className="w-3.5 h-3.5 fill-current" />
+              ) : (
+                <Mic className="w-4 h-4" />
+              )}
             </button>
           )}
           <button

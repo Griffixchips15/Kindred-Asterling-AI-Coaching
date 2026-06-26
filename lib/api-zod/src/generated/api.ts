@@ -60,6 +60,8 @@ export const GetCurrentAuthUserResponse = zod.object({
   "interests": zod.string().nullable(),
   "bio": zod.string().nullable(),
   "motivationalQuote": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "timezone": zod.string().nullable(),
   "onboardedAt": zod.coerce.date().nullable()
 }),zod.null()])
 })
@@ -416,6 +418,10 @@ export const updateProfileBodyBioMax = 1000;
 
 export const updateProfileBodyMotivationalQuoteMax = 280;
 
+export const updateProfileBodyPhoneMax = 32;
+
+export const updateProfileBodyTimezoneMax = 64;
+
 
 
 export const UpdateProfileBody = zod.object({
@@ -426,6 +432,8 @@ export const UpdateProfileBody = zod.object({
   "interests": zod.string().max(updateProfileBodyInterestsMax).nullish(),
   "bio": zod.string().max(updateProfileBodyBioMax).nullish(),
   "motivationalQuote": zod.string().max(updateProfileBodyMotivationalQuoteMax).nullish(),
+  "phone": zod.string().max(updateProfileBodyPhoneMax).nullish().describe('Phone number in E.164 format (e.g. +14155550123) for SMS reminders.'),
+  "timezone": zod.string().max(updateProfileBodyTimezoneMax).nullish().describe('IANA timezone name (e.g. America\/New_York) used to schedule reminders.'),
   "onboardedAt": zod.coerce.date().nullish()
 })
 
@@ -442,7 +450,59 @@ export const UpdateProfileResponse = zod.object({
   "interests": zod.string().nullable(),
   "bio": zod.string().nullable(),
   "motivationalQuote": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "timezone": zod.string().nullable(),
   "onboardedAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Get the current user's reminder settings (creates defaults if missing)
+ */
+export const getReminderSettingsResponseMorningTimeRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+export const getReminderSettingsResponseEveningTimeRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+
+
+export const GetReminderSettingsResponse = zod.object({
+  "morningEnabled": zod.boolean(),
+  "morningTime": zod.string().regex(getReminderSettingsResponseMorningTimeRegExp).describe('Local time (HH:MM, 24h) for the morning check-in reminder.'),
+  "medicationEnabled": zod.boolean(),
+  "eveningEnabled": zod.boolean(),
+  "eveningTime": zod.string().regex(getReminderSettingsResponseEveningTimeRegExp).describe('Local time (HH:MM, 24h) for the evening reflection reminder.'),
+  "smsEnabled": zod.boolean(),
+  "emailEnabled": zod.boolean()
+})
+
+
+/**
+ * @summary Update the current user's reminder settings
+ */
+export const updateReminderSettingsBodyMorningTimeRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+export const updateReminderSettingsBodyEveningTimeRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+
+
+export const UpdateReminderSettingsBody = zod.object({
+  "morningEnabled": zod.boolean().optional(),
+  "morningTime": zod.string().regex(updateReminderSettingsBodyMorningTimeRegExp).optional(),
+  "medicationEnabled": zod.boolean().optional(),
+  "eveningEnabled": zod.boolean().optional(),
+  "eveningTime": zod.string().regex(updateReminderSettingsBodyEveningTimeRegExp).optional(),
+  "smsEnabled": zod.boolean().optional(),
+  "emailEnabled": zod.boolean().optional()
+})
+
+export const updateReminderSettingsResponseMorningTimeRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+export const updateReminderSettingsResponseEveningTimeRegExp = new RegExp('^([01]\\d|2[0-3]):[0-5]\\d$');
+
+
+export const UpdateReminderSettingsResponse = zod.object({
+  "morningEnabled": zod.boolean(),
+  "morningTime": zod.string().regex(updateReminderSettingsResponseMorningTimeRegExp).describe('Local time (HH:MM, 24h) for the morning check-in reminder.'),
+  "medicationEnabled": zod.boolean(),
+  "eveningEnabled": zod.boolean(),
+  "eveningTime": zod.string().regex(updateReminderSettingsResponseEveningTimeRegExp).describe('Local time (HH:MM, 24h) for the evening reflection reminder.'),
+  "smsEnabled": zod.boolean(),
+  "emailEnabled": zod.boolean()
 })
 
 

@@ -13,6 +13,8 @@ import chatRouter from "./chat";
 import medicationsRouter from "./medications";
 import weeklyReportRouter from "./weeklyReport";
 import subscriptionRouter from "./subscription";
+import voiceRouter from "./voice";
+import remindersRouter from "./reminders";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireSubscription } from "../middlewares/requireSubscription";
 
@@ -38,5 +40,7 @@ router.use(profileRouter);
 router.use(chatRouter);
 router.use(medicationsRouter);
 router.use(weeklyReportRouter);
+router.use(voiceRouter);
+router.use(remindersRouter);
 
 export default router;

@@ -6,6 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { VoiceInputButton } from "@/components/voice-input-button";
+import { appendTranscript } from "@/lib/voice-api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -165,10 +167,15 @@ export default function Morning() {
                 name="notes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-base font-medium">Anything else on your mind?</FormLabel>
+                    <div className="flex items-center justify-between gap-2">
+                      <FormLabel className="text-base font-medium">Anything else on your mind?</FormLabel>
+                      <VoiceInputButton
+                        onTranscript={(text) => field.onChange(appendTranscript(field.value, text))}
+                      />
+                    </div>
                     <FormControl>
                       <Textarea 
-                        placeholder="Write it down here..." 
+                        placeholder="Write it down here... or tap the mic to speak." 
                         className="min-h-[100px] resize-none bg-background" 
                         {...field} 
                       />

@@ -31,5 +31,9 @@ export interface AuthUser {
   /** @nullable */
   motivationalQuote: string | null;
   /** @nullable */
+  phone: string | null;
+  /** @nullable */
+  timezone: string | null;
+  /** @nullable */
   onboardedAt: Date | null;
 }

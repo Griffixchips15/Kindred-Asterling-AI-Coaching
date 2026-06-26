@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
+import { VoiceInputButton } from "@/components/voice-input-button";
+import { appendTranscript } from "@/lib/voice-api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -167,10 +169,15 @@ export default function Evening() {
                 name="wins"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-base font-medium flex items-center gap-2">
-                      <Star className="w-4 h-4 text-primary" />
-                      What went well?
-                    </FormLabel>
+                    <div className="flex items-center justify-between gap-2">
+                      <FormLabel className="text-base font-medium flex items-center gap-2">
+                        <Star className="w-4 h-4 text-primary" />
+                        What went well?
+                      </FormLabel>
+                      <VoiceInputButton
+                        onTranscript={(text) => field.onChange(appendTranscript(field.value, text))}
+                      />
+                    </div>
                     <FormControl>
                       <Textarea
                         placeholder="Even small wins count..."
@@ -188,7 +195,12 @@ export default function Evening() {
                 name="challenges"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-base font-medium">What was hard?</FormLabel>
+                    <div className="flex items-center justify-between gap-2">
+                      <FormLabel className="text-base font-medium">What was hard?</FormLabel>
+                      <VoiceInputButton
+                        onTranscript={(text) => field.onChange(appendTranscript(field.value, text))}
+                      />
+                    </div>
                     <FormControl>
                       <Textarea
                         placeholder="What felt difficult or draining today?"
@@ -206,7 +218,12 @@ export default function Evening() {
                 name="tomorrowIntent"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-base font-medium">Intention for tomorrow</FormLabel>
+                    <div className="flex items-center justify-between gap-2">
+                      <FormLabel className="text-base font-medium">Intention for tomorrow</FormLabel>
+                      <VoiceInputButton
+                        onTranscript={(text) => field.onChange(appendTranscript(field.value, text))}
+                      />
+                    </div>
                     <FormControl>
                       <Textarea
                         placeholder="One thing you want to carry into tomorrow..."

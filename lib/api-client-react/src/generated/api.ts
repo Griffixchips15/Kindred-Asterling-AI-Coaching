@@ -61,6 +61,8 @@ import type {
   MorningLog,
   MorningLogInput,
   ProfileUpdateInput,
+  ReminderSettings,
+  ReminderSettingsUpdateInput,
   SubscriptionStatus,
   TodaySummary
 } from './api.schemas';
@@ -2018,6 +2020,154 @@ export const useUpdateProfile = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateProfileMutationOptions(options));
+    }
+
+export const getGetReminderSettingsUrl = () => {
+
+
+
+
+  return `/api/reminder-settings`
+}
+
+/**
+ * @summary Get the current user's reminder settings (creates defaults if missing)
+ */
+export const getReminderSettings = async ( options?: RequestInit): Promise<ReminderSettings> => {
+
+  return customFetch<ReminderSettings>(getGetReminderSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReminderSettingsQueryKey = () => {
+    return [
+    `/api/reminder-settings`
+    ] as const;
+    }
+
+
+export const getGetReminderSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getReminderSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReminderSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReminderSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReminderSettings>>> = ({ signal }) => getReminderSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReminderSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReminderSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getReminderSettings>>>
+export type GetReminderSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the current user's reminder settings (creates defaults if missing)
+ */
+
+export function useGetReminderSettings<TData = Awaited<ReturnType<typeof getReminderSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReminderSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReminderSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUpdateReminderSettingsUrl = () => {
+
+
+
+
+  return `/api/reminder-settings`
+}
+
+/**
+ * @summary Update the current user's reminder settings
+ */
+export const updateReminderSettings = async (reminderSettingsUpdateInput: ReminderSettingsUpdateInput, options?: RequestInit): Promise<ReminderSettings> => {
+
+  return customFetch<ReminderSettings>(getUpdateReminderSettingsUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      reminderSettingsUpdateInput,)
+  }
+);}
+
+
+
+
+export const getUpdateReminderSettingsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReminderSettings>>, TError,{data: BodyType<ReminderSettingsUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateReminderSettings>>, TError,{data: BodyType<ReminderSettingsUpdateInput>}, TContext> => {
+
+const mutationKey = ['updateReminderSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateReminderSettings>>, {data: BodyType<ReminderSettingsUpdateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateReminderSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateReminderSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateReminderSettings>>>
+    export type UpdateReminderSettingsMutationBody = BodyType<ReminderSettingsUpdateInput>
+    export type UpdateReminderSettingsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update the current user's reminder settings
+ */
+export const useUpdateReminderSettings = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReminderSettings>>, TError,{data: BodyType<ReminderSettingsUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateReminderSettings>>,
+        TError,
+        {data: BodyType<ReminderSettingsUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateReminderSettingsMutationOptions(options));
     }
 
 export const getGetActiveChatUrl = () => {

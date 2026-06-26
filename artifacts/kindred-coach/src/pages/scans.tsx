@@ -3,6 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
+import { VoiceInputButton } from "@/components/voice-input-button";
+import { appendTranscript } from "@/lib/voice-api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -231,7 +233,12 @@ export default function Scans() {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-base font-medium">Physical sensations (optional)</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-base font-medium">Physical sensations (optional)</Label>
+              <VoiceInputButton
+                onTranscript={(text) => setPhysicalSensations((prev) => appendTranscript(prev, text))}
+              />
+            </div>
             <Textarea
               placeholder="E.g., tight chest, restless legs, heavy eyelids..."
               className="resize-none bg-background min-h-[80px]"
@@ -242,7 +249,12 @@ export default function Scans() {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-base font-medium">Any additional notes? (optional)</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-base font-medium">Any additional notes? (optional)</Label>
+              <VoiceInputButton
+                onTranscript={(text) => setNotes((prev) => appendTranscript(prev, text))}
+              />
+            </div>
             <Textarea
               placeholder="What triggered this check-in? Anything you want to remember?"
               className="resize-none bg-background min-h-[80px]"

@@ -519,6 +519,36 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthUser'
 
+  /reminder-settings:
+    get:
+      operationId: getReminderSettings
+      tags: [profile]
+      summary: Get the current user's reminder settings (creates defaults if missing)
+      responses:
+        '200':
+          description: Reminder settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReminderSettings'
+    patch:
+      operationId: updateReminderSettings
+      tags: [profile]
+      summary: Update the current user's reminder settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReminderSettingsUpdateInput'
+      responses:
+        '200':
+          description: Updated reminder settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReminderSettings'
+
   /chat/active:
     get:
       operationId: getActiveChat
@@ -911,7 +941,7 @@ components:
           description: Square-hosted checkout URL to redirect the buyer to.
     AuthUser:
       type: object
-      required: [id, email, firstName, lastName, profileImageUrl, preferredName, birthday, struggles, strengths, interests, bio, motivationalQuote, onboardedAt]
+      required: [id, email, firstName, lastName, profileImageUrl, preferredName, birthday, struggles, strengths, interests, bio, motivationalQuote, phone, timezone, onboardedAt]
       properties:
         id:
           type: string
@@ -937,6 +967,10 @@ components:
         bio:
           type: [string, 'null']
         motivationalQuote:
+          type: [string, 'null']
+        phone:
+          type: [string, 'null']
+        timezone:
           type: [string, 'null']
         onboardedAt:
           type: [string, 'null']
@@ -1261,9 +1295,61 @@ components:
         motivationalQuote:
           type: [string, 'null']
           maxLength: 280
+        phone:
+          type: [string, 'null']
+          maxLength: 32
+          description: Phone number in E.164 format (e.g. +14155550123) for SMS reminders.
+        timezone:
+          type: [string, 'null']
+          maxLength: 64
+          description: IANA timezone name (e.g. America/New_York) used to schedule reminders.
         onboardedAt:
           type: [string, 'null']
           format: date-time
+      additionalProperties: false
+
+    ReminderSettings:
+      type: object
+      required: [morningEnabled, morningTime, medicationEnabled, eveningEnabled, eveningTime, smsEnabled, emailEnabled]
+      properties:
+        morningEnabled:
+          type: boolean
+        morningTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: Local time (HH:MM, 24h) for the morning check-in reminder.
+        medicationEnabled:
+          type: boolean
+        eveningEnabled:
+          type: boolean
+        eveningTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: Local time (HH:MM, 24h) for the evening reflection reminder.
+        smsEnabled:
+          type: boolean
+        emailEnabled:
+          type: boolean
+
+    ReminderSettingsUpdateInput:
+      type: object
+      properties:
+        morningEnabled:
+          type: boolean
+        morningTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+        medicationEnabled:
+          type: boolean
+        eveningEnabled:
+          type: boolean
+        eveningTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+        smsEnabled:
+          type: boolean
+        emailEnabled:
+          type: boolean
       additionalProperties: false
 
     ChatMessage:

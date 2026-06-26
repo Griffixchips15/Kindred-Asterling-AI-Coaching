@@ -39,6 +39,18 @@ export interface ProfileUpdateInput {
      * @nullable
      */
   motivationalQuote?: string | null;
+  /**
+     * Phone number in E.164 format (e.g. +14155550123) for SMS reminders.
+     * @maxLength 32
+     * @nullable
+     */
+  phone?: string | null;
+  /**
+     * IANA timezone name (e.g. America/New_York) used to schedule reminders.
+     * @maxLength 64
+     * @nullable
+     */
+  timezone?: string | null;
   /** @nullable */
   onboardedAt?: Date | null;
 }

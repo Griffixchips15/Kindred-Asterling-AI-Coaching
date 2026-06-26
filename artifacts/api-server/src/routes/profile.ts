@@ -21,6 +21,8 @@ router.patch("/profile", requireAuth, async (req, res): Promise<void> => {
   if (data.interests !== undefined) updates.interests = data.interests;
   if (data.bio !== undefined) updates.bio = data.bio;
   if (data.motivationalQuote !== undefined) updates.motivationalQuote = data.motivationalQuote;
+  if (data.phone !== undefined) updates.phone = data.phone;
+  if (data.timezone !== undefined) updates.timezone = data.timezone;
   if (data.onboardedAt !== undefined) {
     updates.onboardedAt = data.onboardedAt ? new Date(data.onboardedAt) : null;
   }
