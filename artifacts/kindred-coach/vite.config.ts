@@ -61,6 +61,10 @@ export default defineConfig(({ command }) => {
       alias: {
         "@": path.resolve(import.meta.dirname, "src"),
         "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
+        "use-sync-external-store/shim/index.js": path.resolve(
+          import.meta.dirname,
+          "src/shims/use-sync-external-store-shim.js",
+        ),
       },
       dedupe: ["react", "react-dom"],
     },
