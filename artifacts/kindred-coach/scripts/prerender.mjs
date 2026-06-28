@@ -122,6 +122,8 @@ function buildHead(route, origin) {
     `<meta property="og:title" content="${escapeHtml(route.ogTitle)}" />`,
     `<meta property="og:description" content="${escapeHtml(route.ogDescription)}" />`,
     `<meta property="og:type" content="website" />`,
+    `<meta property="og:site_name" content="${escapeHtml(SITE_NAME)}" />`,
+    `<meta property="og:locale" content="en_US" />`,
     `<meta property="og:image" content="${ogImage}" />`,
     `<meta property="og:image:width" content="1280" />`,
     `<meta property="og:image:height" content="720" />`,
