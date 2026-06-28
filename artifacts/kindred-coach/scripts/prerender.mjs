@@ -134,6 +134,9 @@ function buildHead(route, origin) {
     lines.push(`<meta property="og:url" content="${canonical}" />`);
   }
 
+  // twitter:site intentionally omitted: no official X/Twitter handle is finalized
+  // yet. Add `<meta name="twitter:site" content="@handle" />` here (and in
+  // index.html) once the brand account is confirmed.
   lines.push(
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${escapeHtml(route.ogTitle)}" />`,
