@@ -23,9 +23,10 @@ publicDir = "artifacts/kindred-coach/dist/public"
 serve = "static"
 
 [[services.production.rewrites]]
-from = "/*"
+from = "/app/*"
 to = "/index.html"
 
 [services.env]
 PORT = "23546"
 BASE_PATH = "/"
+APP_PUBLIC_URL = "https://kindredasterling.com"

@@ -89,11 +89,7 @@ function getProductionOrigin() {
   if (process.env.APP_PUBLIC_URL) {
     return process.env.APP_PUBLIC_URL.replace(/\/+$/, "");
   }
-  if (process.env.REPLIT_DOMAINS) {
-    const first = process.env.REPLIT_DOMAINS.split(",")[0].trim();
-    return `https://${first}`;
-  }
-  return "";
+  return "https://kindredasterling.com";
 }
 
 function escapeHtml(str) {

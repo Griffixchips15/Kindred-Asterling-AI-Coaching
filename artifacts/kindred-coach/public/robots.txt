@@ -3,4 +3,4 @@ Allow: /
 Disallow: /app/
 Disallow: /payment-success
 
-Sitemap: https://kindred-asterling.replit.app/sitemap.xml
+Sitemap: https://kindredasterling.com/sitemap.xml
