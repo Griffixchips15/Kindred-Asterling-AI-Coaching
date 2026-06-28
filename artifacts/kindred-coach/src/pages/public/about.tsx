@@ -53,6 +53,18 @@ export default function About() {
           how AI and human resilience can meet. There are no grand promises here,
           only careful work and a commitment to doing it with compassion.
         </p>
+        <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
+          <span className="font-medium text-foreground">
+            Written and reviewed by the Kindred Asterling team.
+          </span>{" "}
+          The people behind Kindred write from lived experience with recovery and
+          a sustained study of the cognitive-neuroscience and addiction research
+          referenced across this site. Kindred Asterling offers wellness support
+          and is not a substitute for professional medical or mental-health care.
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Last reviewed: June 2026
+        </p>
       </section>
 
       <section className="mx-auto max-w-3xl px-5 pb-24 md:px-8">

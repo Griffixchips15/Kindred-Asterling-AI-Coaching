@@ -7,7 +7,6 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { CheckoutButton } from "@/components/checkout-button";
-import { useJsonLd } from "@/hooks/use-json-ld";
 
 const YEARLY_FEATURES = [
   "Full access to Kindred, your AI companion",
@@ -31,40 +30,6 @@ const TRUST = [
 ];
 
 export default function Pricing() {
-  useJsonLd({
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "Kindred Asterling — AI Coaching",
-    "applicationCategory": "HealthApplication",
-    "operatingSystem": "Web",
-    "url": "https://kindredasterling.com/",
-    "description": "An AI wellness companion grounded in cognitive neuroscience — daily journaling, habit tracking, medication adherence, and personalized coaching with Kindred.",
-    "publisher": {
-      "@type": "Organization",
-      "name": "Kindred Asterling",
-      "url": "https://kindredasterling.com/"
-    },
-    "offers": [
-      {
-        "@type": "Offer",
-        "name": "Yearly Plan",
-        "price": "49.99",
-        "priceCurrency": "USD",
-        "description": "Full access to Kindred AI coaching — daily rhythm, medication & behavior tracking, self-assessments, journal, and progress view. Billed annually.",
-        "eligibleDuration": "P1Y",
-        "url": "https://kindredasterling.com/pricing"
-      },
-      {
-        "@type": "Offer",
-        "name": "Lifetime Plan",
-        "price": "79.99",
-        "priceCurrency": "USD",
-        "description": "One payment for lifetime access to Kindred AI coaching — all current features and all future updates included.",
-        "url": "https://kindredasterling.com/pricing"
-      }
-    ]
-  });
-
   return (
     <div>
       <section className="relative overflow-hidden">

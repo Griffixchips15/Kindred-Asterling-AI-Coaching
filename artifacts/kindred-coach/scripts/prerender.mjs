@@ -47,6 +47,7 @@ const ROUTES = [
     ogDescription:
       "Built from curiosity about the human brain — an AI companion grounded in cognitive neuroscience.",
     robots: "index, follow",
+    schema: "article",
   },
   {
     path: "/science",
@@ -58,6 +59,7 @@ const ROUTES = [
     ogDescription:
       "Habit, motivation, and change — the neuroscience framework behind Kindred Asterling.",
     robots: "index, follow",
+    schema: "article",
   },
   {
     path: "/pricing",
@@ -69,6 +71,42 @@ const ROUTES = [
     ogDescription:
       "Compare plans for Kindred Asterling and get started with AI-supported wellness coaching.",
     robots: "index, follow",
+    schema: {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: "Kindred Asterling — AI Coaching",
+      applicationCategory: "HealthApplication",
+      operatingSystem: "Web",
+      url: "https://kindredasterling.com/",
+      description:
+        "An AI wellness companion grounded in cognitive neuroscience — daily journaling, habit tracking, medication adherence, and personalized coaching with Kindred.",
+      publisher: {
+        "@type": "Organization",
+        name: "Kindred Asterling",
+        url: "https://kindredasterling.com/",
+      },
+      offers: [
+        {
+          "@type": "Offer",
+          name: "Yearly Plan",
+          price: "49.99",
+          priceCurrency: "USD",
+          description:
+            "Full access to Kindred AI coaching — daily rhythm, medication & behavior tracking, self-assessments, journal, and progress view. Billed annually.",
+          eligibleDuration: "P1Y",
+          url: "https://kindredasterling.com/pricing",
+        },
+        {
+          "@type": "Offer",
+          name: "Lifetime Plan",
+          price: "79.99",
+          priceCurrency: "USD",
+          description:
+            "One payment for lifetime access to Kindred AI coaching — all current features and all future updates included.",
+          url: "https://kindredasterling.com/pricing",
+        },
+      ],
+    },
   },
   {
     path: "/payment-success",
@@ -98,6 +136,54 @@ function escapeHtml(str) {
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+// ---------------------------------------------------------------------------
+// Structured data (JSON-LD)
+//
+// Authorship / review trust signals and offer schema are emitted into the
+// prerendered <head> so non-rendering crawlers (and AI fetchers) see them in
+// the initial HTML. Canonical brand origin is fixed here to match the global
+// Organization/WebSite graph in index.html.
+// ---------------------------------------------------------------------------
+
+const SITE_ORIGIN = "https://kindredasterling.com";
+// Last date the health-adjacent public content was reviewed (ISO 8601).
+const CONTENT_REVIEWED_ISO = "2026-06-28";
+
+const PUBLISHER = {
+  "@type": "Organization",
+  name: SITE_NAME,
+  url: `${SITE_ORIGIN}/`,
+  logo: {
+    "@type": "ImageObject",
+    url: `${SITE_ORIGIN}/favicon.png`,
+  },
+};
+
+const CONTENT_AUTHOR = {
+  "@type": "Organization",
+  name: `The ${SITE_NAME} team`,
+  url: `${SITE_ORIGIN}/about`,
+};
+
+function articleSchema({ headline, description, urlPath }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline,
+    description,
+    author: CONTENT_AUTHOR,
+    publisher: PUBLISHER,
+    dateModified: CONTENT_REVIEWED_ISO,
+    mainEntityOfPage: `${SITE_ORIGIN}${urlPath}`,
+  };
+}
+
+// Serialize JSON-LD for safe inline embedding in a <script> tag. Escaping `<`
+// prevents a `</script>` sequence in any string field from breaking out.
+function serializeJsonLd(schema) {
+  return JSON.stringify(schema).replace(/</g, "\\u003c");
 }
 
 function buildHead(route, origin) {
@@ -139,6 +225,22 @@ function buildHead(route, origin) {
     `<meta name="twitter:description" content="${escapeHtml(route.ogDescription)}" />`,
     `<meta name="twitter:image" content="${ogImage}" />`,
   );
+
+  const jsonLd =
+    route.schema === "article"
+      ? articleSchema({
+          headline: route.ogTitle,
+          description: route.description,
+          urlPath: route.path,
+        })
+      : route.schema && typeof route.schema === "object"
+        ? route.schema
+        : null;
+  if (jsonLd) {
+    lines.push(
+      `<script type="application/ld+json">${serializeJsonLd(jsonLd)}</script>`,
+    );
+  }
 
   return lines.join("\n    ");
 }

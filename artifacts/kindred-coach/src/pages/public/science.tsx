@@ -154,6 +154,23 @@ export default function Science() {
         </p>
       </section>
 
+      <section className="mx-auto max-w-3xl px-5 py-8 md:px-8">
+        <div className="rounded-xl border border-border/60 bg-card/40 p-6">
+          <h2 className="font-serif text-xl font-medium tracking-tight text-foreground">
+            Who writes and reviews this
+          </h2>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+            This page is written and reviewed by the Kindred Asterling team,
+            drawing on lived experience and the peer-reviewed sources listed
+            below. Kindred Asterling offers wellness support and is not a
+            substitute for professional medical or mental-health care.
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Last reviewed: June 2026
+          </p>
+        </div>
+      </section>
+
       <section className="mx-auto max-w-3xl px-5 pb-24 md:px-8">
         <h2 className="font-serif text-xl font-medium tracking-tight text-foreground">
           Sources
