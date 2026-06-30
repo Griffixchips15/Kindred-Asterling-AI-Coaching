@@ -35,6 +35,7 @@ import { ThemeProvider } from "@/hooks/use-theme";
 import { Lock } from "lucide-react";
 import logoPoster from "@/assets/brand/logo-poster.jpg";
 import logoMark from "@/assets/brand/logo-mark.png";
+import { Analytics } from "@vercel/analytics/react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -248,6 +249,7 @@ function App() {
             </Switch>
           </WouterRouter>
           <Toaster />
+          <Analytics />
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
