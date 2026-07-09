@@ -1,0 +1,13 @@
+engines:
+  pmd:
+    enabled: true
+    rulesets:
+      - rulesets/java/quickstart.xml
+  pmd-legacy:
+    enabled: true
+    rulesets:
+      - rulesets/java/quickstart.xml
+  eslint:
+    enabled: true
+  csslint:
+    enabled: true
