@@ -1,13 +1,16 @@
 engines:
-  pmd:
-    enabled: true
-    rulesets:
-      - rulesets/java/quickstart.xml
-  pmd-legacy:
-    enabled: true
-    rulesets:
-      - rulesets/java/quickstart.xml
   eslint:
     enabled: true
+  # Disable Java tools - repo is TypeScript/JavaScript
+  pmd:
+    enabled: false
+  pmd-legacy:
+    enabled: false
+  # Disable CSSlint - causing IndexOutOfBoundsException
   csslint:
-    enabled: true
+    enabled: false
+
+exclude_paths:
+  - node_modules
+  - dist
+  - build
