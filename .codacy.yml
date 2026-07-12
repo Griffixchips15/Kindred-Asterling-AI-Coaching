@@ -1,0 +1,16 @@
+engines:
+  eslint:
+    enabled: true
+  # Disable Java tools - repo is TypeScript/JavaScript
+  pmd:
+    enabled: false
+  pmd-legacy:
+    enabled: false
+  # Disable CSSlint - causing IndexOutOfBoundsException
+  csslint:
+    enabled: false
+
+exclude_paths:
+  - node_modules
+  - dist
+  - build
