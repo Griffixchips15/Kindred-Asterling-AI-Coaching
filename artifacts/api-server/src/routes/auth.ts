@@ -67,6 +67,11 @@ function toSessionData(user: {
   };
 }
 
+function toPublicUser<T extends { passwordHash?: string | null }>(user: T) {
+  const { passwordHash: _passwordHash, ...publicUser } = user;
+  return publicUser;
+}
+
 async function startSession(
   res: Response,
   user: ReturnType<typeof toSessionData>["user"],
@@ -84,7 +89,7 @@ router.get("/auth/user", async (req: Request, res: Response) => {
     .select()
     .from(usersTable)
     .where(eq(usersTable.id, req.user.id));
-  res.json({ user: row ? JSON.parse(JSON.stringify(row)) : null });
+  res.json({ user: row ? toPublicUser(row) : null });
 });
 
 router.post("/auth/register", async (req: Request, res: Response) => {
@@ -121,7 +126,7 @@ router.post("/auth/register", async (req: Request, res: Response) => {
     .returning();
 
   await startSession(res, toSessionData(user).user);
-  res.status(201).json({ user: JSON.parse(JSON.stringify(user)) });
+  res.status(201).json({ user: toPublicUser(user) });
 });
 
 router.post("/auth/login", async (req: Request, res: Response) => {
@@ -148,7 +153,7 @@ router.post("/auth/login", async (req: Request, res: Response) => {
   }
 
   await startSession(res, toSessionData(user).user);
-  res.json({ user: JSON.parse(JSON.stringify(user)) });
+  res.json({ user: toPublicUser(user) });
 });
 
 router.post("/auth/logout", async (req: Request, res: Response) => {

@@ -2,6 +2,8 @@ import express, { type Express } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import { generalLimiter, writeLimiter } from "./middlewares/rateLimiter";
 import router from "./routes";
@@ -9,10 +11,20 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
-const allowedOrigins = new Set([
-  "https://allowed1.com",
-  "https://allowed2.com",
-]);
+const allowedOrigins = new Set(
+  [
+    process.env.APP_PUBLIC_URL,
+    process.env.RAILWAY_PUBLIC_DOMAIN
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : undefined,
+    ...(process.env.REPLIT_DOMAINS || "")
+      .split(",")
+      .filter(Boolean)
+      .map((domain) => `https://${domain.trim()}`),
+  ]
+    .filter((origin): origin is string => Boolean(origin))
+    .map((origin) => origin.replace(/\/$/, "")),
+);
 
 app.set("trust proxy", 1);
 
@@ -39,7 +51,7 @@ app.use(
   cors({
     credentials: true,
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.has(origin)) {
+      if (!origin || allowedOrigins.has(origin.replace(/\/$/, ""))) {
         callback(null, true);
         return;
       }
@@ -71,5 +83,18 @@ app.use((req, res, next) => {
 });
 
 app.use("/api", router);
+
+if (process.env.NODE_ENV === "production") {
+  const serverDir = path.dirname(fileURLToPath(import.meta.url));
+  const publicDir = path.resolve(
+    serverDir,
+    "../../kindred-coach/dist/public",
+  );
+
+  app.use(express.static(publicDir));
+  app.get(/^(?!\/api(?:\/|$)).*/, (_req, res) => {
+    res.sendFile(path.join(publicDir, "index.html"));
+  });
+}
 
 export default app;

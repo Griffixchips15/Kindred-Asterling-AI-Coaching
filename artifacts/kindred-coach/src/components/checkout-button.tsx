@@ -20,14 +20,14 @@ export function CheckoutButton({
   variant = "default",
   className,
 }: CheckoutButtonProps) {
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { mutate, isPending } = useCreateCheckout();
   const [error, setError] = useState<string | null>(null);
 
   const handleClick = () => {
     setError(null);
     if (!isAuthenticated) {
-      login();
+      window.location.href = "/";
       return;
     }
     mutate(

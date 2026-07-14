@@ -7,8 +7,26 @@ interface AuthState {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: () => void;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<void>;
+  register: (
+    email: string,
+    password: string,
+    firstName?: string,
+  ) => Promise<void>;
+  logout: () => Promise<void>;
+}
+
+async function readAuthResponse(response: Response): Promise<AuthUser> {
+  const data = (await response.json()) as {
+    user?: AuthUser;
+    error?: string;
+  };
+
+  if (!response.ok || !data.user) {
+    throw new Error(data.error || `Authentication failed (${response.status})`);
+  }
+
+  return data.user;
 }
 
 export function useAuth(): AuthState {
@@ -41,20 +59,38 @@ export function useAuth(): AuthState {
     };
   }, []);
 
-  const login = useCallback(() => {
-    const base = import.meta.env.BASE_URL.replace(/\/+$/, "") || "/";
-    window.location.href = `/api/login?returnTo=${encodeURIComponent(base)}`;
+  const login = useCallback(async (email: string, password: string) => {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    setUser(await readAuthResponse(response));
   }, []);
 
-  const logout = useCallback(() => {
-    fetch("/api/logout", { method: "POST", credentials: "include" })
-      .then((res) => res.json())
-      .then((data: { logoutUrl: string }) => {
-        window.location.href = data.logoutUrl;
-      })
-      .catch(() => {
-        window.location.href = "/api/login";
+  const register = useCallback(
+    async (email: string, password: string, firstName?: string) => {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, firstName }),
       });
+      setUser(await readAuthResponse(response));
+    },
+    [],
+  );
+
+  const logout = useCallback(async () => {
+    const response = await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error(`Logout failed (${response.status})`);
+    }
+    setUser(null);
   }, []);
 
   return {
@@ -62,6 +98,7 @@ export function useAuth(): AuthState {
     isLoading,
     isAuthenticated: !!user,
     login,
+    register,
     logout,
   };
 }
