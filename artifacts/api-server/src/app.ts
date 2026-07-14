@@ -9,6 +9,11 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+const allowedOrigins = new Set([
+  "https://allowed1.com",
+  "https://allowed2.com",
+]);
+
 app.set("trust proxy", 1);
 
 app.use(
@@ -30,7 +35,18 @@ app.use(
     },
   }),
 );
-app.use(cors({ credentials: true, origin: true }));
+app.use(
+  cors({
+    credentials: true,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error("Not allowed by CORS"));
+    },
+  }),
+);
 app.use(cookieParser());
 app.use(
   express.json({
