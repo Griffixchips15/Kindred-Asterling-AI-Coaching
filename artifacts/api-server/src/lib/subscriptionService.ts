@@ -2,11 +2,11 @@ import { eq } from "drizzle-orm";
 import { db, subscriptionsTable } from "@workspace/db";
 import {
   getActiveSubscriptionByEmail,
-  isSquareConfigured,
-} from "./squareClient";
+  isStripeConfigured,
+} from "./stripeClient";
 import { logger } from "./logger";
 
-// Re-check Square at most this often per user. The cached row in the DB is the
+// Re-check Stripe at most this often per user. The cached row in the DB is the
 // source of truth between checks; webhooks update it immediately on change.
 const CHECK_TTL_MS = 5 * 60 * 1000;
 
@@ -54,8 +54,8 @@ const INACTIVE: AccessStatus = {
 };
 
 // Resolve whether a user currently has access. Order: owner/allowlist bypass →
-// (fail closed if Square unverifiable) → fresh cache → live Square check (which
-// updates the cache). This is strictly fail-closed: if Square is unconfigured
+// (fail closed if Stripe unverifiable) → fresh cache → live Stripe check (which
+// updates the cache). This is strictly fail-closed: if Stripe is unconfigured
 // or a live check errors, access is denied rather than served from a stale
 // cached "active" row. The only thing the cache grants is a recent (within TTL)
 // successful verification.
@@ -69,10 +69,10 @@ export async function resolveSubscription(
     return { active: true, status: "bypass", currentPeriodEnd: null };
   }
 
-  // Fail closed: with no way to verify against Square, never grant access —
+  // Fail closed: with no way to verify against Stripe, never grant access —
   // not even from a previously cached active row.
-  if (!isSquareConfigured()) {
-    logger.warn("Square not configured — denying access (fail closed)");
+  if (!isStripeConfigured()) {
+    logger.warn("Stripe not configured — denying access (fail closed)");
     return INACTIVE;
   }
   if (!email) {
@@ -100,8 +100,8 @@ export async function resolveSubscription(
       userId: user.id,
       email,
       status,
-      squareCustomerId: result.squareCustomerId,
-      squareSubscriptionId: result.squareSubscriptionId,
+      stripeCustomerId: result.stripeCustomerId,
+      stripeSubscriptionId: result.stripeSubscriptionId,
       currentPeriodEnd: result.currentPeriodEnd,
       lastCheckedAt: new Date(),
     };
@@ -113,8 +113,8 @@ export async function resolveSubscription(
         set: {
           email: values.email,
           status: values.status,
-          squareCustomerId: values.squareCustomerId,
-          squareSubscriptionId: values.squareSubscriptionId,
+          stripeCustomerId: values.stripeCustomerId,
+          stripeSubscriptionId: values.stripeSubscriptionId,
           currentPeriodEnd: values.currentPeriodEnd,
           lastCheckedAt: values.lastCheckedAt,
         },
@@ -127,8 +127,8 @@ export async function resolveSubscription(
         : null,
     };
   } catch (err) {
-    logger.error({ err }, "Square subscription check failed — denying access");
-    // Fail closed: a Square error must not silently grant access from a stale
+    logger.error({ err }, "Stripe subscription check failed — denying access");
+    // Fail closed: a Stripe error must not silently grant access from a stale
     // cached "active" row. A fresh successful check within the TTL is the only
     // thing that grants; otherwise the user must retry.
     return INACTIVE;

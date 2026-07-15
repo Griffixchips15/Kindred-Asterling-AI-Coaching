@@ -12,13 +12,13 @@ import type { Server } from "node:http";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 
-// The checkout route's only external dependency is the Square REST client, which
+// The checkout route's only external dependency is the Stripe REST client, which
 // we stub so the test exercises the real Express route (auth, body validation,
 // 503-when-unconfigured, success shape) without any network call or token cost.
-vi.mock("./squareClient", () => ({
-  isSquareConfigured: vi.fn(() => true),
+vi.mock("./stripeClient", () => ({
+  isStripeConfigured: vi.fn(() => true),
   isCheckoutConfigured: vi.fn(() => true),
-  createSubscriptionCheckoutLink: vi.fn(),
+  createSubscriptionCheckoutSession: vi.fn(),
   getActiveSubscriptionByEmail: vi.fn(),
   getCustomerEmail: vi.fn(),
   verifyWebhookSignature: vi.fn(() => true),
@@ -26,10 +26,10 @@ vi.mock("./squareClient", () => ({
 
 import app from "../app";
 import { createSession, deleteSession } from "./auth";
-import * as square from "./squareClient";
+import * as stripe from "./stripeClient";
 
-const mockIsCheckoutConfigured = vi.mocked(square.isCheckoutConfigured);
-const mockCreateLink = vi.mocked(square.createSubscriptionCheckoutLink);
+const mockIsCheckoutConfigured = vi.mocked(stripe.isCheckoutConfigured);
+const mockCreateSession = vi.mocked(stripe.createSubscriptionCheckoutSession);
 
 const suffix = Math.random().toString(36).slice(2, 10);
 const userId = `test-checkout-${suffix}`;
@@ -111,12 +111,12 @@ beforeEach(() => {
 });
 
 describe("POST /api/subscription/checkout", () => {
-  it("rejects anonymous callers with 401 and never calls Square", async () => {
+  it("rejects anonymous callers with 401 and never calls Stripe", async () => {
     const res = await api("POST", "/api/subscription/checkout", {
       body: { planType: "yearly" },
     });
     expect(res.status).toBe(401);
-    expect(mockCreateLink).not.toHaveBeenCalled();
+    expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid planType with 400", async () => {
@@ -125,7 +125,7 @@ describe("POST /api/subscription/checkout", () => {
       body: { planType: "monthly" },
     });
     expect(res.status).toBe(400);
-    expect(mockCreateLink).not.toHaveBeenCalled();
+    expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
   it("returns 503 when checkout is not configured", async () => {
@@ -135,29 +135,32 @@ describe("POST /api/subscription/checkout", () => {
       body: { planType: "yearly" },
     });
     expect(res.status).toBe(503);
-    expect(mockCreateLink).not.toHaveBeenCalled();
+    expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
-  it("returns the Square checkout URL for an authenticated buyer", async () => {
-    mockCreateLink.mockResolvedValue("https://square.link/u/checkout-123");
+  it("returns the Stripe checkout URL for an authenticated buyer", async () => {
+    mockCreateSession.mockResolvedValue({
+      sessionId: "cs_test_123",
+      url: "https://checkout.stripe.com/c/pay/cs_test_123",
+    });
     const res = await api("POST", "/api/subscription/checkout", {
       token,
       body: { planType: "lifetime" },
     });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
-      checkoutUrl: "https://square.link/u/checkout-123",
+      checkoutUrl: "https://checkout.stripe.com/c/pay/cs_test_123",
     });
     // Identity comes from the session, not the request body.
-    expect(mockCreateLink).toHaveBeenCalledTimes(1);
-    expect(mockCreateLink.mock.calls[0]![0]).toMatchObject({
+    expect(mockCreateSession).toHaveBeenCalledTimes(1);
+    expect(mockCreateSession.mock.calls[0]![0]).toMatchObject({
       planType: "lifetime",
       buyerEmail: email,
     });
   });
 
-  it("returns 502 when the Square call fails", async () => {
-    mockCreateLink.mockRejectedValue(new Error("square down"));
+  it("returns 502 when the Stripe call fails", async () => {
+    mockCreateSession.mockRejectedValue(new Error("stripe down"));
     const res = await api("POST", "/api/subscription/checkout", {
       token,
       body: { planType: "yearly" },

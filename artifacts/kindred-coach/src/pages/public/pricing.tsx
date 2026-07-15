@@ -25,7 +25,7 @@ const LIFETIME_FEATURES = [
 
 const TRUST = [
   { icon: Lock, label: "Private by design — your reflections stay yours" },
-  { icon: ShieldCheck, label: "Secure checkout powered by Square" },
+  { icon: ShieldCheck, label: "Secure checkout powered by Stripe" },
   { icon: HeartHandshake, label: "A companion to care, never a replacement" },
 ];
 

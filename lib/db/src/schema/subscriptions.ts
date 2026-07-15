@@ -1,8 +1,8 @@
 import { pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 import { usersTable } from "./auth";
 
-// One row per user, caching the result of the most recent Square subscription
-// check. `status` is "active" when the user has a live Square subscription that
+// One row per user, caching the result of the most recent Stripe subscription
+// check. `status` is "active" when the user has a live Stripe subscription that
 // grants access; everything else (inactive/canceled/paused/unknown) is no access.
 export const subscriptionsTable = pgTable("subscriptions", {
   userId: varchar("user_id")
@@ -10,8 +10,8 @@ export const subscriptionsTable = pgTable("subscriptions", {
     .references(() => usersTable.id, { onDelete: "cascade" }),
   email: varchar("email"),
   status: varchar("status").notNull().default("inactive"),
-  squareCustomerId: varchar("square_customer_id"),
-  squareSubscriptionId: varchar("square_subscription_id"),
+  stripeCustomerId: varchar("stripe_customer_id"),
+  stripeSubscriptionId: varchar("stripe_subscription_id"),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
   lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
