@@ -23,8 +23,6 @@ RUN npm install --global pnpm@10
 
 COPY --from=build /app /app
 
-RUN chmod +x entrypoint.sh
-
 EXPOSE 3000
 
-CMD ["./entrypoint.sh"]
+CMD ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
