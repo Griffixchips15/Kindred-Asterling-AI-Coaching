@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/app-layout";
+import { PublicLayout } from "@/components/layout/public-layout";
 import Dashboard from "@/pages/dashboard";
 import Morning from "@/pages/morning";
 import Scans from "@/pages/scans";
@@ -16,6 +17,11 @@ import CalendarPage from "@/pages/calendar";
 import Chat from "@/pages/chat";
 import Archive from "@/pages/archive";
 import NotFound from "@/pages/not-found";
+import Landing from "@/pages/public/landing";
+import About from "@/pages/public/about";
+import Science from "@/pages/public/science";
+import Pricing from "@/pages/public/pricing";
+import PaymentSuccess from "@/pages/public/payment-success";
 import { useAuth } from "@workspace/replit-auth-web";
 import { ThemeProvider } from "@/hooks/use-theme";
 import logoPoster from "@/assets/brand/logo-poster.jpg";
@@ -151,24 +157,41 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function Router() {
+function PublicRoutes() {
   return (
-    <AppLayout>
+    <PublicLayout>
       <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/morning" component={Morning} />
-        <Route path="/scans" component={Scans} />
-        <Route path="/evening" component={Evening} />
-        <Route path="/habits" component={Habits} />
-        <Route path="/medications" component={Medications} />
-        <Route path="/reports" component={Reports} />
-        <Route path="/profile" component={Profile} />
-        <Route path="/calendar" component={CalendarPage} />
-        <Route path="/chat" component={Chat} />
-        <Route path="/archive" component={Archive} />
+        <Route path="/" component={Landing} />
+        <Route path="/about" component={About} />
+        <Route path="/science" component={Science} />
+        <Route path="/pricing" component={Pricing} />
+        <Route path="/payment-success" component={PaymentSuccess} />
         <Route component={NotFound} />
       </Switch>
-    </AppLayout>
+    </PublicLayout>
+  );
+}
+
+function PrivateRoutes() {
+  return (
+    <AuthGate>
+      <AppLayout>
+        <Switch>
+          <Route path="/" component={Dashboard} />
+          <Route path="/morning" component={Morning} />
+          <Route path="/scans" component={Scans} />
+          <Route path="/evening" component={Evening} />
+          <Route path="/habits" component={Habits} />
+          <Route path="/medications" component={Medications} />
+          <Route path="/reports" component={Reports} />
+          <Route path="/profile" component={Profile} />
+          <Route path="/calendar" component={CalendarPage} />
+          <Route path="/chat" component={Chat} />
+          <Route path="/archive" component={Archive} />
+          <Route component={NotFound} />
+        </Switch>
+      </AppLayout>
+    </AuthGate>
   );
 }
 
@@ -178,9 +201,14 @@ function App() {
       <ThemeProvider>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <AuthGate>
-              <Router />
-            </AuthGate>
+            <Switch>
+              <Route path="/" component={PublicRoutes} />
+              <Route path="/about" component={PublicRoutes} />
+              <Route path="/science" component={PublicRoutes} />
+              <Route path="/pricing" component={PublicRoutes} />
+              <Route path="/payment-success" component={PublicRoutes} />
+              <Route component={PrivateRoutes} />
+            </Switch>
           </WouterRouter>
           <Toaster />
         </TooltipProvider>
