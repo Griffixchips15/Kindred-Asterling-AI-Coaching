@@ -11,6 +11,7 @@ COPY . .
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm run build
+RUN pnpm --filter @workspace/db run push
 
 FROM node:24-bookworm-slim AS runtime
 

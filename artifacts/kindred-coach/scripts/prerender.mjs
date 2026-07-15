@@ -77,13 +77,13 @@ const ROUTES = [
       name: "Kindred Asterling — AI Coaching",
       applicationCategory: "HealthApplication",
       operatingSystem: "Web",
-      url: "https://kindredasterling.com/",
+      url: "https://kindred-asterling-ai-coaching.com/",
       description:
         "An AI wellness companion grounded in cognitive neuroscience — daily journaling, habit tracking, medication adherence, and personalized coaching with Kindred.",
       publisher: {
         "@type": "Organization",
         name: "Kindred Asterling",
-        url: "https://kindredasterling.com/",
+        url: "https://kindred-asterling-ai-coaching.com/",
       },
       offers: [
         {
@@ -94,7 +94,7 @@ const ROUTES = [
           description:
             "Full access to Kindred AI coaching — daily rhythm, medication & behavior tracking, self-assessments, journal, and progress view. Billed annually.",
           eligibleDuration: "P1Y",
-          url: "https://kindredasterling.com/pricing",
+          url: "https://kindred-asterling-ai-coaching.com/pricing",
         },
         {
           "@type": "Offer",
@@ -103,7 +103,7 @@ const ROUTES = [
           priceCurrency: "USD",
           description:
             "One payment for lifetime access to Kindred AI coaching — all current features and all future updates included.",
-          url: "https://kindredasterling.com/pricing",
+          url: "https://kindred-asterling-ai-coaching.com/pricing",
         },
       ],
     },
@@ -127,7 +127,7 @@ function getProductionOrigin() {
   if (process.env.APP_PUBLIC_URL) {
     return process.env.APP_PUBLIC_URL.replace(/\/+$/, "");
   }
-  return "https://kindredasterling.com";
+  return "https://kindred-asterling-ai-coaching.com";
 }
 
 function escapeHtml(str) {
@@ -147,7 +147,7 @@ function escapeHtml(str) {
 // Organization/WebSite graph in index.html.
 // ---------------------------------------------------------------------------
 
-const SITE_ORIGIN = "https://kindredasterling.com";
+const SITE_ORIGIN = "https://kindred-asterling-ai-coaching.com";
 // Last date the health-adjacent public content was reviewed (ISO 8601).
 const CONTENT_REVIEWED_ISO = "2026-06-28";
 

@@ -4,10 +4,10 @@
 
 ## Core public pages
 
-- [Home](https://kindredasterling.com/): Product overview and value proposition
-- [About](https://kindredasterling.com/about): The story and mission behind Kindred Coach
-- [The Science](https://kindredasterling.com/science): Research and principles behind the coaching approach
-- [Pricing](https://kindredasterling.com/pricing): Subscription plans and in-app checkout
+- [Home](https://kindred-asterling-ai-coaching.com/): Product overview and value proposition
+- [About](https://kindred-asterling-ai-coaching.com/about): The story and mission behind Kindred Coach
+- [The Science](https://kindred-asterling-ai-coaching.com/science): Research and principles behind the coaching approach
+- [Pricing](https://kindred-asterling-ai-coaching.com/pricing): Subscription plans and in-app checkout
 
 ## Product summary
 

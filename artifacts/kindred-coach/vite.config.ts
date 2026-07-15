@@ -2,7 +2,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+const runtimeErrorOverlay = process.env.REPL_ID
+  ? (await import("@replit/vite-plugin-runtime-error-modal")).default
+  : () => [];
 
 // PORT and BASE_PATH are set by the dev/preview workflow. A `vite build`
 // during the monorepo production build runs without that workflow context,

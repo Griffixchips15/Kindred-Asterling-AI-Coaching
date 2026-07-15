@@ -29,4 +29,4 @@ to = "/index.html"
 [services.env]
 PORT = "23546"
 BASE_PATH = "/"
-APP_PUBLIC_URL = "https://kindredasterling.com"
+APP_PUBLIC_URL = "https://kindred-asterling-ai-coaching.com"

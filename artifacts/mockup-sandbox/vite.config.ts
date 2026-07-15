@@ -2,7 +2,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+const runtimeErrorOverlay = process.env.REPL_ID
+  ? (await import("@replit/vite-plugin-runtime-error-modal")).default
+  : () => [];
 import { mockupPreviewPlugin } from "./mockupPreviewPlugin";
 
 // PORT and BASE_PATH are required by the dev server (set via the workflow),

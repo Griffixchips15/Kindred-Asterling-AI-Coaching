@@ -1,6 +1,7 @@
-// Wraps the Replit Google Calendar connector (see google-calendar blueprint).
-// Tokens, identity, and refresh are handled by the SDK.
-import { ReplitConnectors } from "@replit/connectors-sdk";
+// Wraps the Google Calendar connector.
+// On Replit: uses ReplitConnectors SDK
+// Outside Replit: returns empty array (feature unavailable)
+import { logger } from "./logger";
 
 type GoogleEventDateTime = {
   date?: string;
@@ -26,8 +27,6 @@ export type NormalizedCalendarEvent = {
   title: string;
 };
 
-const connectors = new ReplitConnectors();
-
 function formatLocalDate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -43,7 +42,21 @@ function formatLocalTime(d: Date): string {
   });
 }
 
+async function getReplitProxy() {
+  if (!process.env.REPL_ID) return null;
+  try {
+    const { ReplitConnectors } = await import("@replit/connectors-sdk");
+    return new ReplitConnectors();
+  } catch (err) {
+    logger.warn({ err }, "Failed to load ReplitConnectors SDK");
+    return null;
+  }
+}
+
 export async function fetchUpcomingEvents(daysAhead: number): Promise<NormalizedCalendarEvent[]> {
+  const connectors = await getReplitProxy();
+  if (!connectors) return [];
+
   const now = new Date();
   const end = new Date(now);
   end.setDate(end.getDate() + daysAhead + 1);

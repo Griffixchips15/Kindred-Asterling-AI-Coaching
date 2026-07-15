@@ -3,4 +3,4 @@ Allow: /
 Disallow: /app/
 Disallow: /payment-success
 
-Sitemap: https://kindredasterling.com/sitemap.xml
+Sitemap: https://kindred-asterling-ai-coaching.com/sitemap.xml
