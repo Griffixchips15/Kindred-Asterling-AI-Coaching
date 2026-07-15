@@ -7,7 +7,7 @@ function getStripe(): Stripe {
   if (!stripeInstance) {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");
-    stripeInstance = new Stripe(key, { apiVersion: "2025-06-30.basil" });
+    stripeInstance = new Stripe(key, { apiVersion: "2025-08-27.basil" });
   }
   return stripeInstance;
 }
@@ -93,12 +93,13 @@ export async function getActiveSubscriptionByEmail(
     return { ...INACTIVE, stripeCustomerId: customerId };
   }
 
+  const periodEnd = (activeSub as any).current_period_end;
   return {
     active: true,
     stripeCustomerId: customerId,
     stripeSubscriptionId: activeSub.id,
-    currentPeriodEnd: activeSub.current_period_end
-      ? new Date(activeSub.current_period_end * 1000)
+    currentPeriodEnd: periodEnd
+      ? new Date(periodEnd * 1000)
       : null,
   };
 }
