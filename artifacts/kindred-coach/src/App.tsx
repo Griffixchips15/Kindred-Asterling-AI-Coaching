@@ -22,6 +22,7 @@ import About from "@/pages/public/about";
 import Science from "@/pages/public/science";
 import Pricing from "@/pages/public/pricing";
 import PaymentSuccess from "@/pages/public/payment-success";
+import Login from "@/pages/public/login";
 import { useAuth } from "@workspace/replit-auth-web";
 import { ThemeProvider } from "@/hooks/use-theme";
 import logoPoster from "@/assets/brand/logo-poster.jpg";
@@ -166,6 +167,7 @@ function PublicRoutes() {
         <Route path="/science" component={Science} />
         <Route path="/pricing" component={Pricing} />
         <Route path="/payment-success" component={PaymentSuccess} />
+        <Route path="/login" component={Login} />
         <Route component={NotFound} />
       </Switch>
     </PublicLayout>
@@ -207,6 +209,7 @@ function App() {
               <Route path="/science" component={PublicRoutes} />
               <Route path="/pricing" component={PublicRoutes} />
               <Route path="/payment-success" component={PublicRoutes} />
+              <Route path="/login" component={PublicRoutes} />
               <Route component={PrivateRoutes} />
             </Switch>
           </WouterRouter>

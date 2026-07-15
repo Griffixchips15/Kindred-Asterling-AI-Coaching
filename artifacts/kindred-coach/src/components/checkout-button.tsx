@@ -27,7 +27,7 @@ export function CheckoutButton({
   const handleClick = () => {
     setError(null);
     if (!isAuthenticated) {
-      window.location.href = "/";
+      window.location.href = "/login?returnTo=/pricing";
       return;
     }
     mutate(

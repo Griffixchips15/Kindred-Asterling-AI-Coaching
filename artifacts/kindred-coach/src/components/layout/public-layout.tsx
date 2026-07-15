@@ -6,9 +6,7 @@ import { cn } from "@/lib/utils";
 import logoMark from "@/assets/brand/logo-mark.png";
 
 function signInToApp() {
-  const base = import.meta.env.BASE_URL.replace(/\/+$/, "");
-  const returnTo = `${base}/app` || "/app";
-  window.location.href = `/api/login?returnTo=${encodeURIComponent(returnTo)}`;
+  window.location.href = "/login";
 }
 
 const NAV_LINKS = [
