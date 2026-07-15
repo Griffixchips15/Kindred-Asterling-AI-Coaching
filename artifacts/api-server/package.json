@@ -23,7 +23,7 @@
     "drizzle-orm": "catalog:",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
-    "stripe": "^18.3.0",
+    "stripe": "catalog:",
     "node-cron": "^4.5.0",
     "openid-client": "^6.8.4",
     "pdfkit": "^0.18.0",

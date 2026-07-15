@@ -9,7 +9,7 @@ RUN npm install --global pnpm@10
 
 COPY . .
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 RUN pnpm run build
 
 FROM node:24-bookworm-slim AS runtime
