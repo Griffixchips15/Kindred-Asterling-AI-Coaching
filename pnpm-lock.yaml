@@ -54,6 +54,9 @@ catalogs:
     react-dom:
       specifier: 19.1.0
       version: 19.1.0
+    stripe:
+      specifier: ^18.3.0
+      version: 18.5.0
     tailwind-merge:
       specifier: ^3.3.1
       version: 3.5.0
@@ -220,6 +223,9 @@ importers:
       pino-http:
         specifier: ^10.5.0
         version: 10.5.0
+      stripe:
+        specifier: 'catalog:'
+        version: 18.5.0(@types/node@25.6.2)
     devDependencies:
       '@types/cookie-parser':
         specifier: ^1.4.10
@@ -3351,6 +3357,15 @@ packages:
     resolution: {integrity: sha512-1tB5mhVo7U+ETBKNf92xT4hrQa3pm0MZ0PQvuDnWgAAGHDsfp4lPSpiS6psrSiet87wyGPh9ft6wmhOMQ0hDiw==}
     engines: {node: '>=14.16'}
 
+  stripe@18.5.0:
+    resolution: {integrity: sha512-Hp+wFiEQtCB0LlNgcFh5uVyKznpDjzyUZ+CNVEf+I3fhlYvh7rZruIg+jOwzJRCpy0ZTPMjlzm7J2/M2N6d+DA==}
+    engines: {node: '>=12.*'}
+    peerDependencies:
+      '@types/node': '>=12.x.x'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+
   tailwind-merge@3.5.0:
     resolution: {integrity: sha512-I8K9wewnVDkL1NTGoqWmVEIlUcB9gFriAEkXkfCjX5ib8ezGxtR3xD7iZIxrfArjEsH7F1CHD4RFUtxefdqV/A==}
 
@@ -6333,6 +6348,12 @@ snapshots:
   strip-final-newline@4.0.0: {}
 
   strip-json-comments@5.0.3: {}
+
+  stripe@18.5.0(@types/node@25.6.2):
+    dependencies:
+      qs: 6.15.2
+    optionalDependencies:
+      '@types/node': 25.6.2
 
   tailwind-merge@3.5.0: {}
 
