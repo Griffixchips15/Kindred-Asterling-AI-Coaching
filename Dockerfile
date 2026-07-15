@@ -11,7 +11,6 @@ COPY . .
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm run build
-RUN pnpm --filter @workspace/db run push
 
 FROM node:24-bookworm-slim AS runtime
 
@@ -24,6 +23,8 @@ RUN npm install --global pnpm@10
 
 COPY --from=build /app /app
 
+RUN chmod +x entrypoint.sh
+
 EXPOSE 3000
 
-CMD ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
+CMD ["./entrypoint.sh"]
