@@ -1,28 +1,36 @@
-import { eq } from "drizzle-orm";
-import { db, subscriptionsTable } from "@workspace/db";
-import {
-  getActiveSubscriptionByEmail,
-  isStripeConfigured,
-} from "./stripeClient";
+import { eq, and, isNull, sql } from "drizzle-orm";
+import { db, subscriptionsTable, betaGrantsTable, entitlementAuditTable } from "@workspace/db";
+import { isHelcimConfigured } from "./helcimClient";
 import { logger } from "./logger";
 
-// Re-check Stripe at most this often per user. The cached row in the DB is the
-// source of truth between checks; webhooks update it immediately on change.
 const CHECK_TTL_MS = 5 * 60 * 1000;
+
+export type AccessSource = "owner" | "beta" | "helcim" | "none";
 
 export interface AccessStatus {
   active: boolean;
   status: string;
   currentPeriodEnd: string | null;
+  source: AccessSource;
 }
 
 type SubscriptionRow = typeof subscriptionsTable.$inferSelect;
 
-function bypassEmails(): Set<string> {
+export function ownerIds(): Set<string> {
   return new Set(
-    (process.env.SUBSCRIPTION_BYPASS_EMAILS || "")
+    (process.env.SUBSCRIPTION_OWNER_IDS || "")
       .split(",")
-      .map((e) => e.trim().toLowerCase())
+      .map((id) => id.trim())
+      .filter(Boolean),
+  );
+}
+
+function ownerEmails(): Set<string> {
+  return new Set(
+    (process.env.SUBSCRIPTION_OWNER_EMAILS || "")
+      .toLowerCase()
+      .split(",")
+      .map((e) => e.trim())
       .filter(Boolean),
   );
 }
@@ -36,46 +44,56 @@ function rowIsActive(row: SubscriptionRow | undefined): boolean {
   return true;
 }
 
-function toStatus(row: SubscriptionRow): AccessStatus {
-  const active = rowIsActive(row);
-  return {
-    active,
-    status: active ? "active" : row.status ?? "inactive",
-    currentPeriodEnd: row.currentPeriodEnd
-      ? row.currentPeriodEnd.toISOString()
-      : null,
-  };
-}
-
 const INACTIVE: AccessStatus = {
   active: false,
   status: "inactive",
   currentPeriodEnd: null,
+  source: "none",
 };
 
-// Resolve whether a user currently has access. Order: owner/allowlist bypass →
-// (fail closed if Stripe unverifiable) → fresh cache → live Stripe check (which
-// updates the cache). This is strictly fail-closed: if Stripe is unconfigured
-// or a live check errors, access is denied rather than served from a stale
-// cached "active" row. The only thing the cache grants is a recent (within TTL)
-// successful verification.
+async function audit(userId: string, action: string, actorId?: string, metadata?: Record<string, unknown>): Promise<void> {
+  try {
+    await db.insert(entitlementAuditTable).values({ userId, action, actorId, metadata: metadata ?? null });
+  } catch (err) {
+    logger.error({ err, userId, action }, "Failed to write entitlement audit log");
+  }
+}
+
 export async function resolveSubscription(
   user: { id: string; email: string | null | undefined },
   opts: { forceRefresh?: boolean } = {},
 ): Promise<AccessStatus> {
-  const email = (user.email || "").trim().toLowerCase();
-
-  if (email && bypassEmails().has(email)) {
-    return { active: true, status: "bypass", currentPeriodEnd: null };
+  // Owner access — immutable user ID bypass
+  if (ownerIds().has(user.id)) {
+    return { active: true, status: "active", currentPeriodEnd: null, source: "owner" };
   }
 
-  // Fail closed: with no way to verify against Stripe, never grant access —
-  // not even from a previously cached active row.
-  if (!isStripeConfigured()) {
-    logger.warn("Stripe not configured — denying access (fail closed)");
-    return INACTIVE;
+  // Owner email bypass (temporary — for bootstrapping before user ID is known)
+  if (user.email && ownerEmails().has(user.email.trim().toLowerCase())) {
+    return { active: true, status: "active", currentPeriodEnd: null, source: "owner" };
   }
-  if (!email) {
+
+  // Beta grant check
+  const [betaGrant] = await db
+    .select()
+    .from(betaGrantsTable)
+    .where(
+      and(
+        eq(betaGrantsTable.userId, user.id),
+        isNull(betaGrantsTable.revokedAt),
+        sql`(${betaGrantsTable.expiresAt} IS NULL OR ${betaGrantsTable.expiresAt} > NOW())`,
+      ),
+    )
+    .limit(1);
+
+  if (betaGrant) {
+    return { active: true, status: "active", currentPeriodEnd: null, source: "beta" };
+  }
+
+  // Payment provider check
+  const paymentConfigured = isHelcimConfigured();
+  if (!paymentConfigured) {
+    logger.warn("No payment provider configured — denying access (fail closed)");
     return INACTIVE;
   }
 
@@ -90,47 +108,29 @@ export async function resolveSubscription(
     Date.now() - row.lastCheckedAt.getTime() < CHECK_TTL_MS;
 
   if (row && cacheFresh && !opts.forceRefresh) {
-    return toStatus(row);
+    const active = rowIsActive(row);
+    return {
+      active,
+      status: active ? "active" : row.status ?? "inactive",
+      currentPeriodEnd: row.currentPeriodEnd
+        ? row.currentPeriodEnd.toISOString()
+        : null,
+      source: active ? "helcim" : "none",
+    };
   }
 
-  try {
-    const result = await getActiveSubscriptionByEmail(email);
-    const status = result.active ? "active" : "inactive";
-    const values = {
-      userId: user.id,
-      email,
-      status,
-      stripeCustomerId: result.stripeCustomerId,
-      stripeSubscriptionId: result.stripeSubscriptionId,
-      currentPeriodEnd: result.currentPeriodEnd,
-      lastCheckedAt: new Date(),
-    };
-    await db
-      .insert(subscriptionsTable)
-      .values(values)
-      .onConflictDoUpdate({
-        target: subscriptionsTable.userId,
-        set: {
-          email: values.email,
-          status: values.status,
-          stripeCustomerId: values.stripeCustomerId,
-          stripeSubscriptionId: values.stripeSubscriptionId,
-          currentPeriodEnd: values.currentPeriodEnd,
-          lastCheckedAt: values.lastCheckedAt,
-        },
-      });
+  // If no cached row or cache expired, rely on webhook-updated cache
+  if (row) {
+    const active = rowIsActive(row);
     return {
-      active: result.active,
-      status,
-      currentPeriodEnd: result.currentPeriodEnd
-        ? result.currentPeriodEnd.toISOString()
+      active,
+      status: active ? "active" : row.status ?? "inactive",
+      currentPeriodEnd: row.currentPeriodEnd
+        ? row.currentPeriodEnd.toISOString()
         : null,
+      source: active ? "helcim" : "none",
     };
-  } catch (err) {
-    logger.error({ err }, "Stripe subscription check failed — denying access");
-    // Fail closed: a Stripe error must not silently grant access from a stale
-    // cached "active" row. A fresh successful check within the TTL is the only
-    // thing that grants; otherwise the user must retry.
-    return INACTIVE;
   }
+
+  return INACTIVE;
 }
