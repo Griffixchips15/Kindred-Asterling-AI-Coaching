@@ -11,6 +11,9 @@ import {
   verifyPassword,
   type SessionData,
 } from "../lib/auth";
+import { authLimiter } from "../middlewares/rateLimiter";
+import { sendVerificationEmail } from "../lib/verifyEmail";
+import { isEmailConfigured } from "../lib/resend";
 
 const router: IRouter = Router();
 
@@ -54,6 +57,7 @@ function toSessionData(user: {
   firstName: string | null;
   lastName: string | null;
   profileImageUrl: string | null;
+  emailVerifiedAt: Date | null;
 }): SessionData {
   return {
     user: {
@@ -62,6 +66,7 @@ function toSessionData(user: {
       firstName: user.firstName,
       lastName: user.lastName,
       profileImageUrl: user.profileImageUrl,
+      emailVerifiedAt: user.emailVerifiedAt,
     },
     access_token: "session",
   };
@@ -92,7 +97,7 @@ router.get("/auth/user", async (req: Request, res: Response) => {
   res.json({ user: row ? toPublicUser(row) : null });
 });
 
-router.post("/auth/register", async (req: Request, res: Response) => {
+router.post("/auth/register", authLimiter, async (req: Request, res: Response) => {
   const body = req.body as AuthBody;
   const email = normalizeEmail(body.email);
   const password = getPassword(body.password);
@@ -126,10 +131,16 @@ router.post("/auth/register", async (req: Request, res: Response) => {
     .returning();
 
   await startSession(res, toSessionData(user).user);
+
+  // Fire-and-forget: send verification email (don't block the response)
+  if (isEmailConfigured()) {
+    sendVerificationEmail(user).catch(() => {});
+  }
+
   res.status(201).json({ user: toPublicUser(user) });
 });
 
-router.post("/auth/login", async (req: Request, res: Response) => {
+router.post("/auth/login", authLimiter, async (req: Request, res: Response) => {
   const body = req.body as AuthBody;
   const email = normalizeEmail(body.email);
   const password = typeof body.password === "string" ? body.password : null;
@@ -159,6 +170,34 @@ router.post("/auth/login", async (req: Request, res: Response) => {
 router.post("/auth/logout", async (req: Request, res: Response) => {
   const sid = getSessionId(req);
   await clearSession(res, sid);
+  res.json({ success: true });
+});
+
+router.post("/auth/reset-password", authLimiter, async (req: Request, res: Response) => {
+  const { email, password } = req.body as { email?: string; password?: string };
+  if (!email || !password || password.length < 8) {
+    res.status(400).json({ error: "email and password (min 8 chars) required" });
+    return;
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.email, normalizedEmail))
+    .limit(1);
+
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const passwordHash = await hashPassword(password);
+  await db
+    .update(usersTable)
+    .set({ passwordHash })
+    .where(eq(usersTable.id, user.id));
+
   res.json({ success: true });
 });
 
