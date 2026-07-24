@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import { generalLimiter, writeLimiter } from "./middlewares/rateLimiter";
 import router from "./routes";
+import { authLimiter } from "./middlewares/rateLimiter";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -106,6 +107,40 @@ app.use((req, res, next) => {
   } else {
     next();
   }
+});
+
+// Password reset — must be accessible without auth; placed before the main
+// router to avoid hitting requireAuth inside the router stack.
+app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
+  const { email, password } = req.body as { email?: string; password?: string };
+  if (!email || !password || password.length < 8) {
+    res.status(400).json({ error: "email and password (min 8 chars) required" });
+    return;
+  }
+
+  const { db, usersTable } = await import("@workspace/db");
+  const { eq } = await import("drizzle-orm");
+  const { hashPassword } = await import("./lib/auth");
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.email, normalizedEmail))
+    .limit(1);
+
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const passwordHash = await hashPassword(password);
+  await db
+    .update(usersTable)
+    .set({ passwordHash })
+    .where(eq(usersTable.id, user.id));
+
+  res.json({ success: true });
 });
 
 app.use("/api", router);

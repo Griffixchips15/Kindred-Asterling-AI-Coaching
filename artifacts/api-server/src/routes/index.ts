@@ -18,8 +18,6 @@ import remindersRouter from "./reminders";
 import verifyEmailRouter from "./verify-email";
 import adminRouter from "./admin";
 import { requireAuth } from "../middlewares/requireAuth";
-import { authLimiter } from "../middlewares/rateLimiter";
-import { hashPassword } from "../lib/auth";
 import { requireSubscription } from "../middlewares/requireSubscription";
 
 const router: IRouter = Router();
@@ -34,38 +32,6 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(verifyEmailRouter);
 router.use(subscriptionRouter);
-
-// Password reset must be an open, rate-limited endpoint.
-router.post("/auth/reset-password", authLimiter, async (req, res) => {
-  const { email, password } = req.body as { email?: string; password?: string };
-  if (!email || !password || password.length < 8) {
-    res.status(400).json({ error: "email and password (min 8 chars) required" });
-    return;
-  }
-
-  const { db, usersTable } = await import("@workspace/db");
-  const { eq } = await import("drizzle-orm");
-
-  const normalizedEmail = email.trim().toLowerCase();
-  const [user] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.email, normalizedEmail))
-    .limit(1);
-
-  if (!user) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-
-  const passwordHash = await hashPassword(password);
-  await db
-    .update(usersTable)
-    .set({ passwordHash })
-    .where(eq(usersTable.id, user.id));
-
-  res.json({ success: true });
-});
 
 // Admin routes require auth + owner-only (checked within the route file).
 router.use(adminRouter);
