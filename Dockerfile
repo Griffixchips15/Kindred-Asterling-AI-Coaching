@@ -22,7 +22,7 @@ RUN rm -f pnpm-lock.yaml && pnpm install
 
 COPY . .
 
-RUN pnpm -r --if-present run build
+RUN pnpm -r --filter '!@workspace/mockup-sandbox' --if-present run build
 
 FROM node:24-bookworm-slim AS runtime
 
