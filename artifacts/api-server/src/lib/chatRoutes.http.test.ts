@@ -43,7 +43,7 @@ vi.mock("@workspace/integrations-anthropic-ai", () => ({
   },
 }));
 
-const createMock = vi.mocked(anthropic.messages.create);
+const createMock = vi.mocked(anthropic!.messages.create);
 
 function mockReplyOnce(text: string) {
   createMock.mockResolvedValueOnce({
@@ -51,7 +51,7 @@ function mockReplyOnce(text: string) {
     content: [{ type: "text", text }],
     // The route only reads stop_reason + content; the rest of the SDK shape is
     // irrelevant for these tests.
-  } as unknown as Awaited<ReturnType<typeof anthropic.messages.create>>);
+  } as any);
 }
 
 function failReplyOnce() {
@@ -70,7 +70,7 @@ function mockToolUseOnce(
     content: [
       { type: "tool_use", id: toolUseId, name: toolName, input },
     ],
-  } as unknown as Awaited<ReturnType<typeof anthropic.messages.create>>);
+  } as any);
 }
 
 // Mocks a single Claude turn that asks to call several tools at once. The route
@@ -87,7 +87,7 @@ function mockMultiToolUseOnce(
       name: t.name,
       input: t.input ?? {},
     })),
-  } as unknown as Awaited<ReturnType<typeof anthropic.messages.create>>);
+  } as any);
 }
 
 // Mocks an unbounded "always asks for another tool" model so we can prove the
@@ -96,7 +96,7 @@ function mockToolUseAlways(toolName: string, toolUseId = "toolu_loop") {
   createMock.mockResolvedValue({
     stop_reason: "tool_use",
     content: [{ type: "tool_use", id: toolUseId, name: toolName, input: {} }],
-  } as unknown as Awaited<ReturnType<typeof anthropic.messages.create>>);
+  } as any);
 }
 
 const suffix = Math.random().toString(36).slice(2, 10);
@@ -119,6 +119,7 @@ async function makeSession(userId: string): Promise<string> {
       firstName: null,
       lastName: null,
       profileImageUrl: null,
+      emailVerifiedAt: null,
     },
     access_token: "test-access-token",
   });

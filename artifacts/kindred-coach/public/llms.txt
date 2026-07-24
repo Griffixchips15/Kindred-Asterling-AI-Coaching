@@ -13,4 +13,4 @@
 
 Kindred Coach guides users through morning mental-load check-ins, midday body scans (emotions, energy, physical sensations), and evening reflections. It tracks daily habits with streak counting, manages multi-dose medication schedules with dose logging and effectiveness ratings, and provides a 7-day combined report. The in-app AI coach, Kindred, reads the user's profile and recent journal data to give specific, grounded responses — not generic advice.
 
-Access requires a subscription (yearly or lifetime) purchased with Square in-app checkout.
+Access requires a subscription (yearly or lifetime) purchased through Helcim checkout.

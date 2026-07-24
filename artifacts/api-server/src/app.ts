@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
 import pinoHttp from "pino-http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +15,8 @@ const app: Express = express();
 const allowedOrigins = new Set(
   [
     process.env.APP_PUBLIC_URL,
+    "http://localhost:4000",
+    "http://127.0.0.1:4000",
     process.env.RAILWAY_PUBLIC_DOMAIN
       ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
       : undefined,
@@ -27,6 +30,23 @@ const allowedOrigins = new Set(
 );
 
 app.set("trust proxy", 1);
+
+// Security headers — Helmet sets CSP, X-Frame-Options, HSTS, etc.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Allow audio/TTS resources
+}));
 
 app.use(
   pinoHttp({
@@ -51,7 +71,13 @@ app.use(
   cors({
     credentials: true,
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.has(origin.replace(/\/$/, ""))) {
+      // Allow requests with no origin (same-origin, curl, server-to-server)
+      // and any localhost origin (for local dev on any port).
+      if (
+        !origin ||
+        allowedOrigins.has(origin.replace(/\/$/, "")) ||
+        /^https?:\/\/localhost(:\d+)?$/i.test(origin)
+      ) {
         callback(null, true);
         return;
       }
@@ -64,8 +90,8 @@ app.use(
   express.json({
     limit: "32kb",
     verify: (req, _res, buf) => {
-      // Preserve the raw body so the Square webhook route can verify its HMAC
-      // signature over the exact bytes Square sent.
+  // Preserve the raw body so the Helcim webhook route can verify its HMAC
+  // signature over the exact bytes Helcim sent.
       (req as unknown as { rawBody?: Buffer }).rawBody = buf;
     },
   }),

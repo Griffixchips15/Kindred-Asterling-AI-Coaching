@@ -19,12 +19,13 @@ export const GetSubscriptionStatusResponse = zod.object({
   "active": zod.boolean().describe('Whether the user currently has access.'),
   "status": zod.string().describe('Resolved status (active, inactive, bypass, etc.).'),
   "currentPeriodEnd": zod.coerce.date().nullable(),
-  "subscribeUrl": zod.string().nullable().describe('Link to the Square store page where users subscribe.')
+  "source": zod.string().describe('Access source: owner, beta, helcim, or none.'),
+  "subscribeUrl": zod.string().nullable().describe('Link to the Helcim portal for subscription management.')
 })
 
 
 /**
- * @summary Create a Square hosted checkout link for the selected plan
+ * @summary Create a Helcim hosted checkout link for the selected plan
  */
 export const CreateCheckoutHeader = zod.object({
   "Authorization": zod.string().optional().describe('Opaque session token — `Bearer <sid>`.')
@@ -35,7 +36,7 @@ export const CreateCheckoutBody = zod.object({
 })
 
 export const CreateCheckoutResponse = zod.object({
-  "checkoutUrl": zod.string().describe('Square-hosted checkout URL to redirect the buyer to.')
+  "checkoutUrl": zod.string().describe('Helcim-hosted checkout URL to redirect the buyer to.')
 })
 
 

@@ -12,8 +12,10 @@ export interface SubscriptionStatus {
   status: string;
   /** @nullable */
   currentPeriodEnd: string | null;
+  /** Access source: owner, beta, helcim, or none. */
+  source: string;
   /**
-     * Link to the Square store page where users subscribe.
+     * Link to the Helcim portal for subscription management.
      * @nullable
      */
   subscribeUrl: string | null;
@@ -36,7 +38,7 @@ export interface CreateCheckoutInput {
 }
 
 export interface CheckoutLink {
-  /** Square-hosted checkout URL to redirect the buyer to. */
+  /** Helcim-hosted checkout URL to redirect the buyer to. */
   checkoutUrl: string;
 }
 

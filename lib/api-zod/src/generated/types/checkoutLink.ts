@@ -7,6 +7,6 @@
  */
 
 export interface CheckoutLink {
-  /** Square-hosted checkout URL to redirect the buyer to. */
+  /** Helcim-hosted checkout URL to redirect the buyer to. */
   checkoutUrl: string;
 }

@@ -1,35 +1,53 @@
 import { Router, type IRouter, type Request } from "express";
-import { sql } from "drizzle-orm";
-import { db, usersTable } from "@workspace/db";
+import { sql, eq } from "drizzle-orm";
+import { db, usersTable, subscriptionsTable, processedWebhooksTable, entitlementAuditTable } from "@workspace/db";
 import {
   GetSubscriptionStatusResponse,
   CreateCheckoutBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { resolveSubscription } from "../lib/subscriptionService";
+import { logger } from "../lib/logger";
 import {
-  getCustomerEmail,
-  verifyWebhookSignature,
-  isCheckoutConfigured,
-  createSubscriptionCheckoutSession,
-} from "../lib/stripeClient";
+  verifyHelcimWebhook,
+  parseHelcimEvent,
+  getHelcimCustomerEmail,
+  isCheckoutConfigured as isHelcimCheckoutConfigured,
+  type HelcimEventType,
+} from "../lib/helcimClient";
+
+function eventToStatus(eventType: HelcimEventType): string {
+  switch (eventType) {
+    case "checkout.completed":
+    case "subscription.created":
+    case "subscription.renewed":
+    case "invoice.paid":
+      return "active";
+    case "subscription.cancelled":
+      return "active"; // active until period end
+    case "subscription.expired":
+    case "invoice.payment_failed":
+      return "inactive";
+    default:
+      return "inactive";
+  }
+}
+
+function extractPeriodEnd(data: Record<string, unknown>): Date | null {
+  // Try common field names Helcim might use
+  const raw =
+    data.currentPeriodEnd ??
+    data.current_period_end ??
+    data.periodEnd ??
+    data.period_end ??
+    data.renewalDate ??
+    data.renewal_date;
+  if (!raw) return null;
+  const d = new Date(raw as string | number);
+  return isNaN(d.getTime()) ? null : d;
+}
 
 const router: IRouter = Router();
-
-// Where Stripe sends the buyer after a successful payment. Prefer the public
-// deployment domain; fall back to the request origin (covers dev previews).
-function paymentSuccessUrl(req: Request): string {
-  const explicit = process.env.APP_PUBLIC_URL?.replace(/\/$/, "");
-  if (explicit) return `${explicit}/payment-success`;
-  const domain = (process.env.REPLIT_DOMAINS || "")
-    .split(",")
-    .map((d) => d.trim())
-    .filter(Boolean)[0];
-  if (domain) return `https://${domain}/payment-success`;
-  const origin =
-    req.get("origin") || `${req.protocol}://${req.get("host") ?? ""}`;
-  return `${origin.replace(/\/$/, "")}/payment-success`;
-}
 
 // Read the current user's access status. Always returns 200 (active true/false)
 // so the frontend paywall can render — it is NOT gated by requireSubscription.
@@ -46,15 +64,14 @@ router.get(
       active: status.active,
       status: status.status,
       currentPeriodEnd: status.currentPeriodEnd,
+      source: status.source,
       subscribeUrl: null,
     });
     res.json(data);
   },
 );
 
-// Create a Stripe Checkout Session for the chosen plan. Requires auth so the
-// buyer email is the signed-in email (entitlement is matched by email), which
-// also keeps this billable external call off anonymous traffic.
+// Redirect to Helcim's hosted subscription page for the chosen plan.
 router.post(
   "/subscription/checkout",
   requireAuth,
@@ -64,74 +81,153 @@ router.post(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    if (!isCheckoutConfigured()) {
+    if (!isHelcimCheckoutConfigured()) {
       res.status(503).json({ error: "Checkout is not configured yet." });
       return;
     }
-    try {
-      const { url } = await createSubscriptionCheckoutSession({
-        planType: parsed.data.planType,
-        buyerEmail: req.user!.email ?? null,
-        buyerId: req.user!.id,
-        redirectUrl: paymentSuccessUrl(req),
-      });
-      res.json({ checkoutUrl: url });
-    } catch (err) {
-      req.log.error({ err }, "stripe checkout session creation failed");
-      res.status(502).json({ error: "Could not start checkout." });
+
+    const planType = parsed.data.planType;
+    const url =
+      planType === "yearly"
+        ? process.env.HELCIM_YEARLY_CHECKOUT_URL
+        : process.env.HELCIM_LIFETIME_CHECKOUT_URL;
+
+    if (!url) {
+      res.status(503).json({ error: `No checkout URL configured for ${planType} plan.` });
+      return;
     }
+
+    res.json({ checkoutUrl: url });
   },
 );
 
-// Stripe calls this when a subscription is created/updated/canceled or an
-// invoice is paid. No session auth — authenticity is the Stripe signature. We
-// map the event's customer to one of our users by email and refresh their status.
-router.post("/stripe/webhook", async (req, res): Promise<void> => {
-  const signature = req.header("stripe-signature");
+// Helcim webhook endpoint. Helcim signs payloads with HMAC-SHA256 using a
+// per-account verifier token sent in webhook-id / webhook-timestamp / webhook-signature headers.
+router.post("/payment/webhook", async (req, res): Promise<void> => {
   const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
-  const payloadForSig = rawBody ?? Buffer.from(JSON.stringify(req.body ?? {}));
+  const bodyStr = rawBody
+    ? rawBody.toString("utf8")
+    : JSON.stringify(req.body ?? {});
 
-  if (!verifyWebhookSignature(payloadForSig, signature)) {
+  const webhookId = req.header("webhook-id");
+  const webhookTimestamp = req.header("webhook-timestamp");
+  const webhookSignature = req.header("webhook-signature");
+
+  // If no signature headers are present, this is a Helcim URL-verification ping.
+  // Return 200 so Helcim accepts the webhook URL.
+  if (!webhookId || !webhookTimestamp || !webhookSignature) {
+    logger.info("Helcim webhook ping (no signature headers) — returning OK");
+    res.json({ received: true });
+    return;
+  }
+
+  const sigResult = verifyHelcimWebhook(bodyStr, {
+    "webhook-id": webhookId,
+    "webhook-timestamp": webhookTimestamp,
+    "webhook-signature": webhookSignature,
+  });
+
+  if (!sigResult) {
     res.status(401).json({ error: "Invalid signature" });
     return;
   }
 
-  try {
-    const event = req.body;
-    let customerId: string | null = null;
+  // Prevent replay: skip if this event ID was already processed
+  const [existing] = await db
+    .select({ webhookId: processedWebhooksTable.webhookId })
+    .from(processedWebhooksTable)
+    .where(eq(processedWebhooksTable.webhookId, webhookId))
+    .limit(1);
+  if (existing) {
+    logger.info({ webhookId }, "Duplicate webhook event — skipping");
+    res.json({ received: true });
+    return;
+  }
 
-    if (
-      event.type === "checkout.session.completed" ||
-      event.type === "customer.subscription.updated" ||
-      event.type === "customer.subscription.deleted"
-    ) {
-      const obj = event.data?.object;
-      customerId = obj?.customer ?? null;
-    } else if (event.type === "invoice.payment_succeeded") {
-      customerId = event.data?.object?.customer ?? null;
+  try {
+    const event = parseHelcimEvent(req.body);
+    let customerId: string | null = event.customerId ?? null;
+
+    if (!customerId && event.data) {
+      customerId = (event.data.customerId ?? event.data.customer_id) as string | null;
     }
 
     if (customerId) {
-      const email = await getCustomerEmail(customerId);
-      if (email) {
-        const [u] = await db
-          .select()
-          .from(usersTable)
-          .where(sql`lower(${usersTable.email}) = ${email.trim().toLowerCase()}`)
-          .limit(1);
-        if (u) {
-          await resolveSubscription(
-            { id: u.id, email: u.email },
-            { forceRefresh: true },
-          );
+      // Validate event type is known before modifying access
+      const allowedEvents: HelcimEventType[] = [
+        "checkout.completed", "subscription.created", "subscription.renewed",
+        "subscription.cancelled", "subscription.expired", "invoice.paid", "invoice.payment_failed",
+      ];
+      if (!allowedEvents.includes(event.eventType)) {
+        logger.warn({ eventType: event.eventType }, "Unknown Helcim event type — skipping");
+      } else {
+        const email =
+          event.customerEmail ?? (await getHelcimCustomerEmail(customerId));
+        if (email) {
+          const [u] = await db
+            .select()
+            .from(usersTable)
+            .where(sql`lower(${usersTable.email}) = ${email.trim().toLowerCase()}`)
+            .limit(1);
+          if (u) {
+            const status = eventToStatus(event.eventType);
+            const periodEnd = extractPeriodEnd(event.data ?? {});
+            const subId = event.subscriptionId ?? null;
+
+            await db
+              .insert(subscriptionsTable)
+              .values({
+                userId: u.id,
+                email: u.email,
+                status,
+                paymentCustomerId: customerId,
+                paymentSubscriptionId: subId,
+                currentPeriodEnd: periodEnd,
+                lastCheckedAt: new Date(),
+              })
+              .onConflictDoUpdate({
+                target: subscriptionsTable.userId,
+                set: {
+                  email: u.email,
+                  status,
+                  paymentCustomerId: customerId,
+                  paymentSubscriptionId: subId,
+                  currentPeriodEnd: periodEnd,
+                  lastCheckedAt: new Date(),
+                },
+              });
+
+            await db.insert(entitlementAuditTable).values({
+              userId: u.id,
+              action: `helcim_${event.eventType}`,
+              metadata: {
+                customerId,
+                subscriptionId: subId,
+                status,
+                periodEnd: periodEnd?.toISOString(),
+              },
+            });
+
+            logger.info(
+              { eventType: event.eventType, userId: u.id, status },
+              "Helcim webhook — subscription upserted",
+            );
+          }
         }
       }
     }
+
+    // Mark event as processed in PostgreSQL
+    await db.insert(processedWebhooksTable).values({
+      webhookId,
+      eventType: event.eventType,
+    }).onConflictDoNothing();
   } catch (err) {
-    req.log.error({ err }, "stripe webhook processing failed");
+    logger.error({ err }, "Helcim webhook processing failed");
+    res.status(500).json({ error: "Webhook processing failed" });
+    return;
   }
 
-  // Always 200 after a valid signature so Stripe stops retrying.
   res.json({ received: true });
 });
 

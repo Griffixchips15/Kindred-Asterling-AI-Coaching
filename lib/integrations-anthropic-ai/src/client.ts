@@ -5,12 +5,14 @@ const apiKey =
   process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
 
 if (!apiKey) {
-  throw new Error(
-    "ANTHROPIC_API_KEY must be set (or AI_INTEGRATIONS_ANTHROPIC_API_KEY if using the Replit-managed integration).",
+  console.warn(
+    "ANTHROPIC_API_KEY not set — Anthropic features will be unavailable.",
   );
 }
 
-export const anthropic = new Anthropic({
-  apiKey,
-  baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
-});
+export const anthropic = apiKey
+  ? new Anthropic({
+      apiKey,
+      baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+    })
+  : null;

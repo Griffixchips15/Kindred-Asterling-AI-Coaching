@@ -12,24 +12,8 @@ import type { Server } from "node:http";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 
-// The checkout route's only external dependency is the Stripe REST client, which
-// we stub so the test exercises the real Express route (auth, body validation,
-// 503-when-unconfigured, success shape) without any network call or token cost.
-vi.mock("./stripeClient", () => ({
-  isStripeConfigured: vi.fn(() => true),
-  isCheckoutConfigured: vi.fn(() => true),
-  createSubscriptionCheckoutSession: vi.fn(),
-  getActiveSubscriptionByEmail: vi.fn(),
-  getCustomerEmail: vi.fn(),
-  verifyWebhookSignature: vi.fn(() => true),
-}));
-
 import app from "../app";
 import { createSession, deleteSession } from "./auth";
-import * as stripe from "./stripeClient";
-
-const mockIsCheckoutConfigured = vi.mocked(stripe.isCheckoutConfigured);
-const mockCreateSession = vi.mocked(stripe.createSubscriptionCheckoutSession);
 
 const suffix = Math.random().toString(36).slice(2, 10);
 const userId = `test-checkout-${suffix}`;
@@ -48,6 +32,7 @@ async function makeSession(uid: string): Promise<string> {
       firstName: null,
       lastName: null,
       profileImageUrl: null,
+      emailVerifiedAt: null,
     },
     access_token: "test-access-token",
   });
@@ -105,18 +90,16 @@ afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  mockIsCheckoutConfigured.mockReturnValue(true);
-});
-
 describe("POST /api/subscription/checkout", () => {
-  it("rejects anonymous callers with 401 and never calls Stripe", async () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("rejects anonymous callers with 401", async () => {
     const res = await api("POST", "/api/subscription/checkout", {
       body: { planType: "yearly" },
     });
     expect(res.status).toBe(401);
-    expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid planType with 400", async () => {
@@ -125,46 +108,48 @@ describe("POST /api/subscription/checkout", () => {
       body: { planType: "monthly" },
     });
     expect(res.status).toBe(400);
-    expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
-  it("returns 503 when checkout is not configured", async () => {
-    mockIsCheckoutConfigured.mockReturnValue(false);
+  it("returns 503 when checkout env vars are not set", async () => {
+    const yearlyUrl = process.env.HELCIM_YEARLY_CHECKOUT_URL;
+    delete process.env.HELCIM_YEARLY_CHECKOUT_URL;
     const res = await api("POST", "/api/subscription/checkout", {
       token,
       body: { planType: "yearly" },
     });
     expect(res.status).toBe(503);
-    expect(mockCreateSession).not.toHaveBeenCalled();
+    if (yearlyUrl) process.env.HELCIM_YEARLY_CHECKOUT_URL = yearlyUrl;
   });
 
-  it("returns the Stripe checkout URL for an authenticated buyer", async () => {
-    mockCreateSession.mockResolvedValue({
-      sessionId: "cs_test_123",
-      url: "https://checkout.stripe.com/c/pay/cs_test_123",
+  it("returns the Helcim checkout URL for an authenticated buyer", async () => {
+    process.env.HELCIM_YEARLY_CHECKOUT_URL = "https://subscriptions.helcim.com/subscribe/test123";
+    process.env.HELCIM_LIFETIME_CHECKOUT_URL = "https://subscriptions.helcim.com/subscribe/test456";
+    process.env.HELCIM_API_KEY = "test-key";
+    process.env.HELCIM_WEBHOOK_SECRET = "dGVzdC1zZWNyZXQ=";
+
+    const res = await api("POST", "/api/subscription/checkout", {
+      token,
+      body: { planType: "yearly" },
     });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      checkoutUrl: "https://subscriptions.helcim.com/subscribe/test123",
+    });
+  });
+
+  it("returns the lifetime Helcim checkout URL", async () => {
+    process.env.HELCIM_YEARLY_CHECKOUT_URL = "https://subscriptions.helcim.com/subscribe/test123";
+    process.env.HELCIM_LIFETIME_CHECKOUT_URL = "https://subscriptions.helcim.com/subscribe/test456";
+    process.env.HELCIM_API_KEY = "test-key";
+    process.env.HELCIM_WEBHOOK_SECRET = "dGVzdC1zZWNyZXQ=";
+
     const res = await api("POST", "/api/subscription/checkout", {
       token,
       body: { planType: "lifetime" },
     });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
-      checkoutUrl: "https://checkout.stripe.com/c/pay/cs_test_123",
+      checkoutUrl: "https://subscriptions.helcim.com/subscribe/test456",
     });
-    // Identity comes from the session, not the request body.
-    expect(mockCreateSession).toHaveBeenCalledTimes(1);
-    expect(mockCreateSession.mock.calls[0]![0]).toMatchObject({
-      planType: "lifetime",
-      buyerEmail: email,
-    });
-  });
-
-  it("returns 502 when the Stripe call fails", async () => {
-    mockCreateSession.mockRejectedValue(new Error("stripe down"));
-    const res = await api("POST", "/api/subscription/checkout", {
-      token,
-      body: { planType: "yearly" },
-    });
-    expect(res.status).toBe(502);
   });
 });

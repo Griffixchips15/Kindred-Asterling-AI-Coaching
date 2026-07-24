@@ -9,3 +9,6 @@ export * from "./messages";
 export * from "./medications";
 export * from "./subscriptions";
 export * from "./reminders";
+export * from "./beta";
+export * from "./audit";
+export * from "./webhooks";

@@ -13,6 +13,7 @@ export interface SessionUser {
   firstName: string | null;
   lastName: string | null;
   profileImageUrl: string | null;
+  emailVerifiedAt: Date | null;
 }
 
 export interface SessionData {
@@ -33,10 +34,16 @@ export async function verifyPassword(
   return bcrypt.compare(password, hash);
 }
 
+// Hash a session ID with SHA-256 before storing in the DB so that a database
+// breach doesn't directly yield usable session tokens.
+function hashSessionId(sid: string): string {
+  return crypto.createHash("sha256").update(sid).digest("hex");
+}
+
 export async function createSession(data: SessionData): Promise<string> {
   const sid = crypto.randomBytes(32).toString("hex");
   await db.insert(sessionsTable).values({
-    sid,
+    sid: hashSessionId(sid),
     sess: data as unknown as Record<string, unknown>,
     expire: new Date(Date.now() + SESSION_TTL),
   });
@@ -47,7 +54,7 @@ export async function getSession(sid: string): Promise<SessionData | null> {
   const [row] = await db
     .select()
     .from(sessionsTable)
-    .where(eq(sessionsTable.sid, sid));
+    .where(eq(sessionsTable.sid, hashSessionId(sid)));
 
   if (!row || row.expire < new Date()) {
     if (row) await deleteSession(sid);
@@ -67,11 +74,11 @@ export async function updateSession(
       sess: data as unknown as Record<string, unknown>,
       expire: new Date(Date.now() + SESSION_TTL),
     })
-    .where(eq(sessionsTable.sid, sid));
+    .where(eq(sessionsTable.sid, hashSessionId(sid)));
 }
 
 export async function deleteSession(sid: string): Promise<void> {
-  await db.delete(sessionsTable).where(eq(sessionsTable.sid, sid));
+  await db.delete(sessionsTable).where(eq(sessionsTable.sid, hashSessionId(sid)));
 }
 
 export async function clearSession(

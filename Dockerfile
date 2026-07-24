@@ -2,6 +2,9 @@ FROM node:24-bookworm-slim AS build
 
 ARG CACHEBUST=1
 
+# Force cache invalidation for stripe catalog removal
+RUN echo "cachebust-stripe-removal-2026-07-23"
+
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 

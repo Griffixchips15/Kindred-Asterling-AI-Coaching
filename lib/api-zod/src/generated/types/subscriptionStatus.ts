@@ -13,8 +13,10 @@ export interface SubscriptionStatus {
   status: string;
   /** @nullable */
   currentPeriodEnd: Date | null;
+  /** Access source: owner, beta, helcim, or none. */
+  source: string;
   /**
-     * Link to the Square store page where users subscribe.
+     * Link to the Helcim portal for subscription management.
      * @nullable
      */
   subscribeUrl: string | null;

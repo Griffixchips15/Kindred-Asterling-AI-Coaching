@@ -165,7 +165,7 @@ export const getCreateCheckoutUrl = () => {
 }
 
 /**
- * @summary Create a Square hosted checkout link for the selected plan
+ * @summary Create a Helcim hosted checkout link for the selected plan
  */
 export const createCheckout = async (createCheckoutInput: CreateCheckoutInput, options?: RequestInit): Promise<CheckoutLink> => {
 

@@ -175,6 +175,17 @@ export default function Profile() {
             <p className="italic text-foreground/90">{todayAff.text}</p>
           </div>
         ) : null}
+
+        <div className="mt-5 border-t border-border pt-4">
+          <a
+            href="https://kindred-asterling-ai.helcim.app/login"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-primary underline underline-offset-2 hover:text-primary/80"
+          >
+            Manage billing & subscription
+          </a>
+        </div>
       </section>
 
       {/* Editable fields */}

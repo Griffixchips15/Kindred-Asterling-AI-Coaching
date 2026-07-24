@@ -32,7 +32,7 @@ tags:
   - name: chat
     description: AI coaching chat and archive
   - name: subscription
-    description: Square subscription access status
+    description: Helcim subscription access status
 
 paths:
   /subscription/status:
@@ -59,7 +59,7 @@ paths:
     post:
       tags: [subscription]
       operationId: createCheckout
-      summary: Create a Square hosted checkout link for the selected plan
+      summary: Create a Helcim hosted checkout link for the selected plan
       security:
         - sessionCookie: []
         - bearerSession: []
@@ -910,7 +910,7 @@ components:
   schemas:
     SubscriptionStatus:
       type: object
-      required: [active, status, currentPeriodEnd, subscribeUrl]
+      required: [active, status, currentPeriodEnd, source, subscribeUrl]
       properties:
         active:
           type: boolean
@@ -919,11 +919,16 @@ components:
           type: string
           description: Resolved status (active, inactive, bypass, etc.).
         currentPeriodEnd:
-          type: [string, 'null']
+          type: string
+          nullable: true
           format: date-time
+        source:
+          type: string
+          description: 'Access source: owner, beta, helcim, or none.'
         subscribeUrl:
-          type: [string, 'null']
-          description: Link to the Square store page where users subscribe.
+          type: string
+          nullable: true
+          description: Link to the Helcim portal for subscription management.
     CreateCheckoutInput:
       type: object
       required: [planType]
@@ -938,7 +943,7 @@ components:
       properties:
         checkoutUrl:
           type: string
-          description: Square-hosted checkout URL to redirect the buyer to.
+          description: Helcim-hosted checkout URL to redirect the buyer to.
     AuthUser:
       type: object
       required: [id, email, firstName, lastName, profileImageUrl, preferredName, birthday, struggles, strengths, interests, bio, motivationalQuote, phone, timezone, onboardedAt]
@@ -946,34 +951,48 @@ components:
         id:
           type: string
         email:
-          type: [string, 'null']
+          type: string
+          nullable: true
           format: email
         firstName:
-          type: [string, 'null']
+          type: string
+          nullable: true
         lastName:
-          type: [string, 'null']
+          type: string
+          nullable: true
         profileImageUrl:
-          type: [string, 'null']
+          type: string
+          nullable: true
         preferredName:
-          type: [string, 'null']
+          type: string
+          nullable: true
         birthday:
-          type: [string, 'null']
+          type: string
+          nullable: true
         struggles:
-          type: [string, 'null']
+          type: string
+          nullable: true
         strengths:
-          type: [string, 'null']
+          type: string
+          nullable: true
         interests:
-          type: [string, 'null']
+          type: string
+          nullable: true
         bio:
-          type: [string, 'null']
+          type: string
+          nullable: true
         motivationalQuote:
-          type: [string, 'null']
+          type: string
+          nullable: true
         phone:
-          type: [string, 'null']
+          type: string
+          nullable: true
         timezone:
-          type: [string, 'null']
+          type: string
+          nullable: true
         onboardedAt:
-          type: [string, 'null']
+          type: string
+          nullable: true
           format: date-time
     AuthUserEnvelope:
       type: object
@@ -1052,7 +1071,8 @@ components:
           items:
             type: string
         notes:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         createdAt:
           type: string
 
@@ -1089,9 +1109,11 @@ components:
         energyLevel:
           type: integer
         physicalSensations:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         notes:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         createdAt:
           type: string
 
@@ -1127,13 +1149,17 @@ components:
         medicationEffectiveness:
           type: integer
         overallMood:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         wins:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         challenges:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         tomorrowIntent:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         createdAt:
           type: string
 
@@ -1167,7 +1193,8 @@ components:
         name:
           type: string
         description:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         targetDays:
           type: integer
         startDate:
@@ -1219,7 +1246,8 @@ components:
         completed:
           type: boolean
         notes:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         createdAt:
           type: string
 
@@ -1252,7 +1280,8 @@ components:
         totalHabits:
           type: integer
         currentMentalLoad:
-          type: ["string", "null"]
+          type: string
+          nullable: true
 
     HabitStreak:
       type: object
@@ -1275,36 +1304,46 @@ components:
       type: object
       properties:
         preferredName:
-          type: [string, 'null']
+          type: string
+          nullable: true
           maxLength: 80
         birthday:
-          type: [string, 'null']
+          type: string
+          nullable: true
           format: date
         struggles:
-          type: [string, 'null']
+          type: string
+          nullable: true
           maxLength: 500
         strengths:
-          type: [string, 'null']
+          type: string
+          nullable: true
           maxLength: 500
         interests:
-          type: [string, 'null']
+          type: string
+          nullable: true
           maxLength: 500
         bio:
-          type: [string, 'null']
+          type: string
+          nullable: true
           maxLength: 1000
         motivationalQuote:
-          type: [string, 'null']
+          type: string
+          nullable: true
           maxLength: 280
         phone:
-          type: [string, 'null']
+          type: string
+          nullable: true
           maxLength: 32
           description: Phone number in E.164 format (e.g. +14155550123) for SMS reminders.
         timezone:
-          type: [string, 'null']
+          type: string
+          nullable: true
           maxLength: 64
           description: IANA timezone name (e.g. America/New_York) used to schedule reminders.
         onboardedAt:
-          type: [string, 'null']
+          type: string
+          nullable: true
           format: date-time
       additionalProperties: false
 
@@ -1351,11 +1390,13 @@ components:
         emailEnabled:
           type: boolean
         phone:
-          type: [string, 'null']
+          type: string
+          nullable: true
           maxLength: 32
           description: Phone number in E.164 format (e.g. +14155550123) for SMS reminders. Saved on the user profile in the same transaction.
         timezone:
-          type: [string, 'null']
+          type: string
+          nullable: true
           maxLength: 64
           description: IANA timezone name (e.g. America/New_York) used to schedule reminders. Saved on the user profile in the same transaction.
       additionalProperties: false
@@ -1392,7 +1433,8 @@ components:
           type: string
           format: date-time
         archivedAt:
-          type: [string, 'null']
+          type: string
+          nullable: true
           format: date-time
 
     ChatConversationWithMessages:
@@ -1472,7 +1514,8 @@ components:
             type: string
             pattern: '^([01]\d|2[0-3]):[0-5]\d$'
         notes:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         createdAt:
           type: string
 
@@ -1496,7 +1539,8 @@ components:
             type: string
             pattern: '^([01]\d|2[0-3]):[0-5]\d$'
         notes:
-          type: ["string", "null"]
+          type: string
+          nullable: true
           maxLength: 500
 
     MedicationDoseStatus:
@@ -1507,10 +1551,12 @@ components:
           type: string
           description: HH:MM scheduled time for this dose
         takenAt:
-          type: ["string", "null"]
+          type: string
+          nullable: true
           description: ISO timestamp of today's intake for this dose, or null if not taken yet
         effectiveness:
-          type: ["integer", "null"]
+          type: integer
+          nullable: true
           description: 1-10 effectiveness rating for this dose today, if rated
           minimum: 1
           maximum: 10
@@ -1527,7 +1573,8 @@ components:
               items:
                 $ref: '#/components/schemas/MedicationDoseStatus'
             recentEffectivenessAvg:
-              type: ["number", "null"]
+              type: number
+              nullable: true
               description: Average effectiveness over the last 7 days across all doses, or null if no ratings yet
             recentEffectivenessCount:
               type: integer
@@ -1548,7 +1595,8 @@ components:
         takenAt:
           type: string
         effectiveness:
-          type: ["integer", "null"]
+          type: integer
+          nullable: true
           minimum: 1
           maximum: 10
 
@@ -1579,7 +1627,8 @@ components:
           pattern: '^([01]\d|2[0-3]):[0-5]\d$'
           description: Which scheduled dose (HH:MM) is being marked taken
         effectiveness:
-          type: ["integer", "null"]
+          type: integer
+          nullable: true
           minimum: 1
           maximum: 10
           description: How effective this dose felt, on a 1-10 scale
@@ -1627,7 +1676,8 @@ components:
                       type: string
                       description: YYYY-MM-DD, inclusive first day this time was in effect
                     endDate:
-                      type: ["string", "null"]
+                      type: string
+                      nullable: true
                       description: YYYY-MM-DD exclusive end day, or null if still active
               createdDate:
                 type: string
@@ -1648,7 +1698,8 @@ components:
               takenAt:
                 type: string
               effectiveness:
-                type: ["integer", "null"]
+                type: integer
+                nullable: true
 
     MoodTrendPoint:
       type: object
@@ -1657,8 +1708,10 @@ components:
         date:
           type: string
         mentalLoadLevel:
-          type: ["string", "null"]
+          type: string
+          nullable: true
         bodyScansCount:
           type: integer
         medicationEffectiveness:
-          type: ["integer", "null"]
+          type: integer
+          nullable: true

@@ -4,8 +4,8 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-// Square redirects here after a successful payment. Entitlement is granted
-// asynchronously (Square webhook → cached subscription row), so we give the user
+// Helcim redirects here after a successful payment. Entitlement is granted
+// asynchronously (Helcim webhook → cached subscription row), so we give the user
 // a clear success state plus a "check access" action that re-verifies before
 // sending them into the app.
 export default function PaymentSuccess() {

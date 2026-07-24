@@ -11,8 +11,8 @@ interface CheckoutButtonProps {
   className?: string;
 }
 
-// Starts an in-app Stripe checkout. If the visitor isn't signed in yet we send
-// them through login first (returning to /pricing) so the Stripe payment is tied
+// Starts an in-app Helcim checkout. If the visitor isn't signed in yet we send
+// them through login first (returning to /pricing) so the Helcim payment is tied
 // to the same email they sign in with — that's how access is granted.
 export function CheckoutButton({
   planType,

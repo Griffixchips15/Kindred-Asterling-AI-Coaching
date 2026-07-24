@@ -25,7 +25,7 @@ const LIFETIME_FEATURES = [
 
 const TRUST = [
   { icon: Lock, label: "Private by design — your reflections stay yours" },
-  { icon: ShieldCheck, label: "Secure checkout powered by Stripe" },
+  { icon: ShieldCheck, label: "Secure checkout with end-to-end encryption" },
   { icon: HeartHandshake, label: "A companion to care, never a replacement" },
 ];
 
@@ -129,6 +129,20 @@ export default function Pricing() {
               </span>
             </div>
           ))}
+        </div>
+
+        <div className="mt-8 text-center">
+          <p className="text-muted-foreground text-sm">
+            Already have a subscription?{" "}
+            <a
+              href="https://kindred-asterling-ai.helcim.app/login"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-primary underline underline-offset-2 hover:text-primary/80"
+            >
+              Manage your billing
+            </a>
+          </p>
         </div>
       </section>
     </div>

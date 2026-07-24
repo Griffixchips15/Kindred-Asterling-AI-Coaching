@@ -107,10 +107,9 @@ function buildMessage(
     };
   }
   const link = appUrl("/app/medications");
-  const meds = due.detail ? ` ${due.detail}` : "";
   return {
     subject: "Medication reminder from Kindred",
-    text: `Hi${hi}, it's Kindred. Time for your${meds} dose (${due.doseTime}).${link ? `\n\n${link}` : ""}`,
+    text: `Hi${hi}, it's Kindred. Time for your medication dose (${due.doseTime}). Open Kindred for details.${link ? `\n\n${link}` : ""}`,
   };
 }
 
