@@ -173,32 +173,4 @@ router.post("/auth/logout", async (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-router.post("/auth/reset-password", authLimiter, async (req: Request, res: Response) => {
-  const { email, password } = req.body as { email?: string; password?: string };
-  if (!email || !password || password.length < 8) {
-    res.status(400).json({ error: "email and password (min 8 chars) required" });
-    return;
-  }
-
-  const normalizedEmail = email.trim().toLowerCase();
-  const [user] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.email, normalizedEmail))
-    .limit(1);
-
-  if (!user) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-
-  const passwordHash = await hashPassword(password);
-  await db
-    .update(usersTable)
-    .set({ passwordHash })
-    .where(eq(usersTable.id, user.id));
-
-  res.json({ success: true });
-});
-
 export default router;
