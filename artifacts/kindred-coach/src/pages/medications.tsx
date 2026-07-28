@@ -11,7 +11,16 @@ import {
   type MedicationWithStatus,
   type MedicationDoseStatus,
 } from "@workspace/api-client-react";
-import { Pill, Plus, Pencil, Trash2, Check, X, Clock, Sparkles } from "lucide-react";
+import {
+  Pill,
+  Plus,
+  Pencil,
+  Trash2,
+  Check,
+  X,
+  Clock,
+  Sparkles,
+} from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +31,15 @@ type FormState = {
   notes: string;
 };
 
-const EMPTY_FORM: FormState = { name: "", dosage: "", times: ["08:00"], notes: "" };
+const INPUT_CLASS =
+  "w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30";
+
+const EMPTY_FORM: FormState = {
+  name: "",
+  dosage: "",
+  times: ["08:00"],
+  notes: "",
+};
 const RATING_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -119,14 +136,23 @@ export default function Medications() {
     }
   }
 
-  async function toggleDose(m: MedicationWithStatus, dose: MedicationDoseStatus) {
+  async function toggleDose(
+    m: MedicationWithStatus,
+    dose: MedicationDoseStatus,
+  ) {
     setBusy(true);
     try {
       const tzOffset = new Date().getTimezoneOffset();
       if (dose.takenAt) {
-        await unlogMedicationTaken(m.id, { scheduledTime: dose.scheduledTime, tzOffset });
+        await unlogMedicationTaken(m.id, {
+          scheduledTime: dose.scheduledTime,
+          tzOffset,
+        });
       } else {
-        await logMedicationTaken(m.id, { scheduledTime: dose.scheduledTime, tzOffset });
+        await logMedicationTaken(m.id, {
+          scheduledTime: dose.scheduledTime,
+          tzOffset,
+        });
       }
       await refresh();
     } finally {
@@ -134,7 +160,11 @@ export default function Medications() {
     }
   }
 
-  async function rateDose(m: MedicationWithStatus, dose: MedicationDoseStatus, score: number) {
+  async function rateDose(
+    m: MedicationWithStatus,
+    dose: MedicationDoseStatus,
+    score: number,
+  ) {
     setBusy(true);
     try {
       // Logging is idempotent on the server — this both marks the dose taken
@@ -160,9 +190,12 @@ export default function Medications() {
     <div className="space-y-6">
       <header className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-serif text-primary tracking-tight">Medications</h1>
+          <h1 className="text-2xl font-serif text-primary tracking-tight">
+            Medications
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Track your schedule, mark each dose as taken, and rate how well it's working — Kindred uses your ratings to spot patterns over time.
+            Track your schedule, mark each dose as taken, and rate how well it's
+            working — Kindred uses your ratings to spot patterns over time.
           </p>
         </div>
         <button
@@ -199,7 +232,10 @@ export default function Medications() {
         {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
         {!isLoading && meds.length === 0 && editingId !== "new" && (
           <div className="rounded-lg border border-dashed border-border p-8 text-center">
-            <Pill className="w-8 h-8 mx-auto text-muted-foreground/60" strokeWidth={1.5} />
+            <Pill
+              className="w-8 h-8 mx-auto text-muted-foreground/60"
+              strokeWidth={1.5}
+            />
             <p className="mt-3 text-sm text-muted-foreground">
               No medications yet. Add one to start tracking.
             </p>
@@ -272,7 +308,9 @@ function MedRow({
               <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
                 <Sparkles className="w-3 h-3" />
                 7-day avg{" "}
-                <span className={cn("font-medium", ratingTone(Math.round(avg)))}>
+                <span
+                  className={cn("font-medium", ratingTone(Math.round(avg)))}
+                >
                   {avg.toFixed(1)}/10
                 </span>
                 <span className="text-muted-foreground/70">({avgCount})</span>
@@ -280,7 +318,9 @@ function MedRow({
             )}
           </div>
           {med.notes && (
-            <p className="text-xs text-muted-foreground/80 mt-1.5 italic">{med.notes}</p>
+            <p className="text-xs text-muted-foreground/80 mt-1.5 italic">
+              {med.notes}
+            </p>
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -363,7 +403,9 @@ function DoseControl({
         </button>
         <div className="flex items-center gap-1.5 text-sm">
           <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="font-medium">{formatTimeLabel(dose.scheduledTime)}</span>
+          <span className="font-medium">
+            {formatTimeLabel(dose.scheduledTime)}
+          </span>
           {taken && dose.takenAt && (
             <span className="text-xs text-primary">
               · taken {format(parseISO(dose.takenAt), "p")}
@@ -414,6 +456,102 @@ function DoseControl({
   );
 }
 
+function FormInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  testId,
+  containerClassName,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  testId: string;
+  containerClassName?: string;
+}) {
+  return (
+    <div className={containerClassName}>
+      <label className="block text-xs text-muted-foreground mb-1">
+        {label}
+      </label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={INPUT_CLASS}
+        placeholder={placeholder}
+        data-testid={testId}
+      />
+    </div>
+  );
+}
+
+function ScheduledTimesInput({
+  times,
+  onChange,
+}: {
+  times: string[];
+  onChange: (times: string[]) => void;
+}) {
+  function setTime(idx: number, value: string) {
+    const next = [...times];
+    next[idx] = value;
+    onChange(next);
+  }
+  function addTime() {
+    onChange([...times, "20:00"]);
+  }
+  function removeTime(idx: number) {
+    if (times.length <= 1) return;
+    onChange(times.filter((_, i) => i !== idx));
+  }
+
+  const validTimes = normalizeTimes(times).length;
+
+  return (
+    <div className="sm:col-span-2">
+      <label className="block text-xs text-muted-foreground mb-1">
+        Scheduled times
+      </label>
+      <div className="space-y-2">
+        {times.map((t, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            <input
+              type="time"
+              value={t}
+              onChange={(e) => setTime(idx, e.target.value)}
+              className={cn(INPUT_CLASS, "max-w-[10rem]")}
+              data-testid={`form-time-${idx}`}
+            />
+            <button
+              onClick={() => removeTime(idx)}
+              disabled={times.length <= 1}
+              className="p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 transition-colors"
+              aria-label="Remove time"
+              data-testid={`remove-time-${idx}`}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={addTime}
+        className="mt-2 flex items-center gap-1.5 text-sm text-primary hover:underline"
+        data-testid="add-time"
+      >
+        <Plus className="w-4 h-4" /> Add another time
+      </button>
+      {validTimes === 0 && (
+        <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1.5">
+          Add at least one valid time.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function MedForm({
   form,
   setForm,
@@ -429,22 +567,6 @@ function MedForm({
   busy: boolean;
   title: string;
 }) {
-  const inputClass =
-    "w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30";
-
-  function setTime(idx: number, value: string) {
-    const next = [...form.times];
-    next[idx] = value;
-    setForm({ ...form, times: next });
-  }
-  function addTime() {
-    setForm({ ...form, times: [...form.times, "20:00"] });
-  }
-  function removeTime(idx: number) {
-    if (form.times.length <= 1) return;
-    setForm({ ...form, times: form.times.filter((_, i) => i !== idx) });
-  }
-
   const validTimes = normalizeTimes(form.times).length;
 
   return (
@@ -460,75 +582,32 @@ function MedForm({
         </button>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs text-muted-foreground mb-1">Name</label>
-          <input
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className={inputClass}
-            placeholder="e.g. Sertraline"
-            data-testid="form-name"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-muted-foreground mb-1">Dosage</label>
-          <input
-            value={form.dosage}
-            onChange={(e) => setForm({ ...form, dosage: e.target.value })}
-            className={inputClass}
-            placeholder="e.g. 50mg"
-            data-testid="form-dosage"
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="block text-xs text-muted-foreground mb-1">
-            Scheduled times
-          </label>
-          <div className="space-y-2">
-            {form.times.map((t, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <input
-                  type="time"
-                  value={t}
-                  onChange={(e) => setTime(idx, e.target.value)}
-                  className={cn(inputClass, "max-w-[10rem]")}
-                  data-testid={`form-time-${idx}`}
-                />
-                <button
-                  onClick={() => removeTime(idx)}
-                  disabled={form.times.length <= 1}
-                  className="p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 transition-colors"
-                  aria-label="Remove time"
-                  data-testid={`remove-time-${idx}`}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-          <button
-            onClick={addTime}
-            className="mt-2 flex items-center gap-1.5 text-sm text-primary hover:underline"
-            data-testid="add-time"
-          >
-            <Plus className="w-4 h-4" /> Add another time
-          </button>
-          {validTimes === 0 && (
-            <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1.5">
-              Add at least one valid time.
-            </p>
-          )}
-        </div>
-        <div className="sm:col-span-2">
-          <label className="block text-xs text-muted-foreground mb-1">Notes (optional)</label>
-          <input
-            value={form.notes}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            className={inputClass}
-            placeholder="e.g. with food"
-            data-testid="form-notes"
-          />
-        </div>
+        <FormInput
+          label="Name"
+          value={form.name}
+          onChange={(val) => setForm({ ...form, name: val })}
+          placeholder="e.g. Sertraline"
+          testId="form-name"
+        />
+        <FormInput
+          label="Dosage"
+          value={form.dosage}
+          onChange={(val) => setForm({ ...form, dosage: val })}
+          placeholder="e.g. 50mg"
+          testId="form-dosage"
+        />
+        <ScheduledTimesInput
+          times={form.times}
+          onChange={(times) => setForm({ ...form, times })}
+        />
+        <FormInput
+          label="Notes (optional)"
+          value={form.notes}
+          onChange={(val) => setForm({ ...form, notes: val })}
+          placeholder="e.g. with food"
+          testId="form-notes"
+          containerClassName="sm:col-span-2"
+        />
       </div>
       <div className="flex justify-end gap-2 pt-1">
         <button
@@ -539,7 +618,9 @@ function MedForm({
         </button>
         <button
           onClick={onSave}
-          disabled={busy || !form.name.trim() || !form.dosage.trim() || validTimes === 0}
+          disabled={
+            busy || !form.name.trim() || !form.dosage.trim() || validTimes === 0
+          }
           className="px-3 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           data-testid="form-save"
         >
