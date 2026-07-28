@@ -127,8 +127,8 @@ async function createMed(
 
 beforeAll(async () => {
   await db.insert(usersTable).values([
-    { id: userAId, email: `${userAId}@example.test` },
-    { id: userBId, email: `${userBId}@example.test` },
+    { id: userAId, email: `${userAId}@example.test`, emailVerifiedAt: new Date() },
+    { id: userBId, email: `${userBId}@example.test`, emailVerifiedAt: new Date() },
   ]);
   tokenA = await makeSession(userAId);
   tokenB = await makeSession(userBId);
