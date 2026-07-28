@@ -1,6 +1,6 @@
 import { vi, describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
-import { eq } from "drizzle-orm";
 import { db, usersTable, subscriptionsTable, betaGrantsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 import { resolveSubscription } from "./subscriptionService";
 
@@ -13,7 +13,7 @@ const email = `sub-${suffix}@example.test`;
 
 beforeAll(async () => {
   for (const id of [ownerId, betaUserId, helcimUserId, inactiveUserId]) {
-    await db.insert(usersTable).values({ id, email }).onConflictDoNothing();
+    await db.insert(usersTable).values({ id, email, emailVerifiedAt: new Date() }).onConflictDoNothing();
   }
 });
 
