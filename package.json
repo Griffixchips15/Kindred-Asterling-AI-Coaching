@@ -9,21 +9,8 @@
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
-  "private": true,
   "devDependencies": {
     "prettier": "^3.8.3",
     "typescript": "~5.9.3"
-  },
-  "pnpm": {
-    "overrides": {
-      "brace-expansion": ">=5.0.8",
-      "js-yaml": ">=5.2.2",
-      "linkify-it": ">=5.0.2",
-      "fast-uri": ">=3.1.4",
-      "protobufjs": ">=8.6.6",
-      "body-parser": ">=2.3.0",
-      "postcss": ">=8.5.18",
-      "esbuild": ">=0.28.1"
-    }
   }
 }
