@@ -21,4 +21,5 @@ export const pool = new Pool({
 });
 export const db = drizzle(pool, { schema });
 
+export { dailyUsageTable } from "./schema";
 export * from "./schema";
