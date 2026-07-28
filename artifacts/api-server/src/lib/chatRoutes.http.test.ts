@@ -26,7 +26,6 @@ import {
 } from "@workspace/db";
 import app from "../app";
 import { createSession, deleteSession } from "./auth";
-import { chatWithAnthropic } from "./chatTools";
 
 // These tests drive the real Express chat routes over HTTP (auth middleware,
 // request validation, status codes, conversation/message ownership checks, and
@@ -35,11 +34,17 @@ import { chatWithAnthropic } from "./chatTools";
 // conversation, and a failed LLM turn never persists a fallback assistant reply
 // that would pollute the conversation. The outbound Ollama call is mocked so
 // the suite makes no real model calls.
-vi.mock("./chatTools", () => ({
-  chatWithAnthropic: vi.fn(),
+vi.mock("@workspace/integrations-anthropic-ai", () => ({
+  anthropic: {
+    messages: {
+      create: vi.fn(),
+    }
+  }
 }));
 
-const createMock = vi.mocked(chatWithAnthropic);
+import { anthropic } from "@workspace/integrations-anthropic-ai";
+
+const createMock = vi.mocked(anthropic!.messages.create as any);
 
 function mockReplyOnce(text: string) {
   createMock.mockResolvedValueOnce({
@@ -197,7 +202,7 @@ afterEach(async () => {
     // habit_entries + medication_logs cascade off their parent rows.
     await db.delete(habitsTable).where(eq(habitsTable.userId, id));
     await db.delete(medicationsTable).where(eq(medicationsTable.userId, id));
-      }
+  }
 });
 
 afterAll(async () => {
@@ -318,7 +323,11 @@ describe("POST /chat/send", () => {
       ),
     ).toBe(true);
 
-
+    const quotaRows = await db
+      .select()
+      .from(messages as any /* workaround removed */)
+      .where(eq(messages.userId as any, userAId));
+    expect(quotaRows).toHaveLength(0);
   });
 
   it("persists the user turn and the assistant reply for the owner", async () => {
