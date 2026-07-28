@@ -9,7 +9,7 @@ import {
 } from "vitest";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import {
   db,
   pool,
@@ -23,11 +23,11 @@ import {
   habitEntriesTable,
   medicationsTable,
   medicationLogsTable,
-  dailyUsageTable,
+
 } from "@workspace/db";
 import app from "../app";
 import { createSession, deleteSession } from "./auth";
-import { chatWithOllama } from "./ollamaClient";
+
 
 // These tests drive the real Express chat routes over HTTP (auth middleware,
 // request validation, status codes, conversation/message ownership checks, and
@@ -36,22 +36,27 @@ import { chatWithOllama } from "./ollamaClient";
 // conversation, and a failed LLM turn never persists a fallback assistant reply
 // that would pollute the conversation. The outbound Ollama call is mocked so
 // the suite makes no real model calls.
-vi.mock("./ollamaClient", () => ({
-  chatWithOllama: vi.fn(),
+import { anthropic } from "@workspace/integrations-anthropic-ai";
+
+vi.mock("@workspace/integrations-anthropic-ai", () => ({
+  anthropic: {
+    messages: {
+      create: vi.fn(),
+    },
+  },
 }));
 
-const createMock = vi.mocked(chatWithOllama);
+const createMock = vi.mocked(anthropic!.messages.create as any);
 
 function mockReplyOnce(text: string) {
   createMock.mockResolvedValueOnce({
-    content: text,
-    toolCalls: [],
-    doneReason: "stop",
-  });
+    content: [{ type: "text", text: text }],
+    stop_reason: "end_turn",
+  } as any);
 }
 
 function failReplyOnce() {
-  createMock.mockRejectedValueOnce(new Error("ollama unavailable"));
+  createMock.mockRejectedValueOnce(new Error("anthropic unavailable"));
 }
 
 // Mocks a single Ollama turn that asks to call a tool. The route runs the tool
@@ -61,17 +66,16 @@ function mockToolUseOnce(
   input: Record<string, unknown> = {},
 ) {
   createMock.mockResolvedValueOnce({
-    content: "",
-    toolCalls: [
+    content: [
       {
-        function: {
-          name: toolName,
-          arguments: input,
-        },
+        type: "tool_use",
+        id: "mock_tool_1",
+        name: toolName,
+        input: input,
       },
     ],
-    doneReason: "stop",
-  });
+    stop_reason: "tool_use",
+  } as any);
 }
 
 // Mocks a single Ollama turn that asks to call several tools at once. The route
@@ -81,32 +85,30 @@ function mockMultiToolUseOnce(
   tools: { name: string; input?: Record<string, unknown>; id?: string }[],
 ) {
   createMock.mockResolvedValueOnce({
-    content: "",
-    toolCalls: tools.map((tool) => ({
-      function: {
-        name: tool.name,
-        arguments: tool.input ?? {},
-      },
+    content: tools.map((tool) => ({
+      type: "tool_use",
+      id: tool.id || `mock_${tool.name}`,
+      name: tool.name,
+      input: tool.input ?? {},
     })),
-    doneReason: "stop",
-  });
+    stop_reason: "tool_use",
+  } as any);
 }
 
 // Mocks an unbounded "always asks for another tool" model so we can prove the
 // agentic loop is capped and never loops forever / burns tokens.
 function mockToolUseAlways(toolName: string) {
   createMock.mockResolvedValue({
-    content: "",
-    toolCalls: [
+    content: [
       {
-        function: {
-          name: toolName,
-          arguments: {},
-        },
+        type: "tool_use",
+        id: "mock_tool_always",
+        name: toolName,
+        input: {},
       },
     ],
-    doneReason: "stop",
-  });
+    stop_reason: "tool_use",
+  } as any);
 }
 
 const suffix = Math.random().toString(36).slice(2, 10);
@@ -199,7 +201,7 @@ afterEach(async () => {
     // habit_entries + medication_logs cascade off their parent rows.
     await db.delete(habitsTable).where(eq(habitsTable.userId, id));
     await db.delete(medicationsTable).where(eq(medicationsTable.userId, id));
-    await db.delete(dailyUsageTable).where(eq(dailyUsageTable.userId, id));
+    await db.execute(sql`DELETE FROM daily_usage WHERE user_id = ${id}`);
   }
 });
 
@@ -321,11 +323,8 @@ describe("POST /chat/send", () => {
       ),
     ).toBe(true);
 
-    const quotaRows = await db
-      .select()
-      .from(dailyUsageTable)
-      .where(eq(dailyUsageTable.userId, userAId));
-    expect(quotaRows).toHaveLength(0);
+    const result = await db.execute<{ count: number }>(sql`SELECT count FROM daily_usage WHERE user_id = ${userAId}`);
+    expect((result as any).rows).toHaveLength(0);
   });
 
   it("persists the user turn and the assistant reply for the owner", async () => {
