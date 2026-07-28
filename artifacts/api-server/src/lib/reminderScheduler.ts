@@ -301,9 +301,7 @@ export async function runReminderTick(now: Date = new Date()): Promise<void> {
         ),
       );
 
-    for (const row of rows) {
-      await processUser(row, now);
-    }
+    await Promise.allSettled(rows.map((row) => processUser(row, now)));
   } catch (err) {
     logger.error({ err }, "Reminder tick failed");
   } finally {
