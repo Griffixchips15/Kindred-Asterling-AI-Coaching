@@ -8,6 +8,7 @@ on:
 
 env:
   NODE_ENV: test
+  HELCIM_PAYMENTS_ENABLED: "false"
 
 jobs:
   test:
@@ -56,3 +57,13 @@ jobs:
         run: pnpm --filter @workspace/api-server test
         env:
           DATABASE_URL: postgres://kindred:kindred@localhost:5432/kindred_test
+
+      - name: Build production artifacts
+        run: pnpm run build
+        env:
+          DATABASE_URL: postgres://kindred:kindred@localhost:5432/kindred_test
+          PORT: 3000
+          APP_PUBLIC_URL: https://beta.example.test
+          SUBSCRIPTION_OWNER_IDS: ci-owner
+          RESEND_API_KEY: ci-placeholder
+          RESEND_FROM_EMAIL: beta@example.test
