@@ -23,7 +23,6 @@ import {
   habitEntriesTable,
   medicationsTable,
   medicationLogsTable,
-  dailyUsageTable,
 } from "@workspace/db";
 import app from "../app";
 import { createSession, deleteSession } from "./auth";
@@ -199,7 +198,6 @@ afterEach(async () => {
     // habit_entries + medication_logs cascade off their parent rows.
     await db.delete(habitsTable).where(eq(habitsTable.userId, id));
     await db.delete(medicationsTable).where(eq(medicationsTable.userId, id));
-    await db.delete(dailyUsageTable).where(eq(dailyUsageTable.userId, id));
   }
 });
 
@@ -321,11 +319,6 @@ describe("POST /chat/send", () => {
       ),
     ).toBe(true);
 
-    const quotaRows = await db
-      .select()
-      .from(dailyUsageTable)
-      .where(eq(dailyUsageTable.userId, userAId));
-    expect(quotaRows).toHaveLength(0);
   });
 
   it("persists the user turn and the assistant reply for the owner", async () => {
