@@ -9,7 +9,7 @@ import {
 } from "vitest";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import {
   db,
   pool,
@@ -43,14 +43,13 @@ const createMock = vi.mocked(chatWithAnthropic);
 
 function mockReplyOnce(text: string) {
   createMock.mockResolvedValueOnce({
-    content: text,
-    toolCalls: [],
-    doneReason: "stop",
+    content: [{ type: "text", text }],
+    stop_reason: "end_turn",
   });
 }
 
 function failReplyOnce() {
-  createMock.mockRejectedValueOnce(new Error("ollama unavailable"));
+  createMock.mockRejectedValueOnce(new Error("anthropic unavailable"));
 }
 
 // Mocks a single Ollama turn that asks to call a tool. The route runs the tool
@@ -173,8 +172,8 @@ interface ConvWithMessages {
 
 beforeAll(async () => {
   await db.insert(usersTable).values([
-    { id: userAId, email: `${userAId}@example.test` },
-    { id: userBId, email: `${userBId}@example.test` },
+    { id: userAId, email: `${userAId}@example.test`, emailVerifiedAt: new Date() },
+    { id: userBId, email: `${userBId}@example.test`, emailVerifiedAt: new Date() },
   ]);
   tokenA = await makeSession(userAId);
   tokenB = await makeSession(userBId);
