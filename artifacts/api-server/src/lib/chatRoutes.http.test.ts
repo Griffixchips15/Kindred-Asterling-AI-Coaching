@@ -23,80 +23,90 @@ import {
   habitEntriesTable,
   medicationsTable,
   medicationLogsTable,
+  dailyUsageTable,
 } from "@workspace/db";
 import app from "../app";
 import { createSession, deleteSession } from "./auth";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { chatWithOllama } from "./ollamaClient";
 
 // These tests drive the real Express chat routes over HTTP (auth middleware,
 // request validation, status codes, conversation/message ownership checks, and
 // response shapes). Chat history is the most sensitive class of user data, so we
 // prove anonymous callers are rejected, one user can't read another's archived
 // conversation, and a failed LLM turn never persists a fallback assistant reply
-// that would pollute the conversation. The outbound Anthropic call is mocked so
-// the suite makes no real LLM calls and incurs no token cost.
-vi.mock("@workspace/integrations-anthropic-ai", () => ({
-  anthropic: {
-    messages: {
-      create: vi.fn(),
-    },
-  },
+// that would pollute the conversation. The outbound Ollama call is mocked so
+// the suite makes no real model calls.
+vi.mock("./ollamaClient", () => ({
+  chatWithOllama: vi.fn(),
 }));
 
-const createMock = vi.mocked(anthropic!.messages.create);
+const createMock = vi.mocked(chatWithOllama);
 
 function mockReplyOnce(text: string) {
   createMock.mockResolvedValueOnce({
-    stop_reason: "end_turn",
-    content: [{ type: "text", text }],
-    // The route only reads stop_reason + content; the rest of the SDK shape is
-    // irrelevant for these tests.
-  } as any);
+    content: text,
+    toolCalls: [],
+    doneReason: "stop",
+  });
 }
 
 function failReplyOnce() {
-  createMock.mockRejectedValueOnce(new Error("anthropic boom"));
+  createMock.mockRejectedValueOnce(new Error("ollama unavailable"));
 }
 
-// Mocks a single Claude turn that asks to call a tool. The route runs the tool
-// scoped to the session user, then re-calls Claude with the result fed back.
+// Mocks a single Ollama turn that asks to call a tool. The route runs the tool
+// scoped to the session user, then re-calls Ollama with the result fed back.
 function mockToolUseOnce(
   toolName: string,
   input: Record<string, unknown> = {},
-  toolUseId = "toolu_test",
 ) {
   createMock.mockResolvedValueOnce({
-    stop_reason: "tool_use",
-    content: [
-      { type: "tool_use", id: toolUseId, name: toolName, input },
+    content: "",
+    toolCalls: [
+      {
+        function: {
+          name: toolName,
+          arguments: input,
+        },
+      },
     ],
-  } as any);
+    doneReason: "stop",
+  });
 }
 
-// Mocks a single Claude turn that asks to call several tools at once. The route
+// Mocks a single Ollama turn that asks to call several tools at once. The route
 // runs every requested tool (each scoped to the session user) and feeds all the
 // results back together on the next call.
 function mockMultiToolUseOnce(
-  tools: { name: string; input?: Record<string, unknown>; id: string }[],
+  tools: { name: string; input?: Record<string, unknown>; id?: string }[],
 ) {
   createMock.mockResolvedValueOnce({
-    stop_reason: "tool_use",
-    content: tools.map((t) => ({
-      type: "tool_use",
-      id: t.id,
-      name: t.name,
-      input: t.input ?? {},
+    content: "",
+    toolCalls: tools.map((tool) => ({
+      function: {
+        name: tool.name,
+        arguments: tool.input ?? {},
+      },
     })),
-  } as any);
+    doneReason: "stop",
+  });
 }
 
 // Mocks an unbounded "always asks for another tool" model so we can prove the
 // agentic loop is capped and never loops forever / burns tokens.
-function mockToolUseAlways(toolName: string, toolUseId = "toolu_loop") {
+function mockToolUseAlways(toolName: string) {
   createMock.mockResolvedValue({
-    stop_reason: "tool_use",
-    content: [{ type: "tool_use", id: toolUseId, name: toolName, input: {} }],
-  } as any);
+    content: "",
+    toolCalls: [
+      {
+        function: {
+          name: toolName,
+          arguments: {},
+        },
+      },
+    ],
+    doneReason: "stop",
+  });
 }
 
 const suffix = Math.random().toString(36).slice(2, 10);
@@ -119,7 +129,7 @@ async function makeSession(userId: string): Promise<string> {
       firstName: null,
       lastName: null,
       profileImageUrl: null,
-      emailVerifiedAt: null,
+      emailVerifiedAt: new Date(),
     },
     access_token: "test-access-token",
   });
@@ -189,6 +199,7 @@ afterEach(async () => {
     // habit_entries + medication_logs cascade off their parent rows.
     await db.delete(habitsTable).where(eq(habitsTable.userId, id));
     await db.delete(medicationsTable).where(eq(medicationsTable.userId, id));
+    await db.delete(dailyUsageTable).where(eq(dailyUsageTable.userId, id));
   }
 });
 
@@ -293,6 +304,30 @@ describe("GET /chat/active", () => {
 });
 
 describe("POST /chat/send", () => {
+  it("returns the fixed crisis response without calling Ollama or spending quota", async () => {
+    const res = await api("POST", "/chat/send", {
+      token: tokenA,
+      body: { content: "I want to kill myself" },
+    });
+    expect(res.status).toBe(200);
+    expect(createMock).not.toHaveBeenCalled();
+
+    const conv = res.body as ConvWithMessages;
+    expect(
+      conv.messages.some(
+        (message) =>
+          message.role === "assistant" &&
+          message.content.includes("call or text 988"),
+      ),
+    ).toBe(true);
+
+    const quotaRows = await db
+      .select()
+      .from(dailyUsageTable)
+      .where(eq(dailyUsageTable.userId, userAId));
+    expect(quotaRows).toHaveLength(0);
+  });
+
   it("persists the user turn and the assistant reply for the owner", async () => {
     mockReplyOnce("Take your time at therapy.");
     const res = await api("POST", "/chat/send", {
@@ -350,46 +385,33 @@ describe("POST /chat/send", () => {
 });
 
 describe("POST /chat/send agentic tool loop", () => {
-  // Pull the tool_result text that the route fed back to Claude after running
+  // Pull the tool message that the route fed back to Ollama after running
   // the requested tool. This is what proves the executor was scoped to the
   // session user: the JSON handed back to the model contains exactly that
-  // user's rows. callIndex is which anthropic.messages.create call to inspect
-  // (the tool_result rides on the user turn of the *next* call).
+  // user's rows. callIndex selects the Ollama request to inspect.
   function toolResultTextFrom(callIndex: number): string {
     const call = createMock.mock.calls[callIndex]?.[0] as
       | { messages: { role: string; content: unknown }[] }
       | undefined;
     expect(call, `expected a model call at index ${callIndex}`).toBeTruthy();
-    const lastUser = [...call!.messages]
+    const toolResult = [...call!.messages]
       .reverse()
-      .find((m) => m.role === "user");
-    const blocks = lastUser?.content as
-      | { type: string; content: string }[]
-      | undefined;
-    const toolResult = Array.isArray(blocks)
-      ? blocks.find((b) => b.type === "tool_result")
-      : undefined;
-    return toolResult?.content ?? "";
+      .find((message) => message.role === "tool");
+    return typeof toolResult?.content === "string" ? toolResult.content : "";
   }
 
-  // Like toolResultTextFrom, but concatenates EVERY tool_result block on the
-  // call's last user turn. Used when one model turn requested several tools at
-  // once, so we can assert all of their results were scoped to the same user.
+  // Like toolResultTextFrom, but concatenates every tool message. Used when one
+  // model turn requested several tools at once.
   function allToolResultsTextFrom(callIndex: number): string {
     const call = createMock.mock.calls[callIndex]?.[0] as
       | { messages: { role: string; content: unknown }[] }
       | undefined;
     expect(call, `expected a model call at index ${callIndex}`).toBeTruthy();
-    const lastUser = [...call!.messages]
-      .reverse()
-      .find((m) => m.role === "user");
-    const blocks = lastUser?.content as
-      | { type: string; content: string }[]
-      | undefined;
-    if (!Array.isArray(blocks)) return "";
-    return blocks
-      .filter((b) => b.type === "tool_result")
-      .map((b) => b.content)
+    return call!.messages
+      .filter((message) => message.role === "tool")
+      .map((message) =>
+        typeof message.content === "string" ? message.content : "",
+      )
       .join("\n");
   }
 
@@ -414,7 +436,7 @@ describe("POST /chat/send agentic tool loop", () => {
       },
     ]);
 
-    // Turn 1: Claude asks for the morning logs. Turn 2: it produces a reply.
+    // Turn 1: Ollama asks for the morning logs. Turn 2: it produces a reply.
     mockToolUseOnce("get_recent_morning_logs", { limit: 7 });
     mockReplyOnce("Your mornings have felt heavy lately.");
 

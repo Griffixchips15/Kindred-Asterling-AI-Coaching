@@ -51,7 +51,7 @@ async function makeSession(userId: string): Promise<string> {
       firstName: null,
       lastName: null,
       profileImageUrl: null,
-      emailVerifiedAt: null,
+      emailVerifiedAt: new Date(),
     },
     access_token: "test-access-token",
   });
