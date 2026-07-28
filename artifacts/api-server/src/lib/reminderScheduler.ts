@@ -247,18 +247,20 @@ async function processUser(
     channels.push({ ch: "email", to: row.email });
   if (channels.length === 0) return;
 
+  const promises: Promise<void>[] = [];
   for (const d of due) {
     for (const c of channels) {
-      try {
-        await deliverOnce(row.userId, d, date, c.ch, c.to, name);
-      } catch (err) {
-        logger.error(
-          { err, userId: row.userId, type: d.type, channel: c.ch },
-          "Reminder delivery failed",
-        );
-      }
+      promises.push(
+        deliverOnce(row.userId, d, date, c.ch, c.to, name).catch((err) => {
+          logger.error(
+            { err, userId: row.userId, type: d.type, channel: c.ch },
+            "Reminder delivery failed",
+          );
+        })
+      );
     }
   }
+  await Promise.allSettled(promises);
 }
 
 let ticking = false;
