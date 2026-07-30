@@ -645,6 +645,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.6.2
+      vitest:
+        specifier: ^4.1.7
+        version: 4.1.7(@types/node@25.6.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.8.4)
 
   lib/replit-auth-web:
     dependencies:
