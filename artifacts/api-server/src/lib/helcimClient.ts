@@ -1,6 +1,13 @@
 import crypto from "node:crypto";
 import { logger } from "./logger";
 
+function normalizeHelcimCustomerId(customerId: string): string | null {
+  const trimmed = customerId.trim();
+  // Restrict to common ID-safe characters; prevent path/control-char injection.
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(trimmed)) return null;
+  return trimmed;
+}
+
 export function isHelcimConfigured(): boolean {
   return Boolean(process.env.HELCIM_API_KEY);
 }
@@ -132,8 +139,17 @@ export async function getHelcimCustomerEmail(
   const apiKey = process.env.HELCIM_API_KEY;
   if (!apiKey) return null;
 
+  const normalizedCustomerId = normalizeHelcimCustomerId(customerId);
+  if (!normalizedCustomerId) {
+    logger.warn({ customerId }, "Invalid Helcim customer ID format");
+    return null;
+  }
+
   try {
-    const res = await fetch(`https://api.helcim.com/v2/customers/${customerId}`, {
+    const url = new URL("https://api.helcim.com");
+    url.pathname = `/v2/customers/${encodeURIComponent(normalizedCustomerId)}`;
+
+    const res = await fetch(url.toString(), {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
