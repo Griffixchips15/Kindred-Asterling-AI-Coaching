@@ -8,8 +8,8 @@ import {
   type User,
 } from "@workspace/db";
 import { SendChatMessageBody, AppendChatMessageBody } from "@workspace/api-zod";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
-import type Anthropic from "@anthropic-ai/sdk";
+import { Ollama } from "ollama";
+const ollama = new Ollama({ host: process.env.OLLAMA_HOST || "http://127.0.0.1:11434" });
 import { requireAuth } from "../middlewares/requireAuth";
 import { chatLimiter } from "../middlewares/rateLimiter";
 import { chatTools, runChatTool } from "../lib/chatTools";
@@ -39,7 +39,7 @@ const router: IRouter = Router();
 
 // Claude via Replit's managed Anthropic integration — no user-supplied API key
 // and no third-party billing setup required.
-const CHAT_MODEL = "claude-sonnet-4-6";
+const CHAT_MODEL = process.env.OLLAMA_MODEL || "llama3.1";
 // Bound the assistant reply length. Kindred is intentionally terse (1-3
 // sentences), so a small cap keeps replies tight and token cost low.
 const MAX_OUTPUT_TOKENS = 400;
@@ -302,68 +302,49 @@ router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Re
   // scoped to THIS user, feed results back, and re-call until it produces a
   // text reply. Capped so a misbehaving turn can't loop forever / burn tokens.
   const MAX_TOOL_ITERATIONS = 4;
-  const convo: Anthropic.MessageParam[] = chatMessages.map((m) => ({
+  const convo: any[] = chatMessages.map((m) => ({
     role: m.role,
     content: m.content,
   }));
   const system = buildSystemInstruction(userRow);
+  convo.unshift({ role: "system", content: system });
   try {
     for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
-      const result = await anthropic!.messages.create({
+
+      const result: any = await ollama.chat({
         model: CHAT_MODEL,
-        max_tokens: MAX_OUTPUT_TOKENS,
-        system,
         messages: convo,
         tools: chatTools,
       });
 
-      if (result.stop_reason === "tool_use") {
-        // Record the assistant's tool-use turn, run each tool, and hand the
-        // results back as a user turn for the next iteration.
-        convo.push({ role: "assistant", content: result.content });
-        const toolResults: Anthropic.ToolResultBlockParam[] = [];
-        for (const block of result.content) {
-          if (block.type !== "tool_use") continue;
+      const message = result.message;
+
+      if (message.tool_calls && message.tool_calls.length > 0) {
+        convo.push(message);
+
+        for (const toolCall of message.tool_calls) {
           let output: string;
           try {
             const raw = await runChatTool(
-              block.name,
-              (block.input ?? {}) as Record<string, unknown>,
+              toolCall.function.name,
+              toolCall.function.arguments || {},
               userId,
             );
-            output =
-              raw.length > MAX_TOOL_OUTPUT_CHARS
-                ? raw.slice(0, MAX_TOOL_OUTPUT_CHARS)
-                : raw;
+            output = raw.length > MAX_TOOL_OUTPUT_CHARS ? raw.slice(0, MAX_TOOL_OUTPUT_CHARS) : raw;
           } catch (toolErr) {
-            req.log.error(
-              { err: toolErr, tool: block.name },
-              "chat tool execution failed",
-            );
+            req.log.error({ err: toolErr, tool: toolCall.function.name }, "chat tool execution failed");
             output = JSON.stringify({ error: "tool_failed" });
           }
-          toolResults.push({
-            type: "tool_result",
-            tool_use_id: block.id,
-            content: output,
-          });
+          convo.push({ role: 'tool', content: output });
         }
-        convo.push({ role: "user", content: toolResults });
         continue;
       }
 
-      const textParts = result.content
-        .map((block) => (block.type === "text" ? block.text : ""))
-        .join("")
-        .trim();
-      if (textParts) {
-        assistantText = textParts;
+      if (message.content) {
+        assistantText = message.content.trim();
       } else {
-        failureReason = result.stop_reason ?? "empty_response";
-        req.log.warn(
-          { stopReason: result.stop_reason },
-          "Claude returned no text",
-        );
+        failureReason = "empty_response";
+        req.log.warn("Ollama returned no text");
       }
       break;
     }

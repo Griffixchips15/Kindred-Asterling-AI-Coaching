@@ -9,7 +9,7 @@ import {
   medicationsTable,
   medicationLogsTable,
 } from "@workspace/db";
-import type Anthropic from "@anthropic-ai/sdk";
+
 
 const DEFAULT_LIMIT = 7;
 const MAX_LIMIT = 30;
@@ -43,7 +43,7 @@ function todayDateStr(): string {
 // server-side to the requesting user (see runChatTool) — the model never gets
 // to choose whose data it reads. Outputs deliberately exclude internal row IDs
 // so existence of other records can't leak and the prompt stays small.
-export const chatTools: Anthropic.Tool[] = [
+export const chatTools: any[] = [
   {
     name: "get_recent_morning_logs",
     description:

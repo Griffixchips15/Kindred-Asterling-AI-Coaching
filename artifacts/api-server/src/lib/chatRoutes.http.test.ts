@@ -34,83 +34,54 @@ import { createSession, deleteSession } from "./auth";
 // conversation, and a failed LLM turn never persists a fallback assistant reply
 // that would pollute the conversation. The outbound Ollama call is mocked so
 // the suite makes no real model calls.
-vi.mock("@workspace/integrations-anthropic-ai", () => ({
-  anthropic: {
-    messages: {
-      create: vi.fn(),
-    }
+
+const { createMock } = vi.hoisted(() => ({ createMock: vi.fn() }));
+
+vi.mock("ollama", () => ({
+  Ollama: class {
+    chat = createMock;
   }
 }));
 
-import { anthropic } from "@workspace/integrations-anthropic-ai";
-
-const createMock = vi.mocked(anthropic!.messages.create as any);
 
 function mockReplyOnce(text: string) {
   createMock.mockResolvedValueOnce({
-    content: [{ type: "text", text }],
-    stop_reason: "end_turn",
+    message: { role: 'assistant', content: text }
   });
 }
 
 function failReplyOnce() {
-  createMock.mockRejectedValueOnce(new Error("anthropic unavailable"));
+  createMock.mockRejectedValueOnce(new Error("ollama unavailable"));
 }
 
 // Mocks a single Ollama turn that asks to call a tool. The route runs the tool
 // scoped to the session user, then re-calls Ollama with the result fed back.
-function mockToolUseOnce(
-  toolName: string,
-  input: Record<string, unknown> = {},
-) {
+function mockToolUseOnce(toolName: string, input: Record<string, unknown> = {}) {
   createMock.mockResolvedValueOnce({
-    content: "",
-    toolCalls: [
-      {
-        function: {
-          name: toolName,
-          arguments: input,
-        },
-      },
-    ],
-    doneReason: "stop",
+    message: {
+      role: 'assistant',
+      content: '',
+      tool_calls: [{ function: { name: toolName, arguments: input } }]
+    }
   });
 }
 
 // Mocks a single Ollama turn that asks to call several tools at once. The route
 // runs every requested tool (each scoped to the session user) and feeds all the
 // results back together on the next call.
-function mockMultiToolUseOnce(
-  tools: { name: string; input?: Record<string, unknown>; id?: string }[],
-) {
+function mockMultiToolUseOnce(tools: Array<{name: string, input: Record<string, unknown>, id: string}>) {
   createMock.mockResolvedValueOnce({
-    content: "",
-    toolCalls: tools.map((tool) => ({
-      function: {
-        name: tool.name,
-        arguments: tool.input ?? {},
-      },
-    })),
-    doneReason: "stop",
+    message: {
+      role: 'assistant',
+      content: '',
+      tool_calls: tools.map(t => ({ function: { name: t.name, arguments: t.input } }))
+    }
   });
 }
 
 // Mocks an unbounded "always asks for another tool" model so we can prove the
 // agentic loop is capped and never loops forever / burns tokens.
-function mockToolUseAlways(toolName: string) {
-  createMock.mockResolvedValue({
-    content: "",
-    toolCalls: [
-      {
-        function: {
-          name: toolName,
-          arguments: {},
-        },
-      },
-    ],
-    doneReason: "stop",
-  });
-}
+function mockToolUseAlways(toolName: string) { createMock.mockResolvedValue({ message: { role: "assistant", content: "", tool_calls: [{ function: { name: toolName, arguments: {} } }] } }); }
 
 const suffix = Math.random().toString(36).slice(2, 10);
 const userAId = `test-chathttp-a-${suffix}`;
@@ -326,7 +297,7 @@ describe("POST /chat/send", () => {
     const quotaRows = await db
       .select()
       .from(messages as any /* workaround removed */)
-      .where(eq(messages.userId as any, userAId));
+      .innerJoin(conversations, eq(messages.conversationId, conversations.id)).where(eq(conversations.userId, userAId));
     expect(quotaRows).toHaveLength(0);
   });
 
