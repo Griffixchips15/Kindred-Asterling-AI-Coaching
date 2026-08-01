@@ -37,7 +37,7 @@ author = "agent"
 mode = "sequential"
 
 [workflows.workflow.metadata]
-outputType = "webview"
+outputType = "none"
 artifactId = "3B4_FFSkEVBkAeYMFRJ2e"
 
 [[workflows.workflow.tasks]]
