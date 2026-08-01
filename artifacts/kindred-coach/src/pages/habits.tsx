@@ -14,12 +14,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ListTodo, Plus, Trash2, CheckCircle2, Circle, Flame } from "lucide-react";
+import {
+  ListTodo,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  Circle,
+  Flame,
+} from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -37,7 +50,10 @@ function HabitCard({ habit, streaks }: { habit: any; streaks: any[] }) {
 
   const todayEntry = entries?.find((e) => e.date === today);
   const completedToday = todayEntry?.completed === true;
-  const progress = Math.min(100, Math.round(((habit.completedCount ?? 0) / habit.targetDays) * 100));
+  const progress = Math.min(
+    100,
+    Math.round(((habit.completedCount ?? 0) / habit.targetDays) * 100),
+  );
 
   const handleToggle = () => {
     if (completedToday) return;
@@ -45,12 +61,17 @@ function HabitCard({ habit, streaks }: { habit: any; streaks: any[] }) {
       { id: habit.id, data: { date: today, completed: true } },
       {
         onSuccess: () => {
-          toast({ title: "Habit logged", description: `${habit.name} — nice work.` });
-          queryClient.invalidateQueries({ queryKey: getListHabitEntriesQueryKey(habit.id) });
+          toast({
+            title: "Habit logged",
+            description: `${habit.name} — nice work.`,
+          });
+          queryClient.invalidateQueries({
+            queryKey: getListHabitEntriesQueryKey(habit.id),
+          });
           queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetStreaksQueryKey() });
         },
-      }
+      },
     );
   };
 
@@ -63,18 +84,24 @@ function HabitCard({ habit, streaks }: { habit: any; streaks: any[] }) {
           queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetStreaksQueryKey() });
         },
-      }
+      },
     );
   };
 
   return (
-    <Card className="border-border shadow-none" data-testid={`card-habit-${habit.id}`}>
+    <Card
+      className="border-border shadow-none"
+      data-testid={`card-habit-${habit.id}`}
+    >
       <CardContent className="p-5 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 flex-1">
             <button
               onClick={handleToggle}
               disabled={completedToday || logEntry.isPending}
+              aria-label={
+                completedToday ? "Mark as incomplete" : "Mark as complete"
+              }
               data-testid={`button-toggle-habit-${habit.id}`}
               className="mt-0.5 shrink-0 transition-transform hover:scale-110"
             >
@@ -85,11 +112,18 @@ function HabitCard({ habit, streaks }: { habit: any; streaks: any[] }) {
               )}
             </button>
             <div className="space-y-0.5 flex-1">
-              <p className={cn("font-medium text-foreground", completedToday && "line-through text-muted-foreground")}>
+              <p
+                className={cn(
+                  "font-medium text-foreground",
+                  completedToday && "line-through text-muted-foreground",
+                )}
+              >
                 {habit.name}
               </p>
               {habit.description && (
-                <p className="text-sm text-muted-foreground">{habit.description}</p>
+                <p className="text-sm text-muted-foreground">
+                  {habit.description}
+                </p>
               )}
             </div>
           </div>
@@ -97,12 +131,15 @@ function HabitCard({ habit, streaks }: { habit: any; streaks: any[] }) {
             {streak && streak.currentStreak > 0 && (
               <div className="flex items-center gap-1 text-secondary">
                 <Flame className="w-4 h-4" />
-                <span className="text-sm font-semibold">{streak.currentStreak}</span>
+                <span className="text-sm font-semibold">
+                  {streak.currentStreak}
+                </span>
               </div>
             )}
             <button
               onClick={handleDelete}
               disabled={deleteHabit.isPending}
+              aria-label="Delete habit"
               data-testid={`button-delete-habit-${habit.id}`}
               className="text-muted-foreground hover:text-destructive transition-colors p-1"
             >
@@ -113,7 +150,9 @@ function HabitCard({ habit, streaks }: { habit: any; streaks: any[] }) {
 
         <div className="space-y-1.5">
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Day {habit.completedCount ?? 0} of {habit.targetDays}</span>
+            <span>
+              Day {habit.completedCount ?? 0} of {habit.targetDays}
+            </span>
             <span>{progress}%</span>
           </div>
           <Progress value={progress} className="h-1.5" />
@@ -131,8 +170,12 @@ export default function Habits() {
   const [newDescription, setNewDescription] = useState("");
   const [targetDays, setTargetDays] = useState("90");
 
-  const { data: habits, isLoading } = useListHabits({ query: { queryKey: getListHabitsQueryKey() } });
-  const { data: streaks } = useGetStreaks({ query: { queryKey: getGetStreaksQueryKey() } });
+  const { data: habits, isLoading } = useListHabits({
+    query: { queryKey: getListHabitsQueryKey() },
+  });
+  const { data: streaks } = useGetStreaks({
+    query: { queryKey: getGetStreaksQueryKey() },
+  });
   const createHabit = useCreateHabit();
 
   const handleCreate = () => {
@@ -148,7 +191,10 @@ export default function Habits() {
       },
       {
         onSuccess: () => {
-          toast({ title: "Habit created", description: `${newName} added to your tracker.` });
+          toast({
+            title: "Habit created",
+            description: `${newName} added to your tracker.`,
+          });
           queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetStreaksQueryKey() });
           setNewName("");
@@ -156,7 +202,7 @@ export default function Habits() {
           setTargetDays("90");
           setOpen(false);
         },
-      }
+      },
     );
   };
 
@@ -168,12 +214,19 @@ export default function Habits() {
             <ListTodo className="w-8 h-8 text-primary" />
             Habits
           </h1>
-          <p className="text-muted-foreground text-lg">Build consistency, one day at a time.</p>
+          <p className="text-muted-foreground text-lg">
+            Build consistency, one day at a time.
+          </p>
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="shrink-0 mt-1 gap-1.5" data-testid="button-add-habit">
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 mt-1 gap-1.5"
+              data-testid="button-add-habit"
+            >
               <Plus className="w-4 h-4" />
               New Habit
             </Button>
