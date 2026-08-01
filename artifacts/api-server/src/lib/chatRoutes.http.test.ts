@@ -94,8 +94,8 @@ let tokenB: string;
 const sids: string[] = [];
 
 async function makeSession(userId: string): Promise<string> {
-  // No expires_at, so the auth middleware accepts the session without an OIDC
-  // refresh round-trip.
+  // Tests must now insert users since we moved to Clerk
+  await db.insert(usersTable).values({ id: userId, email: `${userId}@example.test`, emailVerifiedAt: new Date() }).onConflictDoNothing();
   const sid = await createSession({
     user: {
       id: userId,

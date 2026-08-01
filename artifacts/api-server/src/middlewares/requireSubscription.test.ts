@@ -47,7 +47,7 @@ describe("requireSubscription", () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it.skip("should return 403 if email is not verified", () => {
+  it("should return 403 if email is not verified", () => {
     req.user = { id: "user-1", email: "test@example.com", emailVerifiedAt: null };
     requireSubscription(req as Request, res as Response, next as NextFunction);
     expect(res.status).toHaveBeenCalledWith(403);
