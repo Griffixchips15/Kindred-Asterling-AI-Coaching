@@ -102,6 +102,7 @@ function ArchivedRow({ conv }: { conv: ChatConversation }) {
           disabled={busy !== null}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-colors disabled:opacity-50"
           data-testid={`download-txt-${conv.id}`}
+          aria-label="Download chat as TXT"
         >
           {busy === "txt" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
           TXT
@@ -111,6 +112,7 @@ function ArchivedRow({ conv }: { conv: ChatConversation }) {
           disabled={busy !== null}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-colors disabled:opacity-50"
           data-testid={`download-pdf-${conv.id}`}
+          aria-label="Download chat as PDF"
         >
           {busy === "pdf" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
           PDF
