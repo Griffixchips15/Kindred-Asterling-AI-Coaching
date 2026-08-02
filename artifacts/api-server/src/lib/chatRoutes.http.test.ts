@@ -325,8 +325,8 @@ describe("POST /chat/send", () => {
 
     const quotaRows = await db
       .select()
-      .from(messages as any /* workaround removed */)
-      .where(eq(messages.userId as any, userAId));
+      .from(conversations)
+      .where(eq(conversations.userId, userAId));
     expect(quotaRows).toHaveLength(0);
   });
 
