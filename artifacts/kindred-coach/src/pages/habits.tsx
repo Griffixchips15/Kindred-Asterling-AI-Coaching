@@ -75,6 +75,7 @@ function HabitCard({ habit, streaks }: { habit: any; streaks: any[] }) {
             <button
               onClick={handleToggle}
               disabled={completedToday || logEntry.isPending}
+              aria-label={completedToday ? "Mark as incomplete" : "Mark as complete"}
               data-testid={`button-toggle-habit-${habit.id}`}
               className="mt-0.5 shrink-0 transition-transform hover:scale-110"
             >
@@ -103,6 +104,7 @@ function HabitCard({ habit, streaks }: { habit: any; streaks: any[] }) {
             <button
               onClick={handleDelete}
               disabled={deleteHabit.isPending}
+              aria-label="Delete habit"
               data-testid={`button-delete-habit-${habit.id}`}
               className="text-muted-foreground hover:text-destructive transition-colors p-1"
             >

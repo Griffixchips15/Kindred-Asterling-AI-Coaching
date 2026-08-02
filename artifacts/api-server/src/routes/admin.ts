@@ -34,8 +34,8 @@ function requireOwner(req: Request, res: Response, next: NextFunction): void {
 
 const router: IRouter = Router();
 
-router.use(requireAuth);
-router.use(requireOwner);
+router.use("/admin", requireAuth, requireOwner);
+
 
 router.get("/admin/users", async (req, res): Promise<void> => {
   const q = (req.query.q as string || "").trim().toLowerCase();
