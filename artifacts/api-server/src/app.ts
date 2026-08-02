@@ -15,16 +15,11 @@ const app: Express = express();
 
 const allowedOrigins = new Set(
   [
-    process.env.APP_PUBLIC_URL,
+     process.env.APP_PUBLIC_URL,
+    "https://www.kindred-asterling-ai-coaching.com",
     "http://localhost:4000",
     "http://127.0.0.1:4000",
-    process.env.RAILWAY_PUBLIC_DOMAIN
-      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-      : undefined,
-    ...(process.env.REPLIT_DOMAINS || "")
-      .split(",")
-      .filter(Boolean)
-      .map((domain) => `https://${domain.trim()}`),
+    "http://localhost:8080",
   ]
     .filter((origin): origin is string => Boolean(origin))
     .map((origin) => origin.replace(/\/$/, "")),
@@ -38,10 +33,10 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'"],
-      fontSrc: ["'self'"],
+      connectSrc: ["'self'", "https://*.clerk.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
     },
