@@ -316,6 +316,7 @@ export default function Chat() {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder={currentStep?.placeholder}
+              aria-label="Date of birth input"
               disabled={sending}
               className="flex-1 rounded-full px-4 py-2.5 text-sm bg-muted border-0 focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
               data-testid="chat-input"
@@ -337,6 +338,7 @@ export default function Chat() {
                   ? "Listening… speak now."
                   : currentStep?.placeholder ?? "Share what's on your mind..."
               }
+              aria-label="Message input"
               disabled={sending}
               rows={1}
               className="flex-1 rounded-2xl px-4 py-2.5 text-sm bg-muted border-0 focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50 resize-none leading-relaxed overflow-y-auto"
@@ -370,6 +372,7 @@ export default function Chat() {
           <button
             type="submit"
             disabled={sending || !draft.trim()}
+            aria-label={sending ? "Sending message" : "Send message"}
             className="flex items-center justify-center w-11 h-11 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors shrink-0"
             data-testid="chat-send"
           >
