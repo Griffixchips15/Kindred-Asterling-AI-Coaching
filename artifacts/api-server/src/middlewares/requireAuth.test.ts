@@ -34,4 +34,20 @@ describe("requireAuth middleware", () => {
     expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith({ error: "Unauthorized" });
   });
+
+  it("throws an error if isAuthenticated is missing on the request object", () => {
+    // This happens if authMiddleware is not used before requireAuth
+    const req = {} as Request;
+
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    } as unknown as Response;
+
+    const next = vi.fn() as NextFunction;
+
+    expect(() => requireAuth(req, res, next)).toThrowError(
+      /req\.isAuthenticated is not a function/
+    );
+  });
 });
