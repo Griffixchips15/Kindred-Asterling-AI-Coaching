@@ -18,7 +18,7 @@ COPY artifacts/kindred-coach/package.json ./artifacts/kindred-coach/package.json
 COPY lib/ lib/
 COPY scripts/package.json ./scripts/package.json
 
-RUN rm -f pnpm-lock.yaml && pnpm install
+RUN rm -f pnpm-lock.yaml && pnpm install --prod=false
 
 COPY . .
 
