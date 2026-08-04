@@ -13,6 +13,11 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+const clerkOrigins = [
+  "https://clerk.kindred-asterling-ai-coaching.com",
+  "https://accounts.kindred-asterling-ai-coaching.com",
+];
+
 const allowedOrigins = new Set(
   [
     process.env.APP_PUBLIC_URL,
@@ -33,14 +38,14 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", clerkOrigins[0]],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://*.clerk.com"],
+      connectSrc: ["'self'", "https://*.clerk.com", ...clerkOrigins],
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
-      frameSrc: ["https://*.clerk.com"],
+      frameSrc: ["https://*.clerk.com", ...clerkOrigins],
     },
   },
   crossOriginEmbedderPolicy: false, // Allow audio/TTS resources
