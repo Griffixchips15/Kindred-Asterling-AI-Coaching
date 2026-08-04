@@ -2,6 +2,8 @@ FROM node:24-bookworm-slim AS build
 
 ARG CACHEBUST=1
 
+ENV NODE_ENV=development
+
 # Force cache invalidation for stripe catalog removal
 RUN echo "cachebust-stripe-removal-2026-07-23"
 
