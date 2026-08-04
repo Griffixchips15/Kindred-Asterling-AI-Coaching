@@ -37,4 +37,4 @@ COPY --from=build /app /app
 
 EXPOSE 3000
 
-CMD ["/app/entrypoint.sh"]
+CMD ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
