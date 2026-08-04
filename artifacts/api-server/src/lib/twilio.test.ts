@@ -35,4 +35,19 @@ describe("toE164", () => {
     expect(toE164("12345")).toBe("+12345");
     expect(toE164("")).toBe("+");
   });
+
+  it("handles inputs with alphabetical characters", () => {
+    // Current behavior strips all non-digits if no leading +,
+    // so vanity numbers without translation just get stripped to digits
+    expect(toE164("1-800-FLOWERS")).toBe("+1800");
+    expect(toE164("invalid")).toBe("+");
+  });
+
+  it("handles strings with multiple plus signs", () => {
+    expect(toE164("++1234567890")).toBe("++1234567890");
+    expect(toE164("+1+234")).toBe("+1+234");
+    // If it doesn't start with +, all non-digits are stripped
+    expect(toE164("1+234")).toBe("+1234");
+  });
+
 });
