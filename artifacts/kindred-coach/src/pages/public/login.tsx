@@ -11,7 +11,7 @@ export default function Login() {
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
-      redirectToSignIn({ redirectUrl: returnTo });
+      redirectToSignIn({ fallbackRedirectUrl: returnTo });
     }
   }, [isLoaded, isSignedIn, redirectToSignIn, returnTo]);
 
