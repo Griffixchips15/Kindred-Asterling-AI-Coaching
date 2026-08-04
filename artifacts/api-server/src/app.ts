@@ -38,14 +38,15 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", clerkOrigins[0]],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", clerkOrigins[0], "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'", "https://*.clerk.com", ...clerkOrigins],
-      fontSrc: ["'self'"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
       frameSrc: ["https://*.clerk.com", ...clerkOrigins],
+      workerSrc: ["'self'", "blob:"],
     },
   },
   crossOriginEmbedderPolicy: false, // Allow audio/TTS resources
