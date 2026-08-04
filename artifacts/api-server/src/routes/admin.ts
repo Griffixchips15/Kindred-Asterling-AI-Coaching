@@ -3,7 +3,6 @@ import { like, eq, and, isNull, sql } from "drizzle-orm";
 import { db, usersTable, betaGrantsTable, entitlementAuditTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ownerIds } from "../lib/subscriptionService";
-import { hashPassword } from "../lib/auth";
 
 function ownerEmails(): Set<string> {
   return new Set(
@@ -36,13 +35,14 @@ const router: IRouter = Router();
 
 router.use("/admin", requireAuth, requireOwner);
 
-
 router.get("/admin/users", async (req, res): Promise<void> => {
-  const q = (req.query.q as string || "").trim().toLowerCase();
-  if (!q) {
+  const rawQ = (req.query.q as string || "").trim().toLowerCase();
+  if (!rawQ) {
     res.json({ users: [] });
     return;
   }
+
+  const q = rawQ.replace(/[%_]/g, "\\$&");
 
   const users = await db
     .select({
