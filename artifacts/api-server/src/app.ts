@@ -25,7 +25,7 @@ const allowedOrigins = new Set(
     .map((origin) => origin.replace(/\/$/, "")),
 );
 
-app.set("trust proxy", 1);
+app.set("trust proxy", true);
 
 // Security headers — Helmet sets CSP, X-Frame-Options, HSTS, etc.
 app.use(helmet({
