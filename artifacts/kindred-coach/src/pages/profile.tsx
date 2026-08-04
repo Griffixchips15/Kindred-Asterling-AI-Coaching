@@ -7,7 +7,7 @@ import {
   useGetTodayAffirmation,
   getGetTodayAffirmationQueryKey,
 } from "@workspace/api-client-react";
-import { useAuth } from "@workspace/replit-auth-web";
+import { useUser } from "@clerk/clerk-react";
 import { User, Save, Quote, Sparkles } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -43,7 +43,7 @@ function safeFormatDate(s: string | null | undefined): string | null {
 
 export default function Profile() {
   const qc = useQueryClient();
-  const { user: authShort } = useAuth();
+  const { user: clerkUser } = useUser();
   const { data } = useGetCurrentAuthUser({
     query: { queryKey: getGetCurrentAuthUserQueryKey() },
   });
@@ -204,7 +204,7 @@ export default function Profile() {
               value={form.preferredName}
               onChange={(e) => setField("preferredName", e.target.value)}
               className={fieldClass}
-              placeholder={authShort?.firstName ?? "What should I call you?"}
+              placeholder={clerkUser?.firstName ?? "What should I call you?"}
               data-testid="profile-preferredName"
             />
           </div>

@@ -1,7 +1,9 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startReminderScheduler } from "./lib/reminderScheduler";
+import { validateRuntimeConfig } from "./lib/validateConfig";
 
+validateRuntimeConfig();
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {

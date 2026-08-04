@@ -1,31 +1,32 @@
 import express, { type Express } from "express";
 import cors from "cors";
-import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { ClerkExpressWithAuth } from "@clerk/clerk-sdk-node";
 import { authMiddleware } from "./middlewares/authMiddleware";
+import { sessionAuthMiddleware } from "./middlewares/sessionAuthMiddleware";
 import { generalLimiter, writeLimiter } from "./middlewares/rateLimiter";
 import router from "./routes";
-import { authLimiter } from "./middlewares/rateLimiter";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
 
 const allowedOrigins = new Set(
   [
-     process.env.APP_PUBLIC_URL,
-    "https://www.kindred-asterling-ai-coaching.com",
+    process.env.APP_PUBLIC_URL,
+    process.env.APP_PUBLIC_URL?.replace("://", "://www."),
     "http://localhost:4000",
     "http://127.0.0.1:4000",
     "http://localhost:8080",
+    "http://127.0.0.1:8080",
   ]
     .filter((origin): origin is string => Boolean(origin))
     .map((origin) => origin.replace(/\/$/, "")),
 );
 
-app.set("trust proxy", true);
+app.set("trust proxy", 1);
 
 // Security headers — Helmet sets CSP, X-Frame-Options, HSTS, etc.
 app.use(helmet({
@@ -33,12 +34,13 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'", "https://*.clerk.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
+      frameSrc: ["https://*.clerk.com"],
     },
   },
   crossOriginEmbedderPolicy: false, // Allow audio/TTS resources
@@ -81,7 +83,6 @@ app.use(
     },
   }),
 );
-app.use(cookieParser());
 app.use(
   express.json({
     limit: "32kb",
@@ -93,7 +94,17 @@ app.use(
   }),
 );
 app.use(express.urlencoded({ extended: true, limit: "32kb" }));
-app.use(authMiddleware);
+
+// In test mode, use the legacy session-based auth (tests create sessions directly).
+// In dev/production, use Clerk's JWT-based auth.
+const isTest = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
+if (isTest) {
+  app.use(sessionAuthMiddleware);
+} else {
+  app.use(ClerkExpressWithAuth());
+  app.use(authMiddleware);
+}
+
 app.use(generalLimiter);
 app.use((req, res, next) => {
   const writeMethods = ["POST", "PUT", "PATCH", "DELETE"];
@@ -104,6 +115,8 @@ app.use((req, res, next) => {
   }
 });
 
+// Password reset — must be accessible without auth; placed before the main
+// router to avoid hitting requireAuth inside the router stack.
 app.use("/api", router);
 
 if (process.env.NODE_ENV === "production") {

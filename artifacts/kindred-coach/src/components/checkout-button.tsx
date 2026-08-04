@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAuth } from "@workspace/replit-auth-web";
+import { useUser } from "@clerk/clerk-react";
 import { useCreateCheckout } from "@workspace/api-client-react";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,13 +20,13 @@ export function CheckoutButton({
   variant = "default",
   className,
 }: CheckoutButtonProps) {
-  const { isAuthenticated } = useAuth();
+  const { isSignedIn } = useUser();
   const { mutate, isPending } = useCreateCheckout();
   const [error, setError] = useState<string | null>(null);
 
   const handleClick = () => {
     setError(null);
-    if (!isAuthenticated) {
+    if (!isSignedIn) {
       window.location.href = "/login?returnTo=/pricing";
       return;
     }
