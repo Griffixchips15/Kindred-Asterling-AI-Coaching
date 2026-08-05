@@ -116,6 +116,12 @@ overrides:
   esbuild: ">=0.28.1"
   "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
 
+  # GHSA-w24r-5266-9c3c: @clerk/clerk-react authorization bypass
+  "@clerk/clerk-react": ">=5.61.6"
+
+  # GHSA-qjx8-664m-686j: js-cookie prototype hijack
+  js-cookie: ">=3.0.7"
+
 allowBuilds:
   '@google/genai': true
   esbuild: true
