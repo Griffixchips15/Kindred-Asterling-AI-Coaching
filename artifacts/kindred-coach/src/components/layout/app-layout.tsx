@@ -17,7 +17,6 @@ import {
   Archive as ArchiveIcon,
   PanelLeftClose,
   PanelLeftOpen,
-  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoMark from "@/assets/brand/logo-mark.png";
@@ -263,9 +262,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
     await signOut();
     setUser(null);
   }, [signOut]);
-  const visibleNavItems = user?.isOwner
-    ? [...navItems, { icon: ShieldCheck, label: "Beta Access", href: "/admin/beta" }]
-    : navItems;
+  const visibleNavItems = navItems;
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">

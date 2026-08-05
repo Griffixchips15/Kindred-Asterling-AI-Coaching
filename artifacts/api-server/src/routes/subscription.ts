@@ -49,8 +49,7 @@ function extractPeriodEnd(data: Record<string, unknown>): Date | null {
 
 const router: IRouter = Router();
 
-// Read the current user's access status. Always returns 200 (active true/false)
-// so the frontend paywall can render — it is NOT gated by requireSubscription.
+// Read the current user's legacy subscription status for billing/account flows.
 router.get(
   "/subscription/status",
   requireAuth,

@@ -25,9 +25,7 @@ import Science from "@/pages/public/science";
 import Pricing from "@/pages/public/pricing";
 import PaymentSuccess from "@/pages/public/payment-success";
 import Login from "@/pages/public/login";
-import AdminBeta from "@/pages/admin-beta";
 import { ThemeProvider } from "@/hooks/use-theme";
-import { AccessGate } from "@/components/access-gate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -69,26 +67,23 @@ function PrivateRoutes() {
   if (!isLoaded || !isSignedIn) return null;
 
   return (
-    <AccessGate>
-      <AppLayout>
-        <Switch>
-          <Route path="/" component={Dashboard} />
-          <Route path="/morning" component={Morning} />
-          <Route path="/scans" component={Scans} />
-          <Route path="/evening" component={Evening} />
-          <Route path="/habits" component={Habits} />
-          <Route path="/medications" component={Medications} />
-          <Route path="/reports" component={Reports} />
-          <Route path="/profile" component={Profile} />
-          <Route path="/calendar" component={CalendarPage} />
-          <Route path="/chat" component={Chat} />
-          <Route path="/archive" component={Archive} />
-          <Route path="/reminders" component={Reminders} />
-          <Route path="/admin/beta" component={AdminBeta} />
-          <Route component={NotFound} />
-        </Switch>
-      </AppLayout>
-    </AccessGate>
+    <AppLayout>
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/morning" component={Morning} />
+        <Route path="/scans" component={Scans} />
+        <Route path="/evening" component={Evening} />
+        <Route path="/habits" component={Habits} />
+        <Route path="/medications" component={Medications} />
+        <Route path="/reports" component={Reports} />
+        <Route path="/profile" component={Profile} />
+        <Route path="/calendar" component={CalendarPage} />
+        <Route path="/chat" component={Chat} />
+        <Route path="/archive" component={Archive} />
+        <Route path="/reminders" component={Reminders} />
+        <Route component={NotFound} />
+      </Switch>
+    </AppLayout>
   );
 }
 

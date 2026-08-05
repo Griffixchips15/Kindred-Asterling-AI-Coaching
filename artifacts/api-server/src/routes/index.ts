@@ -18,7 +18,6 @@ import adminRouter from "./admin";
 import userRouter from "./user";
 import clerkWebhookRouter from "./clerk-webhook";
 import { requireAuth } from "../middlewares/requireAuth";
-import { requireSubscription } from "../middlewares/requireSubscription";
 
 const router: IRouter = Router();
 
@@ -36,9 +35,8 @@ router.use(subscriptionRouter);
 // Admin routes require auth + owner-only (checked within the route file).
 router.use("/admin", adminRouter);
 
-// Everything below requires an authenticated user with an active subscription.
+// Everything below requires an authenticated user.
 router.use(requireAuth);
-router.use(requireSubscription);
 
 // Sensitive personal/wellness data must never be cached.
 router.use(noStore);
