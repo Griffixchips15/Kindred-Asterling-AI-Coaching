@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "wouter";
 import { Loader2, MailCheck, RefreshCw } from "lucide-react";
-import { useUser } from "@clerk/clerk-react";
+import { useAuth, useUser } from "@clerk/clerk-react";
 import { Button } from "@/components/ui/button";
 
 type AccessState =
@@ -13,14 +13,17 @@ type AccessState =
 
 export function AccessGate({ children }: { children: React.ReactNode }) {
   const { isSignedIn } = useUser();
+  const { getToken } = useAuth();
   const [access, setAccess] = useState<AccessState>({ kind: "loading" });
 
   const checkAccess = useCallback(async () => {
     setAccess({ kind: "loading" });
     try {
+      const token = await getToken();
       const response = await fetch("/api/subscription/status", {
         credentials: "include",
         cache: "no-store",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = (await response.json()) as {
@@ -38,7 +41,7 @@ export function AccessGate({ children }: { children: React.ReactNode }) {
     } catch {
       setAccess({ kind: "error" });
     }
-  }, []);
+  }, [getToken]);
 
   useEffect(() => {
     if (isSignedIn) void checkAccess();
