@@ -34,7 +34,7 @@ export function VoiceInputButton({
         aria-label={recording ? "Stop recording" : "Record with your voice"}
         title={recording ? "Stop recording" : "Record with your voice"}
         className={cn(
-          "flex items-center justify-center w-9 h-9 rounded-full transition-colors shrink-0 disabled:opacity-40",
+          "flex items-center justify-center w-9 h-9 rounded-full transition-colors shrink-0 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
           recording
             ? "bg-destructive text-destructive-foreground animate-pulse"
             : "bg-muted text-foreground hover:bg-muted/70",
@@ -56,13 +56,14 @@ export function VoiceInputButton({
         </span>
       )}
       {error && (
-        <span
-          className="text-[11px] text-destructive max-w-[180px] text-right cursor-pointer"
+        <button
+          className="text-[11px] text-destructive max-w-[180px] text-right cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive rounded"
           onClick={() => setError(null)}
           title="Dismiss"
+          aria-label="Dismiss error"
         >
           {error}
-        </span>
+        </button>
       )}
     </div>
   );

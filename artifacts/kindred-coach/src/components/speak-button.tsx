@@ -93,7 +93,7 @@ export function SpeakButton({ text, className }: SpeakButtonProps) {
         aria-label={status === "playing" ? "Stop reading" : "Read aloud"}
         title={status === "playing" ? "Stop reading" : "Read aloud"}
         className={cn(
-          "flex items-center justify-center w-7 h-7 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors",
+          "flex items-center justify-center w-7 h-7 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
           className,
         )}
         data-testid="speak-button"
@@ -107,13 +107,14 @@ export function SpeakButton({ text, className }: SpeakButtonProps) {
         )}
       </button>
       {error && (
-        <span
-          className="text-[11px] text-destructive cursor-pointer"
+        <button
+          className="text-[11px] text-destructive cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive rounded"
           onClick={() => setError(null)}
           title="Dismiss"
+          aria-label="Dismiss error"
         >
           {error}
-        </span>
+        </button>
       )}
     </div>
   );

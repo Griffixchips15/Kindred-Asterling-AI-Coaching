@@ -248,7 +248,7 @@ export default function Chat() {
           <button
             onClick={handleArchive}
             disabled={archiving}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             data-testid="archive-chat"
           >
             {archiving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Archive className="w-3.5 h-3.5" />}
@@ -281,7 +281,7 @@ export default function Chat() {
             <span>{sendError}</span>
             <button
               onClick={() => setSendError(null)}
-              className="text-destructive/70 hover:text-destructive font-medium"
+              className="text-destructive/70 hover:text-destructive font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
               aria-label="Dismiss"
             >
               Dismiss
@@ -296,7 +296,7 @@ export default function Chat() {
             <span>{voiceError}</span>
             <button
               onClick={() => setVoiceError(null)}
-              className="font-medium opacity-70 hover:opacity-100"
+              className="font-medium opacity-70 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               aria-label="Dismiss"
             >
               Dismiss
@@ -353,7 +353,7 @@ export default function Chat() {
               disabled={sending || voiceStatus === "transcribing"}
               aria-label={listening ? "Stop voice input" : "Start voice input"}
               title={listening ? "Stop voice input" : "Start voice input"}
-              className={`flex items-center justify-center w-11 h-11 rounded-full transition-colors shrink-0 disabled:opacity-40 ${
+              className={`flex items-center justify-center w-11 h-11 rounded-full transition-colors shrink-0 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                 listening
                   ? "bg-destructive text-destructive-foreground animate-pulse"
                   : "bg-muted text-foreground hover:bg-muted/70"
@@ -373,7 +373,7 @@ export default function Chat() {
             type="submit"
             disabled={sending || !draft.trim()}
             aria-label={sending ? "Sending message" : "Send message"}
-            className="flex items-center justify-center w-11 h-11 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors shrink-0"
+            className="flex items-center justify-center w-11 h-11 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             data-testid="chat-send"
           >
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
