@@ -9,9 +9,8 @@ import {
 // Voice endpoints are binary media proxies (audio in / audio out), so they are
 // implemented as direct Express routes rather than going through the
 // contract-first OpenAPI codegen (which targets JSON request/response shapes).
-// The frontend calls these with fetch. They are mounted after requireAuth +
-// requireSubscription in routes/index.ts, so callers are always authenticated,
-// entitled users.
+// The frontend calls these with fetch. They are mounted after requireAuth in
+// routes/index.ts, so callers are always authenticated users.
 
 const router: IRouter = Router();
 
