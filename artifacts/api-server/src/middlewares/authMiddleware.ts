@@ -77,6 +77,29 @@ export async function authMiddleware(
     const emailVerified =
       clerkUser.emailAddresses?.[0]?.verification?.status === "verified";
 
+    // Preserve an existing local account when its email matches the Clerk user.
+    // This keeps existing data and subscriptions attached to the local user ID.
+    if (email) {
+      const [existingByEmail] = await db
+        .select({
+          id: usersTable.id,
+          email: usersTable.email,
+          firstName: usersTable.firstName,
+          lastName: usersTable.lastName,
+          profileImageUrl: usersTable.profileImageUrl,
+          emailVerifiedAt: usersTable.emailVerifiedAt,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.email, email))
+        .limit(1);
+
+      if (existingByEmail) {
+        req.user = existingByEmail;
+        next();
+        return;
+      }
+    }
+
     await db.insert(usersTable).values({
       id: userId,
       email,
