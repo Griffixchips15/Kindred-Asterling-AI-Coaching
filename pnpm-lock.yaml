@@ -653,6 +653,19 @@ importers:
         specifier: ^4.1.7
         version: 4.1.10(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.5)(yaml@2.9.0)
 
+  lib/integrations/gemini_ai_integrations:
+    dependencies:
+      p-limit:
+        specifier: ^7.3.1
+        version: 7.3.1
+      p-retry:
+        specifier: ^7.1.1
+        version: 7.1.1
+    devDependencies:
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.5)(yaml@2.9.0)
+
   lib/replit-auth-web:
     dependencies:
       '@workspace/api-client-react':
