@@ -1,5 +1,5 @@
 import { type Request, type Response, type NextFunction } from "express";
-import type { getAuth } from "@clerk/express";
+import type { RequireAuthProp } from "@clerk/express";
 import { createClerkClient } from "@clerk/backend";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -40,7 +40,7 @@ export async function authMiddleware(
     return this.user != null;
   } as Request["isAuthenticated"];
 
-  const authReq = req as Request & { auth?: ReturnType<typeof getAuth> };
+  const authReq = req as RequireAuthProp<Request>;
   const userId = authReq.auth?.userId;
   if (!userId) {
     next();
