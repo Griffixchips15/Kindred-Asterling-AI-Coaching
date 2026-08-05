@@ -4,7 +4,7 @@ import helmet from "helmet";
 import pinoHttp from "pino-http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { clerkMiddleware } from "@clerk/express";
+import { ClerkExpressWithAuth } from "@clerk/clerk-sdk-node";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import { sessionAuthMiddleware } from "./middlewares/sessionAuthMiddleware";
 import { generalLimiter, writeLimiter } from "./middlewares/rateLimiter";
@@ -107,7 +107,7 @@ const isTest = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
 if (isTest) {
   app.use(sessionAuthMiddleware);
 } else {
-  app.use(clerkMiddleware());
+  app.use(ClerkExpressWithAuth());
   app.use(authMiddleware);
 }
 
