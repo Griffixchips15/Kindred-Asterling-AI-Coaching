@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ClerkProvider, useUser } from "@clerk/clerk-react";
+import { ClerkProvider, useAuth, useUser } from "@clerk/clerk-react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/app-layout";
@@ -26,6 +26,7 @@ import Pricing from "@/pages/public/pricing";
 import PaymentSuccess from "@/pages/public/payment-success";
 import Login from "@/pages/public/login";
 import Account from "@/pages/account";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { ThemeProvider } from "@/hooks/use-theme";
 
 const queryClient = new QueryClient({
@@ -89,6 +90,17 @@ function PrivateRoutes() {
   );
 }
 
+function ClerkApiAuthBridge({ children }: { children: React.ReactNode }) {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    setAuthTokenGetter(() => getToken());
+    return () => setAuthTokenGetter(null);
+  }, [getToken]);
+
+  return <>{children}</>;
+}
+
 function App() {
   if (!clerkPubKey) {
     return (
@@ -102,25 +114,27 @@ function App() {
 
   return (
     <ClerkProvider publishableKey={clerkPubKey}>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <TooltipProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Switch>
-                <Route path="/" component={PublicRoutes} />
-                <Route path="/about" component={PublicRoutes} />
-                <Route path="/science" component={PublicRoutes} />
-                <Route path="/pricing" component={PublicRoutes} />
-                <Route path="/payment-success" component={PublicRoutes} />
-                <Route path="/login" component={PublicRoutes} />
-                <Route path="/app" nest component={PrivateRoutes} />
-                <Route component={NotFound} />
-              </Switch>
-            </WouterRouter>
-            <Toaster />
-          </TooltipProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
+      <ClerkApiAuthBridge>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider>
+            <TooltipProvider>
+              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                <Switch>
+                  <Route path="/" component={PublicRoutes} />
+                  <Route path="/about" component={PublicRoutes} />
+                  <Route path="/science" component={PublicRoutes} />
+                  <Route path="/pricing" component={PublicRoutes} />
+                  <Route path="/payment-success" component={PublicRoutes} />
+                  <Route path="/login" component={PublicRoutes} />
+                  <Route path="/app" nest component={PrivateRoutes} />
+                  <Route component={NotFound} />
+                </Switch>
+              </WouterRouter>
+              <Toaster />
+            </TooltipProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </ClerkApiAuthBridge>
     </ClerkProvider>
   );
 }

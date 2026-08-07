@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGetUpcomingCalendarEvents } from "@workspace/api-client-react";
+import { useAuth } from "@clerk/clerk-react";
 import { CalendarDays, Clock, AlertCircle } from "lucide-react";
 
 type RawEvent = { date: string; time: string; title: string };
@@ -42,8 +43,13 @@ export default function CalendarPage() {
   const [calendarConfigured, setCalendarConfigured] = useState(false);
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [statusLoaded, setStatusLoaded] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const { getToken } = useAuth();
   useEffect(() => {
-    fetch("/api/calendar/status", { credentials: "include" })
+    getToken().then((token) => fetch("/api/calendar/status", {
+      credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    }))
       .then((response) => response.ok ? response.json() : null)
       .then((status: { configured?: boolean; connected?: boolean } | null) => {
         setCalendarConfigured(Boolean(status?.configured));
@@ -51,7 +57,22 @@ export default function CalendarPage() {
         setStatusLoaded(true);
       })
       .catch(() => setStatusLoaded(true));
-  }, []);
+  }, [getToken]);
+
+  async function connectCalendar() {
+    setConnecting(true);
+    try {
+      const token = await getToken();
+      const response = await fetch("/api/calendar/connect", {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      const body = (await response.json()) as { url?: string };
+      if (!response.ok || !body.url) throw new Error("Calendar connection unavailable");
+      window.location.assign(body.url);
+    } finally {
+      setConnecting(false);
+    }
+  }
 
   const { data, isLoading, isError, refetch, isFetching } =
     useGetUpcomingCalendarEvents();
@@ -118,12 +139,13 @@ export default function CalendarPage() {
               Kindred can use your upcoming events to make planning suggestions.
             </p>
             {statusLoaded && calendarConfigured && !calendarConnected ? (
-              <a
-                href="/api/calendar/connect"
-                className="inline-flex mt-4 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+              <button
+                onClick={connectCalendar}
+                disabled={connecting}
+                className="mt-4 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                Connect Google Calendar
-              </a>
+                {connecting ? "Connecting…" : "Connect Google Calendar"}
+              </button>
             ) : calendarConnected ? (
               <button
                 onClick={() => refetch()}

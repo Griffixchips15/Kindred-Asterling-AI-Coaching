@@ -21,7 +21,7 @@ router.get("/calendar/connect", requireAuth, (req, res): void => {
     res.status(503).json({ error: "calendar_not_configured" });
     return;
   }
-  res.redirect(googleAuthorizationUrl(createOAuthState(req.user!.id)));
+  res.json({ url: googleAuthorizationUrl(createOAuthState(req.user!.id)) });
 });
 
 router.get("/calendar/callback", async (req, res): Promise<void> => {
