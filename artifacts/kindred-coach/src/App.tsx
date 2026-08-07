@@ -25,6 +25,7 @@ import Science from "@/pages/public/science";
 import Pricing from "@/pages/public/pricing";
 import PaymentSuccess from "@/pages/public/payment-success";
 import Login from "@/pages/public/login";
+import Account from "@/pages/account";
 import { ThemeProvider } from "@/hooks/use-theme";
 
 const queryClient = new QueryClient({
@@ -77,6 +78,7 @@ function PrivateRoutes() {
         <Route path="/medications" component={Medications} />
         <Route path="/reports" component={Reports} />
         <Route path="/profile" component={Profile} />
+        <Route path="/account" component={Account} />
         <Route path="/calendar" component={CalendarPage} />
         <Route path="/chat" component={Chat} />
         <Route path="/archive" component={Archive} />
