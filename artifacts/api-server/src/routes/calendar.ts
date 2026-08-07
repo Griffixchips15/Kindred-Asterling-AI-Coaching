@@ -1,30 +1,54 @@
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../middlewares/requireAuth";
-import { fetchUpcomingEvents } from "../lib/googleCalendar";
+import {
+  createOAuthState,
+  fetchUpcomingEvents,
+  googleAuthorizationUrl,
+  hasCalendarConnection,
+  isCalendarConfigured,
+  saveAuthorizationCode,
+  verifyOAuthState,
+} from "../lib/googleCalendar";
 
 const router: IRouter = Router();
 
-// The Google Calendar connector is project-scoped (Replit Connectors tie the
-// OAuth tokens to the app builder's Replit account, not to the requesting
-// end-user). Returning that data to every authenticated user would leak the
-// builder's personal schedule to the entire user base. Until per-user OAuth
-// exists, this endpoint must be restricted to a single allow-listed user.
-// Fail closed: if CALENDAR_OWNER_USER_ID is unset, no one gets calendar data.
-function getCalendarOwnerId(): string | null {
-  const raw = process.env.CALENDAR_OWNER_USER_ID;
-  if (!raw) return null;
-  const trimmed = raw.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
+router.get("/calendar/status", requireAuth, async (req, res): Promise<void> => {
+  res.json({ configured: isCalendarConfigured(), connected: await hasCalendarConnection(req.user!.id) });
+});
+
+router.get("/calendar/connect", requireAuth, (req, res): void => {
+  if (!isCalendarConfigured()) {
+    res.status(503).json({ error: "calendar_not_configured" });
+    return;
+  }
+  res.redirect(googleAuthorizationUrl(createOAuthState(req.user!.id)));
+});
+
+router.get("/calendar/callback", async (req, res): Promise<void> => {
+  const redirect = `${process.env.APP_PUBLIC_URL || ""}/app/calendar`;
+  try {
+    const state = typeof req.query.state === "string" ? req.query.state : "";
+    const code = typeof req.query.code === "string" ? req.query.code : "";
+    if (!state || !code) throw new Error("Missing Google OAuth response");
+    await saveAuthorizationCode(verifyOAuthState(state), code);
+    res.redirect(`${redirect}?connected=1`);
+  } catch (err) {
+    req.log.error({ err }, "Google Calendar OAuth callback failed");
+    res.redirect(`${redirect}?error=connect_failed`);
+  }
+});
 
 router.get("/calendar/upcoming", requireAuth, async (req, res): Promise<void> => {
-  const ownerId = getCalendarOwnerId();
-  if (!ownerId || req.user!.id !== ownerId) {
-    res.status(403).json({ error: "calendar_not_available" });
+  if (!isCalendarConfigured()) {
+    res.status(503).json({ error: "calendar_not_configured" });
+    return;
+  }
+  if (!(await hasCalendarConnection(req.user!.id))) {
+    res.status(409).json({ error: "calendar_not_connected" });
     return;
   }
   try {
-    const events = await fetchUpcomingEvents(3);
+    const events = await fetchUpcomingEvents(req.user!.id, 3);
     res.json(events);
   } catch (err) {
     req.log.error({ err }, "Failed to fetch Google Calendar events");
