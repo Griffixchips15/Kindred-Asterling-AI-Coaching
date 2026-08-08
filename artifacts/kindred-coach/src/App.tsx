@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ClerkProvider, useUser } from "@clerk/clerk-react";
+import { ClerkProvider, useAuth, useUser } from "@clerk/clerk-react";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/app-layout";
@@ -38,6 +39,18 @@ const queryClient = new QueryClient({
 });
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+// Wires Clerk's session JWT into the API client so every /api request carries
+// `Authorization: Bearer <token>`. Required because the API validates Clerk
+// JWTs and the app's custom Clerk domain sets the session cookie on the Clerk
+// origin, not on the app origin.
+function AuthTokenBridge() {
+  const { getToken } = useAuth();
+  useEffect(() => {
+    setAuthTokenGetter(() => getToken());
+  }, [getToken]);
+  return null;
+}
 
 function PublicRoutes() {
   return (
@@ -102,6 +115,7 @@ function App() {
 
   return (
     <ClerkProvider publishableKey={clerkPubKey}>
+      <AuthTokenBridge />
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <TooltipProvider>
