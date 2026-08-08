@@ -1,0 +1,55 @@
+import {
+  CRISIS_SUPPORT_CONFIG,
+  SAFETY_EVENT_POLICY,
+} from "../config/crisisSupport";
+import { logger } from "./logger";
+
+const CRISIS_PATTERNS = [
+  /\bsuicid(e|al)\b/i,
+  /\bkill\s*myself\b/i,
+  /\bend\s*my\s*life\b/i,
+  /\bwant\s*to\s*die\b/i,
+  /\bself[- ]?harm\b/i,
+  /\bself[- ]?injur(y|ies)\b/i,
+];
+
+// Common explicit denials should not interrupt an ordinary coaching turn.
+// The UI also receives a false-positive action for less obvious contexts.
+const EXPLICIT_DENIALS = [
+  /\b(?:i am|i'm|im)\s+not\s+suicidal\b/i,
+  /\b(?:i do not|i don't|dont)\s+want\s+to\s+die\b/i,
+  /\b(?:i will not|i won't|wont)\s+(?:kill myself|self[- ]?harm)\b/i,
+  /\bno\s+(?:suicidal thoughts|thoughts of self[- ]?harm)\b/i,
+];
+
+export function detectCrisis(text: string): boolean {
+  if (EXPLICIT_DENIALS.some((pattern) => pattern.test(text))) return false;
+  return CRISIS_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+/** Emit only a non-identifying control event. Never add request/user fields. */
+export function emitSafetySignalEvent(): void {
+  logger.warn(
+    {
+      event: "safety_signal_detected",
+      detectorVersion: CRISIS_SUPPORT_CONFIG.review.version,
+      retentionClass: SAFETY_EVENT_POLICY.retentionClass,
+      accessClass: SAFETY_EVENT_POLICY.accessClass,
+    },
+    "Safety interception activated",
+  );
+}
+
+export function crisisSupportResponse() {
+  return {
+    type: "crisis_support",
+    message: CRISIS_SUPPORT_CONFIG.response,
+    disclaimer: "Kindred is not medical care or an emergency service.",
+    falsePositive: {
+      label: CRISIS_SUPPORT_CONFIG.falsePositiveLabel,
+      instruction: "Rephrase or resend your message to continue coaching.",
+    },
+    regionSelector: CRISIS_SUPPORT_CONFIG.regions,
+    reviewedConfigVersion: CRISIS_SUPPORT_CONFIG.review.version,
+  } as const;
+}

@@ -11,40 +11,13 @@ import { SendChatMessageBody, AppendChatMessageBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { chatLimiter } from "../middlewares/rateLimiter";
 import { chatTools, runChatTool } from "../lib/chatTools";
+import { checkAndIncrementDailyQuota, refundDailyQuota } from "../lib/dailyQuota";
+import { chatWithOllama, type OllamaMessage } from "../lib/ollamaClient";
 import {
-  checkAndIncrementDailyQuota,
-  refundDailyQuota,
-} from "../lib/dailyQuota";
-import { logger } from "../lib/logger";
-import {
-  AIProviderError,
-  getAIProvider,
-  normalizeProviderError,
-  type AIMessage,
-  type AIProvider,
-} from "../lib/ai";
-
-const CRISIS_PATTERNS = [
-  /\bsuicid(e|al)\b/i,
-  /\bkill\s*myself\b/i,
-  /\bend\s*my\s*life\b/i,
-  /\bwant\s*to\s*die\b/i,
-  /\bself[- ]?harm\b/i,
-  /\bself[- ]?injur(y|ies)\b/i,
-  /\bcrisis\b/i,
-  /\b988\b/,
-];
-
-function detectCrisis(text: string): boolean {
-  return CRISIS_PATTERNS.some((p) => p.test(text));
-}
-
-function logCrisis(userId: string, content: string): void {
-  logger.warn(
-    { userId, contentPreview: content.slice(0, 200) },
-    "Potential crisis language detected in chat",
-  );
-}
+  crisisSupportResponse,
+  detectCrisis,
+  emitSafetySignalEvent,
+} from "../lib/crisisSafety";
 
 const CRISIS_RESPONSE =
   "I'm sorry you're facing this. Kindred isn't a crisis service, but immediate help is available — call or text 988, or text HOME to 741741.";
@@ -207,7 +180,6 @@ function buildSystemInstruction(
     "Vary your openings and rhythm. Do not start consecutive replies the same way. It is fine — often better — to make a statement, share an observation, or simply sit with what they said without asking anything at all.",
     "If the user sends a short logistical message ('brb', 'heading to therapy', 'one sec'), reply with a short acknowledgement that names the thing they mentioned (e.g. 'Take your time at therapy.'). Never default to a generic 'tell me more'.",
     "Avoid sycophancy ('what a great question', 'that's amazing'). Avoid therapist clichés. Never give medical advice or diagnose.",
-    "CRISIS PROTOCOL — If the user mentions self-harm, suicidal thoughts, or a crisis, respond with: (1) a brief acknowledgment of what they said, (2) a clear statement that you're not a crisis service, and (3) the national crisis resources: 988 Suicide & Crisis Lifeline (call or text 988) and Crisis Text Line (text HOME to 741741). Keep it simple and direct; do NOT add filler or commentary. Example: 'I hear you. I'm not a crisis service, but help is available — call or text 988, or text HOME to 741741.' Do not offer to 'stay with them' or 'talk through it' — direct them to the helplines. Then ask if there's anything else they'd like to talk about.",
     "You can quietly look things up about them when it genuinely helps: recent morning check-ins, evening reflections, body scans, habit streaks, and today's medications. Only look something up when the conversation actually calls for it — never for small talk or short logistical messages — and read only what you need. Weave anything you find in naturally, like you simply remember it; never mention tools, functions, data, lookups, or that you checked anything.",
   ];
   if (user?.birthday) parts.push(`Their birthday is ${user.birthday}.`);
@@ -229,30 +201,64 @@ function buildSystemInstruction(
 // POST (send/append), which SameSite=Lax blocks from cross-site origins.
 // The frontend renders the first onboarding prompt client-side when the
 // messages array is empty and the user has not completed onboarding.
-router.get(
-  "/chat/active",
-  requireAuth,
-  async (req: Request, res: Response): Promise<void> => {
-    const userId = req.user!.id;
-    const [conv] = await db
-      .select()
-      .from(conversations)
-      .where(
-        and(
-          eq(conversations.userId, userId),
-          eq(conversations.status, "active"),
-        ),
-      )
-      .orderBy(desc(conversations.createdAt))
-      .limit(1);
-    if (!conv) {
-      res.json(null);
-      return;
-    }
-    const full = await loadWithMessages(conv.id, MESSAGE_RESPONSE_LIMIT);
-    res.json(JSON.parse(JSON.stringify(full)));
-  },
-);
+router.get("/chat/active", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const userId = req.user!.id;
+  const [conv] = await db
+    .select()
+    .from(conversations)
+    .where(and(eq(conversations.userId, userId), eq(conversations.status, "active")))
+    .orderBy(desc(conversations.createdAt))
+    .limit(1);
+  if (!conv) {
+    res.json(null);
+    return;
+  }
+  const full = await loadWithMessages(conv.id, MESSAGE_RESPONSE_LIMIT);
+  res.json(JSON.parse(JSON.stringify(full)));
+});
+
+router.post("/chat/append", requireAuth, chatLimiter, async (req: Request, res: Response): Promise<void> => {
+  const parsed = AppendChatMessageBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid input" });
+    return;
+  }
+  const clipped = clipMessage(parsed.data.content);
+  if (!clipped) {
+    res.status(400).json({ error: "Invalid input" });
+    return;
+  }
+  const userId = req.user!.id;
+  const conv = await getOrCreateActive(userId);
+  await db.insert(messages).values({
+    conversationId: conv.id,
+    role: parsed.data.role,
+    content: clipped,
+  });
+  const full = await loadWithMessages(conv.id, MESSAGE_RESPONSE_LIMIT);
+  res.json(JSON.parse(JSON.stringify(full)));
+});
+
+router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Response): Promise<void> => {
+  const parsed = SendChatMessageBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid input" });
+    return;
+  }
+  const clipped = clipMessage(parsed.data.content);
+  if (!clipped) {
+    res.status(400).json({ error: "Invalid input" });
+    return;
+  }
+  const userId = req.user!.id;
+
+  if (detectCrisis(clipped)) {
+    // This interception deliberately precedes quota, DB, tools, profile reads,
+    // and provider calls. The message body never leaves request memory.
+    emitSafetySignalEvent();
+    res.json(crisisSupportResponse());
+    return;
+  }
 
 router.post(
   "/chat/append",
