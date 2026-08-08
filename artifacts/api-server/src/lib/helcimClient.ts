@@ -1,11 +1,12 @@
 import crypto from "node:crypto";
 import { logger } from "./logger";
 
-function normalizeHelcimCustomerId(customerId: string): string | null {
-  const trimmed = customerId.trim();
-  // Restrict to common ID-safe characters; prevent path/control-char injection.
-  if (!/^[A-Za-z0-9_-]{1,128}$/.test(trimmed)) return null;
-  return trimmed;
+const API_ROOT = "https://api.helcim.com/v2";
+
+function apiKey(): string {
+  const value = process.env.HELCIM_API_KEY;
+  if (!value) throw new Error("HELCIM_API_KEY is not configured");
+  return value;
 }
 
 export function isHelcimConfigured(): boolean {
@@ -14,86 +15,122 @@ export function isHelcimConfigured(): boolean {
 
 export function isCheckoutConfigured(): boolean {
   return Boolean(
-    process.env.HELCIM_API_KEY &&
-      process.env.HELCIM_YEARLY_PLAN_ID &&
-      process.env.HELCIM_LIFETIME_PRODUCT_ID,
+    process.env.HELCIM_API_KEY && process.env.HELCIM_CUSTOMER_REFERENCE_SECRET,
   );
 }
 
-/**
- * Verify a Helcim webhook signature using HMAC-SHA256.
- *
- * Helcim sends three headers:
- *   webhook-id        – unique event ID
- *   webhook-timestamp – unix timestamp
- *   webhook-signature  – "v1,<base64-hmac>"
- *
- * The signed content is: `${webhook-id}.${webhook-timestamp}.${body}`
- * The HMAC key is the base64-decoded verifier token.
- */
-export function verifyHelcimWebhook(
-  rawBody: string,
-  headers: {
-    "webhook-id"?: string;
-    "webhook-timestamp"?: string;
-    "webhook-signature"?: string;
-  },
-): boolean {
-  const secret = process.env.HELCIM_WEBHOOK_SECRET;
-  if (!secret) {
-    logger.warn("HELCIM_WEBHOOK_SECRET not configured — rejecting webhook");
-    return false;
-  }
-
-  const webhookId = headers["webhook-id"];
-  const webhookTimestamp = headers["webhook-timestamp"];
-  const webhookSignature = headers["webhook-signature"];
-
-  if (!webhookId || !webhookTimestamp || !webhookSignature) {
-    logger.warn("Missing Helcim webhook headers");
-    return false;
-  }
-
-  // Reject webhooks older than 5 minutes to prevent replay attacks
-  const timestampAge = Math.abs(Date.now() / 1000 - Number(webhookTimestamp));
-  if (timestampAge > 300) {
-    logger.warn({ timestampAge }, "Helcim webhook timestamp too old");
-    return false;
-  }
-
-  const signedContent = `${webhookId}.${webhookTimestamp}.${rawBody}`;
-
-  // Base64-decode the verifier token to get the HMAC key
-  const keyBytes = Buffer.from(secret, "base64");
-
-  const expectedSignature = crypto
-    .createHmac("sha256", keyBytes)
-    .update(signedContent)
-    .digest("base64");
-
-  // The signature header may contain multiple space-delimited signatures.
-  // Strip the "v1," prefix from each and compare using timing-safe comparison.
-  const expectedBuf = Buffer.from(expectedSignature, "base64");
-  const signatures = webhookSignature.split(" ");
-  for (const sig of signatures) {
-    const parts = sig.split(",");
-    if (parts.length === 2) {
-      const candidateBuf = Buffer.from(parts[1], "base64");
-      if (
-        candidateBuf.length === expectedBuf.length &&
-        crypto.timingSafeEqual(candidateBuf, expectedBuf)
-      ) {
-        return true;
-      }
-    }
-  }
-
-  logger.warn("Helcim webhook signature mismatch");
-  return false;
+/** A non-PII, authenticated merchant customerCode. */
+export function signedCustomerReference(userId: string): string {
+  const secret = process.env.HELCIM_CUSTOMER_REFERENCE_SECRET;
+  if (!secret)
+    throw new Error("HELCIM_CUSTOMER_REFERENCE_SECRET is not configured");
+  const encoded = Buffer.from(userId).toString("base64url");
+  const signature = crypto
+    .createHmac("sha256", secret)
+    .update(encoded)
+    .digest("base64url")
+    .slice(0, 22);
+  return `ka_${encoded}.${signature}`;
 }
 
-export type CheckoutPlan = "yearly" | "lifetime";
+export function verifyCustomerReference(value: string): string | null {
+  if (!value.startsWith("ka_") || !process.env.HELCIM_CUSTOMER_REFERENCE_SECRET)
+    return null;
+  const [encoded, supplied] = value.slice(3).split(".");
+  if (!encoded || !supplied) return null;
+  const expected = crypto
+    .createHmac("sha256", process.env.HELCIM_CUSTOMER_REFERENCE_SECRET)
+    .update(encoded)
+    .digest("base64url")
+    .slice(0, 22);
+  if (
+    supplied.length !== expected.length ||
+    !crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))
+  )
+    return null;
+  try {
+    return Buffer.from(encoded, "base64url").toString("utf8");
+  } catch {
+    return null;
+  }
+}
 
+export async function createHelcimCustomer(user: {
+  id: string;
+  email: string | null;
+}): Promise<string> {
+  const customerCode = signedCustomerReference(user.id);
+  const response = await fetch(`${API_ROOT}/customers`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey()}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      customerCode,
+      contactName: user.email ?? `Kindred user ${user.id}`,
+      ...(user.email ? { email: user.email } : {}),
+    }),
+  });
+  if (!response.ok)
+    throw new Error(`Helcim customer creation failed (${response.status})`);
+  const json = (await response.json()) as Record<string, unknown>;
+  const data = (json.data ?? json) as Record<string, unknown>;
+  const id = data.customerCode ?? data.customerId ?? data.id;
+  if (typeof id !== "string" && typeof id !== "number")
+    throw new Error("Helcim customer response did not include an ID");
+  return String(id);
+}
+
+export function checkoutUrl(base: string, customerId: string): string {
+  const url = new URL(base);
+  // Helcim calls its immutable merchant customer identifier customerCode.
+  url.searchParams.set("customerCode", customerId);
+  return url.toString();
+}
+
+export function verifyHelcimWebhook(
+  rawBody: string,
+  headers: Record<string, string | undefined>,
+): boolean {
+  const secret = process.env.HELCIM_WEBHOOK_SECRET;
+  const id = headers["webhook-id"],
+    timestamp = headers["webhook-timestamp"],
+    signature = headers["webhook-signature"];
+  if (
+    !secret ||
+    !id ||
+    !timestamp ||
+    !signature ||
+    !Number.isFinite(Number(timestamp))
+  )
+    return false;
+  if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return false;
+  const expected = crypto
+    .createHmac("sha256", Buffer.from(secret, "base64"))
+    .update(`${id}.${timestamp}.${rawBody}`)
+    .digest();
+  return signature.split(" ").some((item) => {
+    const [version, encoded] = item.split(",");
+    if (version !== "v1" || !encoded) return false;
+    const candidate = Buffer.from(encoded, "base64");
+    return (
+      candidate.length === expected.length &&
+      crypto.timingSafeEqual(candidate, expected)
+    );
+  });
+}
+
+export const subscriptionStatuses = [
+  "pending",
+  "active",
+  "past_due",
+  "cancel_at_period_end",
+  "cancelled",
+  "expired",
+] as const;
+export type SubscriptionStatus = (typeof subscriptionStatuses)[number];
 export type HelcimEventType =
   | "checkout.completed"
   | "subscription.created"
@@ -108,58 +145,65 @@ export interface HelcimWebhookEvent {
   customerId?: string;
   customerEmail?: string;
   subscriptionId?: string;
-  planId?: string;
-  data?: Record<string, unknown>;
+  occurredAt: Date;
+  data: Record<string, unknown>;
 }
 
-/**
- * Parse the relevant fields from a Helcim webhook payload.
- */
-export function parseHelcimEvent(body: Record<string, unknown>): HelcimWebhookEvent {
-  const eventType = (body.eventType ?? body.event_type ?? "") as string;
+export function parseHelcimEvent(
+  body: Record<string, unknown>,
+): HelcimWebhookEvent {
   const data = (body.data ?? {}) as Record<string, unknown>;
-  const customer = (data.customer ?? body.customer ?? {}) as Record<string, unknown>;
-
+  const customer = (data.customer ?? body.customer ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const rawDate =
+    body.createdAt ?? body.timestamp ?? data.occurredAt ?? data.updatedAt;
+  const occurredAt = rawDate
+    ? new Date(rawDate as string | number)
+    : new Date();
   return {
-    eventType: eventType as HelcimEventType,
-    customerId: (customer.id ?? data.customerId) as string | undefined,
-    customerEmail: (customer.email ?? data.customerEmail ?? data.email) as string | undefined,
-    subscriptionId: (data.subscriptionId ?? data.subscription_id) as string | undefined,
-    planId: (data.planId ?? data.plan_id) as string | undefined,
+    eventType: String(
+      body.eventType ?? body.event_type ?? body.type ?? "",
+    ) as HelcimEventType,
+    customerId:
+      String(
+        customer.customerCode ??
+          customer.id ??
+          data.customerCode ??
+          data.customerId ??
+          "",
+      ) || undefined,
+    customerEmail:
+      String(customer.email ?? data.customerEmail ?? data.email ?? "") ||
+      undefined,
+    subscriptionId:
+      String(data.subscriptionId ?? data.subscription_id ?? data.id ?? "") ||
+      undefined,
+    occurredAt: Number.isNaN(occurredAt.getTime()) ? new Date() : occurredAt,
     data,
   };
 }
 
-/**
- * Look up a customer's email from Helcim by customer ID.
- */
 export async function getHelcimCustomerEmail(
   customerId: string,
 ): Promise<string | null> {
-  const apiKey = process.env.HELCIM_API_KEY;
-  if (!apiKey) return null;
-
-  const normalizedCustomerId = normalizeHelcimCustomerId(customerId);
-  if (!normalizedCustomerId) {
-    logger.warn({ customerId }, "Invalid Helcim customer ID format");
-    return null;
-  }
-
+  if (!/^[A-Za-z0-9_.-]{1,256}$/.test(customerId)) return null;
   try {
-    const url = new URL("https://api.helcim.com");
-    url.pathname = `/v2/customers/${encodeURIComponent(normalizedCustomerId)}`;
-
-    const res = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+    const response = await fetch(
+      `${API_ROOT}/customers/${encodeURIComponent(customerId)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey()}`,
+          Accept: "application/json",
+        },
       },
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as { data?: { email?: string } };
+    );
+    if (!response.ok) return null;
+    const json = (await response.json()) as { data?: { email?: string } };
     return json.data?.email ?? null;
   } catch (err) {
-    logger.error({ err }, "Helcim getCustomerEmail failed");
+    logger.error({ err }, "Helcim customer lookup failed");
     return null;
   }
 }
