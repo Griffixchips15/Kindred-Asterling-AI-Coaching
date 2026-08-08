@@ -1,10 +1,18 @@
-import { type Request, type Response, type NextFunction } from "express";
-import type { WithAuthProp } from "@clerk/clerk-sdk-node";
 import { createClerkClient } from "@clerk/backend";
+import type { WithAuthProp } from "@clerk/clerk-sdk-node";
 import { db, usersTable } from "@workspace/db";
-import { and, eq, isNull } from "drizzle-orm";
+import type { NextFunction, Request, Response } from "express";
 import { logger } from "../lib/logger";
 import { syncClerkIdentity } from "../lib/clerkIdentity";
+
+export interface ClerkIdentity {
+  id: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  profileImageUrl: string | null;
+  emailVerified: boolean;
+}
 
 const clerk = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY!,
@@ -13,79 +21,60 @@ const clerk = createClerkClient({
 
 declare global {
   namespace Express {
-    interface User {
-      id: string;
-      email: string | null;
-      firstName: string | null;
-      lastName: string | null;
-      profileImageUrl: string | null;
-      emailVerifiedAt: Date | null;
-    }
-
+    interface User extends ClerkIdentity {}
     interface Request {
       isAuthenticated(): this is AuthedRequest;
-      user?: User | undefined;
+      user?: User;
     }
-
-    export interface AuthedRequest {
+    interface AuthedRequest {
       user: User;
     }
   }
 }
 
+export async function getClerkIdentity(userId: string): Promise<ClerkIdentity> {
+  const user = await clerk.users.getUser(userId);
+  const primary =
+    user.emailAddresses.find(
+      (item) => item.id === user.primaryEmailAddressId,
+    ) ?? user.emailAddresses[0];
+  return {
+    id: user.id,
+    email: primary?.emailAddress ?? null,
+    firstName: user.firstName ?? null,
+    lastName: user.lastName ?? null,
+    profileImageUrl: user.imageUrl ?? null,
+    emailVerified: primary?.verification?.status === "verified",
+  };
+}
+
+export async function findClerkIdentitiesByEmail(
+  email: string,
+): Promise<ClerkIdentity[]> {
+  const result = await clerk.users.getUserList({ emailAddress: [email] });
+  return Promise.all(result.data.map((user) => getClerkIdentity(user.id)));
+}
+
 export async function authMiddleware(
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction,
 ) {
   req.isAuthenticated = function (this: Request) {
     return this.user != null;
   } as Request["isAuthenticated"];
-
-  const authReq = req as WithAuthProp<Request>;
-  const userId = authReq.auth?.userId;
-  if (!userId) {
-    next();
-    return;
-  }
+  const userId = (req as WithAuthProp<Request>).auth?.userId;
+  if (!userId) return next();
 
   try {
-    const [user] = await db
-      .select({
-        id: usersTable.id,
-        email: usersTable.email,
-        firstName: usersTable.firstName,
-        lastName: usersTable.lastName,
-        profileImageUrl: usersTable.profileImageUrl,
-        emailVerifiedAt: usersTable.emailVerifiedAt,
-      })
-      .from(usersTable)
-      .where(
-        and(
-          eq(usersTable.clerkUserId, userId),
-          isNull(usersTable.clerkDeletedAt),
-        ),
-      )
-      .limit(1);
-
-    if (user) {
-      req.user = user;
-      next();
-      return;
-    }
-  } catch {
-    // If DB lookup fails, proceed to fallback
-  }
-
-  // User not found in local DB — fetch from Clerk and create
-  try {
-    const clerkUser = await clerk.users.getUser(userId);
-    req.user = await syncClerkIdentity(clerkUser);
-
-    logger.info({ userId }, "User auto-created from Clerk auth");
+    const identity = await getClerkIdentity(userId);
+    await db
+      .insert(usersTable)
+      .values({ id: identity.id })
+      .onConflictDoNothing();
+    req.user = identity;
   } catch (err) {
-    logger.warn({ err, userId }, "Failed to auto-create user from Clerk auth");
+    logger.warn({ err, userId }, "Failed to resolve Clerk identity");
   }
-
   next();
 }

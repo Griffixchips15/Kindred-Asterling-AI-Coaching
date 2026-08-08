@@ -12,15 +12,6 @@ interface ClerkWebhookPayload {
   type: string;
   data: {
     id: string;
-    primary_email_address_id?: string | null;
-    email_addresses?: {
-      id: string;
-      email_address: string;
-      verification?: { status?: string };
-    }[];
-    first_name?: string;
-    last_name?: string;
-    image_url?: string;
     deleted?: boolean;
   };
 }
@@ -68,19 +59,11 @@ router.post("/clerk/webhook", async (req: Request, res: Response) => {
     switch (type) {
       case "user.created":
       case "user.updated": {
-        await syncClerkIdentity({
-          id: data.id,
-          primaryEmailAddressId: data.primary_email_address_id,
-          emailAddresses: data.email_addresses?.map((address) => ({
-            id: address.id,
-            emailAddress: address.email_address,
-            verification: address.verification,
-          })),
-          firstName: data.first_name,
-          lastName: data.last_name,
-          imageUrl: data.image_url,
-        });
-        logger.info({ userId: data.id, type }, "Clerk user synced");
+        await db
+          .insert(usersTable)
+          .values({ id: data.id })
+          .onConflictDoNothing();
+        logger.info({ userId: data.id, type }, "Clerk user mapping ensured");
         break;
       }
 

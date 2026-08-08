@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClerkClient } from "@clerk/clerk-sdk-node";
 import { authMiddleware } from "./middlewares/authMiddleware";
-import { sessionAuthMiddleware } from "./middlewares/sessionAuthMiddleware";
+import { testClerkIdentityAdapter } from "./middlewares/testClerkIdentityAdapter";
 import { generalLimiter, writeLimiter } from "./middlewares/rateLimiter";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -103,19 +103,69 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true, limit: "32kb" }));
 
-// In test mode, use the legacy session-based auth (tests create sessions directly).
-// In dev/production, use Clerk's JWT-based auth.
+// Tests use a deliberately small Clerk identity stand-in, never production session code.
 const isTest = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
 if (isTest) {
-  app.use(sessionAuthMiddleware);
+  app.use(testClerkIdentityAdapter);
 } else {
   const clerkClient = createClerkClient({
     secretKey: process.env.CLERK_SECRET_KEY!,
     publishableKey: process.env.CLERK_PUBLISHABLE_KEY!,
   });
   app.use(clerkClient.expressWithAuth());
+  // TEMPORARY DEBUG: capture Clerk's exact token rejection reason.
+  app.use(async (req, _res, next) => {
+    if (req.path.startsWith("/api") && req.path !== "/api/healthz") {
+      try {
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(req.headers)) {
+          if (typeof value === "string") headers.set(name, value);
+          else if (Array.isArray(value)) headers.set(name, value.join(","));
+        }
+        const request = new Request(
+          new URL(
+            req.originalUrl || req.url,
+            `${req.protocol}://${req.get("host")}`,
+          ),
+          { method: req.method, headers },
+        );
+        const state = await clerkClient.authenticateRequest(request);
+        logger.info(
+          { url: req.path, clerkDebug: clerkClient.debugRequestState(state) },
+          "clerk-verification-debug",
+        );
+      } catch (err) {
+        logger.warn({ err, url: req.path }, "clerk-verification-debug-error");
+      }
+    }
+    next();
+  });
   app.use(authMiddleware);
 }
+
+// TEMPORARY DEBUG: log Clerk auth state for failed requests
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api") && req.path !== "/api/healthz") {
+    const auth = (
+      req as unknown as {
+        auth?: { userId?: string | null; sessionId?: string | null };
+      }
+    ).auth;
+    const authHeader = req.headers.authorization;
+    logger.info(
+      {
+        url: req.path,
+        method: req.method,
+        authUserId: auth?.userId ?? null,
+        authSessionId: auth?.sessionId ?? null,
+        hasAuthHeader: Boolean(authHeader),
+        authHeaderPrefix: authHeader ? authHeader.slice(0, 20) : null,
+      },
+      "clerk-auth-debug",
+    );
+  }
+  next();
+});
 
 app.use(generalLimiter);
 app.use((req, res, next) => {
