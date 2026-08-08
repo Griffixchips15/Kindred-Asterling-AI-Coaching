@@ -34,11 +34,12 @@ router.get("/habits", requireAuth, async (req, res): Promise<void> => {
         .where(
           and(
             eq(habitEntriesTable.habitId, habit.id),
-            eq(habitEntriesTable.completed, true)
-          )
+            eq(habitEntriesTable.completed, true),
+            eq(habitEntriesTable.userId, userId),
+          ),
         );
       return { ...habit, completedCount: count ?? 0 };
-    })
+    }),
   );
 
   res.json(ListHabitsResponse.parse(JSON.parse(JSON.stringify(withCounts))));
@@ -76,7 +77,9 @@ router.patch("/habits/:id", requireAuth, async (req, res): Promise<void> => {
   const [habit] = await db
     .update(habitsTable)
     .set(parsed.data)
-    .where(and(eq(habitsTable.id, params.data.id), eq(habitsTable.userId, userId)))
+    .where(
+      and(eq(habitsTable.id, params.data.id), eq(habitsTable.userId, userId)),
+    )
     .returning();
   if (!habit) {
     res.status(404).json({ error: "Habit not found" });
@@ -88,10 +91,15 @@ router.patch("/habits/:id", requireAuth, async (req, res): Promise<void> => {
     .where(
       and(
         eq(habitEntriesTable.habitId, habit.id),
-        eq(habitEntriesTable.completed, true)
-      )
+        eq(habitEntriesTable.completed, true),
+        eq(habitEntriesTable.userId, userId),
+      ),
     );
-  res.json(UpdateHabitResponse.parse(JSON.parse(JSON.stringify({ ...habit, completedCount: count ?? 0 }))));
+  res.json(
+    UpdateHabitResponse.parse(
+      JSON.parse(JSON.stringify({ ...habit, completedCount: count ?? 0 })),
+    ),
+  );
 });
 
 router.delete("/habits/:id", requireAuth, async (req, res): Promise<void> => {
@@ -103,7 +111,9 @@ router.delete("/habits/:id", requireAuth, async (req, res): Promise<void> => {
   }
   const [habit] = await db
     .delete(habitsTable)
-    .where(and(eq(habitsTable.id, params.data.id), eq(habitsTable.userId, userId)))
+    .where(
+      and(eq(habitsTable.id, params.data.id), eq(habitsTable.userId, userId)),
+    )
     .returning();
   if (!habit) {
     res.status(404).json({ error: "Habit not found" });
@@ -112,53 +122,68 @@ router.delete("/habits/:id", requireAuth, async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-router.get("/habits/:id/entries", requireAuth, async (req, res): Promise<void> => {
-  const userId = req.user!.id;
-  const params = ListHabitEntriesParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  // Verify the habit belongs to this user
-  const [habit] = await db
-    .select()
-    .from(habitsTable)
-    .where(and(eq(habitsTable.id, params.data.id), eq(habitsTable.userId, userId)));
-  if (!habit) {
-    res.status(404).json({ error: "Habit not found" });
-    return;
-  }
-  const entries = await db
-    .select()
-    .from(habitEntriesTable)
-    .where(eq(habitEntriesTable.habitId, params.data.id))
-    .orderBy(desc(habitEntriesTable.date))
-    .limit(365);
-  res.json(JSON.parse(JSON.stringify(entries)));
-});
+router.get(
+  "/habits/:id/entries",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const userId = req.user!.id;
+    const params = ListHabitEntriesParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    // Verify the habit belongs to this user
+    const [habit] = await db
+      .select()
+      .from(habitsTable)
+      .where(
+        and(eq(habitsTable.id, params.data.id), eq(habitsTable.userId, userId)),
+      );
+    if (!habit) {
+      res.status(404).json({ error: "Habit not found" });
+      return;
+    }
+    const entries = await db
+      .select()
+      .from(habitEntriesTable)
+      .where(
+        and(
+          eq(habitEntriesTable.habitId, params.data.id),
+          eq(habitEntriesTable.userId, userId),
+        ),
+      )
+      .orderBy(desc(habitEntriesTable.date))
+      .limit(365);
+    res.json(JSON.parse(JSON.stringify(entries)));
+  },
+);
 
-router.post("/habits/:id/entries", requireAuth, async (req, res): Promise<void> => {
-  const userId = req.user!.id;
-  const params = LogHabitEntryParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const parsed = LogHabitEntryBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const entry = await logHabitEntryTx(params.data.id, userId, {
-    date: parsed.data.date,
-    completed: parsed.data.completed,
-    notes: parsed.data.notes ?? null,
-  });
-  if (!entry) {
-    res.status(404).json({ error: "Habit not found" });
-    return;
-  }
-  res.status(201).json(entry);
-});
+router.post(
+  "/habits/:id/entries",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const userId = req.user!.id;
+    const params = LogHabitEntryParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const parsed = LogHabitEntryBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const entry = await logHabitEntryTx(params.data.id, userId, {
+      date: parsed.data.date,
+      completed: parsed.data.completed,
+      notes: parsed.data.notes ?? null,
+    });
+    if (!entry) {
+      res.status(404).json({ error: "Habit not found" });
+      return;
+    }
+    res.status(201).json(entry);
+  },
+);
 
 export default router;

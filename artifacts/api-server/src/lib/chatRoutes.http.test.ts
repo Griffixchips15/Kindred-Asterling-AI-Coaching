@@ -7,8 +7,8 @@ import {
   afterAll,
   afterEach,
 } from "vitest";
-import type { AddressInfo } from "node:net";
-import type { Server } from "node:http";
+import type { AddressInfo } from "net";
+import type { Server } from "http";
 import { eq, sql } from "drizzle-orm";
 import {
   db,
@@ -22,40 +22,44 @@ import {
   habitsTable,
   habitEntriesTable,
   medicationsTable,
-  medicationLogsTable,
 } from "@workspace/db";
 import app from "../app";
-import { createSession, deleteSession } from "./auth";
+import {
+  registerTestClerkIdentity,
+  revokeTestClerkIdentity,
+} from "../middlewares/testClerkIdentityAdapter";
 
 // These tests drive the real Express chat routes over HTTP (auth middleware,
 // request validation, status codes, conversation/message ownership checks, and
 // response shapes). Chat history is the most sensitive class of user data, so we
 // prove anonymous callers are rejected, one user can't read another's archived
 // conversation, and a failed LLM turn never persists a fallback assistant reply
-// that would pollute the conversation. The outbound Ollama call is mocked so
+// that would pollute the conversation. The outbound AI provider is mocked so
 // the suite makes no real model calls.
-vi.mock("./ollamaClient", () => ({
-  chatWithOllama: vi.fn(),
-}));
+const { providerChatMock } = vi.hoisted(() => ({ providerChatMock: vi.fn() }));
+vi.mock("./ai", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./ai")>();
+  return {
+    ...actual,
+    getAIProvider: () => ({ name: "ollama", chat: providerChatMock }),
+  };
+});
 
-import { chatWithOllama } from "./ollamaClient";
-
-const createMock = vi.mocked(chatWithOllama);
+const createMock = providerChatMock;
 
 function mockReplyOnce(text: string) {
   createMock.mockResolvedValueOnce({
     content: text,
     toolCalls: [],
-    doneReason: "stop",
+    finishReason: "stop",
   });
 }
-
 function failReplyOnce() {
   createMock.mockRejectedValueOnce(new Error("ollama unavailable"));
 }
 
-// Mocks a single Ollama turn that asks to call a tool. The route runs the tool
-// scoped to the session user, then re-calls Ollama with the result fed back.
+// Mocks a single provider turn that asks to call a tool. The route runs the tool
+// scoped to the session user, then re-calls the provider with the result fed back.
 function mockToolUseOnce(
   toolName: string,
   input: Record<string, unknown> = {},
@@ -64,17 +68,16 @@ function mockToolUseOnce(
     content: "",
     toolCalls: [
       {
-        function: {
-          name: toolName,
-          arguments: input,
-        },
+        id: "tool-call-1",
+        name: toolName,
+        arguments: input,
       },
     ],
-    doneReason: "tool_calls",
+    finishReason: "tool_calls",
   });
 }
 
-// Mocks a single Ollama turn that asks to call several tools at once. The route
+// Mocks a single provider turn that asks to call several tools at once. The route
 // runs every requested tool (each scoped to the session user) and feeds all the
 // results back together on the next call.
 function mockMultiToolUseOnce(
@@ -83,12 +86,11 @@ function mockMultiToolUseOnce(
   createMock.mockResolvedValueOnce({
     content: "",
     toolCalls: tools.map((tool) => ({
-      function: {
-        name: tool.name,
-        arguments: tool.input ?? {},
-      },
+      id: tool.id ?? `tool-${tool.name}`,
+      name: tool.name,
+      arguments: tool.input ?? {},
     })),
-    doneReason: "tool_calls",
+    finishReason: "tool_calls",
   });
 }
 
@@ -97,15 +99,8 @@ function mockMultiToolUseOnce(
 function mockToolUseAlways(toolName: string) {
   createMock.mockResolvedValue({
     content: "",
-    toolCalls: [
-      {
-        function: {
-          name: toolName,
-          arguments: {},
-        },
-      },
-    ],
-    doneReason: "tool_calls",
+    toolCalls: [{ id: "tool-call-loop", name: toolName, arguments: {} }],
+    finishReason: "tool_calls",
   });
 }
 
@@ -117,24 +112,12 @@ let server: Server;
 let baseUrl: string;
 let tokenA: string;
 let tokenB: string;
-const sids: string[] = [];
+const tokens: string[] = [];
 
 async function makeSession(userId: string): Promise<string> {
-  // No expires_at, so the auth middleware accepts the session without an OIDC
-  // refresh round-trip.
-  const sid = await createSession({
-    user: {
-      id: userId,
-      email: `${userId}@example.test`,
-      firstName: null,
-      lastName: null,
-      profileImageUrl: null,
-      emailVerifiedAt: new Date(),
-    },
-    access_token: "test-access-token",
-  });
-  sids.push(sid);
-  return sid;
+  const token = registerTestClerkIdentity({ id: userId });
+  tokens.push(token);
+  return token;
 }
 
 interface ApiResult {
@@ -172,10 +155,25 @@ interface ConvWithMessages {
   messages: { role: string; content: string }[];
 }
 
+async function quotaCount(userId: string): Promise<number> {
+  const result = await db.execute<{ count: number }>(
+    sql`SELECT count FROM daily_usage WHERE user_id = ${userId} AND date = CURRENT_DATE`,
+  );
+  return Number(result.rows[0]?.count ?? 0);
+}
+
 beforeAll(async () => {
   await db.insert(usersTable).values([
-    { id: userAId, email: `${userAId}@example.test`, emailVerifiedAt: new Date() },
-    { id: userBId, email: `${userBId}@example.test`, emailVerifiedAt: new Date() },
+    {
+      id: userAId,
+      email: `${userAId}@example.test`,
+      emailVerifiedAt: new Date(),
+    },
+    {
+      id: userBId,
+      email: `${userBId}@example.test`,
+      emailVerifiedAt: new Date(),
+    },
   ]);
   tokenA = await makeSession(userAId);
   tokenB = await makeSession(userBId);
@@ -203,7 +201,7 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
-  await Promise.all(sids.map((s) => deleteSession(s)));
+  tokens.forEach(revokeTestClerkIdentity);
   for (const id of [userAId, userBId]) {
     await db.delete(usersTable).where(eq(usersTable.id, id));
   }
@@ -311,20 +309,32 @@ describe("POST /chat/send", () => {
     expect(res.status).toBe(200);
     expect(createMock).not.toHaveBeenCalled();
 
-    const conv = res.body as ConvWithMessages;
-    expect(
-      conv.messages.some(
-        (message) =>
-          message.role === "assistant" &&
-          message.content.includes("call or text 988"),
-      ),
-    ).toBe(true);
+    const safety = res.body as {
+      type: string;
+      message: string;
+      falsePositive: { label: string };
+      regionSelector: { id: string }[];
+    };
+    expect(safety.type).toBe("crisis_support");
+    expect(safety.message).toContain("local emergency services");
+    expect(safety.message).toContain("not medical care or an emergency service");
+    expect(safety.falsePositive.label).toBe("This doesn’t apply");
+    expect(safety.regionSelector).toContainEqual(
+      expect.objectContaining({ id: "international" }),
+    );
 
     const quotaRows = await db
       .select()
       .from(conversations)
       .where(eq(conversations.userId, userAId));
     expect(quotaRows).toHaveLength(0);
+
+    const storedMessages = await db
+      .select()
+      .from(messages)
+      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+      .where(eq(conversations.userId, userAId));
+    expect(storedMessages).toHaveLength(0);
   });
 
   it("persists the user turn and the assistant reply for the owner", async () => {
@@ -364,6 +374,7 @@ describe("POST /chat/send", () => {
   });
 
   it("returns 502 and persists no fallback assistant reply when the model call fails", async () => {
+    const quotaBefore = await quotaCount(userAId);
     failReplyOnce();
     const res = await api("POST", "/chat/send", {
       token: tokenA,
@@ -380,6 +391,8 @@ describe("POST /chat/send", () => {
       .where(eq(conversations.userId, userAId));
     expect(rows.filter((r) => r.role === "assistant")).toHaveLength(0);
     expect(rows.filter((r) => r.role === "user")).toHaveLength(1);
+    // The reserved slot is returned after both bounded attempts fail.
+    expect(await quotaCount(userAId)).toBe(quotaBefore);
   });
 });
 
@@ -390,8 +403,7 @@ describe("POST /chat/send agentic tool loop", () => {
   // user's rows. callIndex selects the Ollama request to inspect.
   function toolResultTextFrom(callIndex: number): string {
     const call = createMock.mock.calls[callIndex]?.[0] as
-      | { messages: { role: string; content: unknown }[] }
-      | undefined;
+      { messages: { role: string; content: unknown }[] } | undefined;
     expect(call, `expected a model call at index ${callIndex}`).toBeTruthy();
     const toolResult = [...call!.messages]
       .reverse()
@@ -403,8 +415,7 @@ describe("POST /chat/send agentic tool loop", () => {
   // model turn requested several tools at once.
   function allToolResultsTextFrom(callIndex: number): string {
     const call = createMock.mock.calls[callIndex]?.[0] as
-      | { messages: { role: string; content: unknown }[] }
-      | undefined;
+      { messages: { role: string; content: unknown }[] } | undefined;
     expect(call, `expected a model call at index ${callIndex}`).toBeTruthy();
     return call!.messages
       .filter((message) => message.role === "tool")
@@ -677,7 +688,11 @@ describe("POST /chat/send agentic tool loop", () => {
     ]);
 
     mockMultiToolUseOnce([
-      { name: "get_recent_evening_reports", input: { limit: 7 }, id: "toolu_a" },
+      {
+        name: "get_recent_evening_reports",
+        input: { limit: 7 },
+        id: "toolu_a",
+      },
       { name: "get_recent_body_scans", input: { limit: 7 }, id: "toolu_b" },
     ]);
     mockReplyOnce("Your evenings and your body both point the same way.");
@@ -709,7 +724,9 @@ describe("POST /chat/send agentic tool loop", () => {
       body: { content: "loop please" },
     });
     expect(res.status).toBe(502);
-    expect((res.body as { reason?: string }).reason).toBe("max_tool_iterations");
+    expect((res.body as { reason?: string }).reason).toBe(
+      "max_tool_iterations",
+    );
 
     // Exactly 4 model calls — the cap — no more.
     expect(createMock).toHaveBeenCalledTimes(4);

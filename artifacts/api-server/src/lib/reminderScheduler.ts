@@ -9,6 +9,7 @@ import {
   medicationScheduleEntriesTable,
 } from "@workspace/db";
 import { logger } from "./logger";
+import { getClerkIdentity } from "../middlewares/authMiddleware";
 import { isSmsConfigured, sendSms } from "./twilio";
 import { isEmailConfigured, sendEmail } from "./resend";
 
@@ -267,7 +268,7 @@ async function processUser(
             { err, userId: row.userId, type: d.type, channel: c.ch },
             "Reminder delivery failed",
           );
-        })
+        }),
       );
     }
   }
@@ -292,9 +293,7 @@ export async function runReminderTick(now: Date = new Date()): Promise<void> {
         emailEnabled: reminderSettingsTable.emailEnabled,
         timezone: usersTable.timezone,
         phone: usersTable.phone,
-        email: usersTable.email,
         preferredName: usersTable.preferredName,
-        firstName: usersTable.firstName,
       })
       .from(reminderSettingsTable)
       .innerJoin(usersTable, eq(reminderSettingsTable.userId, usersTable.id))
@@ -312,6 +311,13 @@ export async function runReminderTick(now: Date = new Date()): Promise<void> {
         ),
       );
 
+    const rowsWithIdentity = await Promise.all(
+      rows.map(async (row) => {
+        const identity = await getClerkIdentity(row.userId);
+        return { ...row, email: identity.email, firstName: identity.firstName };
+      }),
+    );
+
     // Compute local time and catch-up window for each user.
     // Also batch fetch medication schedules to avoid N+1 queries.
     const userTimes = new Map<
@@ -320,7 +326,7 @@ export async function runReminderTick(now: Date = new Date()): Promise<void> {
     >();
     const medUserIds: string[] = [];
 
-    for (const row of rows) {
+    for (const row of rowsWithIdentity) {
       const { hm, date } = localParts(row.timezone ?? DEFAULT_TZ, now);
       const nowMin = hmToMin(hm);
       if (nowMin !== null) {
@@ -380,7 +386,7 @@ export async function runReminderTick(now: Date = new Date()): Promise<void> {
       }
     }
 
-    for (const row of rows) {
+    for (const row of rowsWithIdentity) {
       const uTime = userTimes.get(row.userId);
       if (!uTime) continue;
       const userMeds = medsByUser.get(row.userId) ?? [];

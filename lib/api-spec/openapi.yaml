@@ -41,19 +41,15 @@ paths:
       operationId: getSubscriptionStatus
       summary: Get the current user's subscription access status
       security:
-        - sessionCookie: []
-        - bearerSession: []
-      parameters:
-        - $ref: '#/components/parameters/AuthorizationSessionHeader'
-        - $ref: '#/components/parameters/SessionCookie'
+        - clerkBearer: []
       responses:
-        '200':
+        "200":
           description: Subscription status resolved successfully.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SubscriptionStatus'
-        '401':
+                $ref: "#/components/schemas/SubscriptionStatus"
+        "401":
           description: Not authenticated.
   /subscription/checkout:
     post:
@@ -61,27 +57,23 @@ paths:
       operationId: createCheckout
       summary: Create a Helcim hosted checkout link for the selected plan
       security:
-        - sessionCookie: []
-        - bearerSession: []
-      parameters:
-        - $ref: '#/components/parameters/AuthorizationSessionHeader'
-        - $ref: '#/components/parameters/SessionCookie'
+        - clerkBearer: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateCheckoutInput'
+              $ref: "#/components/schemas/CreateCheckoutInput"
       responses:
-        '200':
+        "200":
           description: Checkout link created.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CheckoutLink'
-        '401':
+                $ref: "#/components/schemas/CheckoutLink"
+        "401":
           description: Not authenticated.
-        '503':
+        "503":
           description: Checkout is not configured yet.
   /auth/user:
     get:
@@ -89,130 +81,14 @@ paths:
       operationId: getCurrentAuthUser
       summary: Get the currently authenticated user
       security:
-        - sessionCookie: []
-        - bearerSession: []
-      parameters:
-        - $ref: '#/components/parameters/AuthorizationSessionHeader'
-        - $ref: '#/components/parameters/SessionCookie'
+        - clerkBearer: []
       responses:
-        '200':
+        "200":
           description: Auth status resolved successfully.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthUserEnvelope'
-  /login:
-    get:
-      tags: [Auth]
-      operationId: beginBrowserLogin
-      summary: Start the browser OIDC login flow
-      security: []
-      parameters:
-        - name: returnTo
-          in: query
-          required: false
-          description: Relative path to redirect to after login (must start with `/`). Defaults to `/`.
-          schema:
-            type: string
-      responses:
-        '302':
-          description: Redirect to the OIDC authorization endpoint.
-  /callback:
-    get:
-      tags: [Auth]
-      operationId: handleBrowserLoginCallback
-      summary: Complete the browser OIDC login flow
-      security: []
-      parameters:
-        - name: code
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: state
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: iss
-          in: query
-          required: false
-          schema:
-            type: string
-            format: uri
-      responses:
-        '302':
-          description: Redirect to the `returnTo` path on success (defaults to `/`) or `/api/login` on failure.
-  /logout:
-    post:
-      tags: [Auth]
-      operationId: logoutBrowserSession
-      summary: Clear the session and return the OIDC logout URL
-      security: []
-      parameters:
-        - $ref: '#/components/parameters/AuthorizationSessionHeader'
-        - $ref: '#/components/parameters/SessionCookie'
-      responses:
-        '200':
-          description: Session cleared. The client must navigate to the returned URL to complete OIDC logout.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BrowserLogoutResponse'
-  /mobile-auth/token-exchange:
-    post:
-      tags: [Auth]
-      operationId: exchangeMobileAuthorizationCode
-      summary: Exchange a mobile OIDC code for a session token
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MobileTokenExchangeRequest'
-      responses:
-        '200':
-          description: Session created successfully.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MobileTokenExchangeSuccess'
-        '400':
-          description: Missing or invalid required fields.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
-          description: Token did not contain usable claims.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '500':
-          description: Token exchange failed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-  /mobile-auth/logout:
-    post:
-      tags: [Auth]
-      operationId: logoutMobileSession
-      summary: Delete a mobile session token
-      security:
-        - bearerSession: []
-      parameters:
-        - $ref: '#/components/parameters/AuthorizationSessionHeader'
-      responses:
-        '200':
-          description: Logout processed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LogoutSuccess'
-
+                $ref: "#/components/schemas/AuthUserEnvelope"
   /healthz:
     get:
       operationId: healthCheck
@@ -510,14 +386,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ProfileUpdateInput'
+              $ref: "#/components/schemas/ProfileUpdateInput"
       responses:
-        '200':
+        "200":
           description: Updated user
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthUser'
+                $ref: "#/components/schemas/AuthUser"
 
   /reminder-settings:
     get:
@@ -525,12 +401,12 @@ paths:
       tags: [profile]
       summary: Get the current user's reminder settings (creates defaults if missing)
       responses:
-        '200':
+        "200":
           description: Reminder settings
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ReminderSettings'
+                $ref: "#/components/schemas/ReminderSettings"
     patch:
       operationId: updateReminderSettings
       tags: [profile]
@@ -540,14 +416,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ReminderSettingsUpdateInput'
+              $ref: "#/components/schemas/ReminderSettingsUpdateInput"
       responses:
-        '200':
+        "200":
           description: Updated reminder settings
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ReminderSettings'
+                $ref: "#/components/schemas/ReminderSettings"
 
   /chat/active:
     get:
@@ -555,12 +431,12 @@ paths:
       tags: [chat]
       summary: Get the current active conversation with messages (creates one if missing)
       responses:
-        '200':
+        "200":
           description: Active conversation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChatConversationWithMessages'
+                $ref: "#/components/schemas/ChatConversationWithMessages"
 
   /chat/send:
     post:
@@ -572,14 +448,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ChatSendInput'
+              $ref: "#/components/schemas/ChatSendInput"
       responses:
-        '200':
+        "200":
           description: Updated conversation with both messages appended
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChatConversationWithMessages'
+                $ref: "#/components/schemas/ChatConversationWithMessages"
 
   /chat/append:
     post:
@@ -591,14 +467,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ChatAppendInput'
+              $ref: "#/components/schemas/ChatAppendInput"
       responses:
-        '200':
+        "200":
           description: Updated conversation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChatConversationWithMessages'
+                $ref: "#/components/schemas/ChatConversationWithMessages"
 
   /chat/archive:
     post:
@@ -606,12 +482,12 @@ paths:
       tags: [chat]
       summary: Archive the current active conversation and start a fresh one
       responses:
-        '200':
+        "200":
           description: New active conversation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChatConversationWithMessages'
+                $ref: "#/components/schemas/ChatConversationWithMessages"
 
   /chat/archived:
     get:
@@ -619,14 +495,14 @@ paths:
       tags: [chat]
       summary: List the user's archived conversations
       responses:
-        '200':
+        "200":
           description: Archived conversations
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ChatConversation'
+                  $ref: "#/components/schemas/ChatConversation"
 
   /chat/archived/{id}:
     get:
@@ -640,13 +516,13 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Archived conversation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChatConversationWithMessages'
-        '404':
+                $ref: "#/components/schemas/ChatConversationWithMessages"
+        "404":
           description: Not found
 
   /medications:
@@ -667,14 +543,14 @@ paths:
             minimum: -840
             maximum: 840
       responses:
-        '200':
+        "200":
           description: Medications with today flag
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/MedicationWithStatus'
+                  $ref: "#/components/schemas/MedicationWithStatus"
     post:
       operationId: createMedication
       tags: [medications]
@@ -684,14 +560,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MedicationInput'
+              $ref: "#/components/schemas/MedicationInput"
       responses:
-        '201':
+        "201":
           description: Created medication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Medication'
+                $ref: "#/components/schemas/Medication"
 
   /medications/{id}:
     patch:
@@ -709,15 +585,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MedicationInput'
+              $ref: "#/components/schemas/MedicationInput"
       responses:
-        '200':
+        "200":
           description: Updated medication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Medication'
-        '404':
+                $ref: "#/components/schemas/Medication"
+        "404":
           description: Not found
     delete:
       operationId: deleteMedication
@@ -730,9 +606,9 @@ paths:
           schema:
             type: integer
       responses:
-        '204':
+        "204":
           description: Deleted
-        '404':
+        "404":
           description: Not found
 
   /medications/weekly-report:
@@ -754,12 +630,12 @@ paths:
             minimum: -840
             maximum: 840
       responses:
-        '200':
+        "200":
           description: Weekly report data
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MedicationWeeklyReport'
+                $ref: "#/components/schemas/MedicationWeeklyReport"
 
   /medications/{id}/log:
     post:
@@ -777,15 +653,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MedicationLogInput'
+              $ref: "#/components/schemas/MedicationLogInput"
       responses:
-        '201':
+        "201":
           description: Log entry recorded or updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MedicationLog'
-        '404':
+                $ref: "#/components/schemas/MedicationLog"
+        "404":
           description: Not found
     delete:
       operationId: unlogMedicationTaken
@@ -802,11 +678,11 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MedicationDoseRef'
+              $ref: "#/components/schemas/MedicationDoseRef"
       responses:
-        '204':
+        "204":
           description: Removed
-        '404':
+        "404":
           description: Not found
 
   /calendar/upcoming:
@@ -878,35 +754,15 @@ paths:
                   $ref: "#/components/schemas/MoodTrendPoint"
 
 security:
-  - sessionCookie: []
-  - bearerSession: []
+  - clerkBearer: []
 
 components:
   securitySchemes:
-    sessionCookie:
-      type: apiKey
-      in: cookie
-      name: sid
-      description: Browser session cookie set by the /login flow.
-    bearerSession:
+    clerkBearer:
       type: http
       scheme: bearer
-      description: Opaque session token for mobile clients — `Bearer <sid>`.
-  parameters:
-    AuthorizationSessionHeader:
-      name: Authorization
-      in: header
-      required: false
-      description: Opaque session token — `Bearer <sid>`.
-      schema:
-        type: string
-    SessionCookie:
-      name: sid
-      in: cookie
-      required: false
-      description: Browser session cookie.
-      schema:
-        type: string
+      bearerFormat: JWT
+      description: Clerk session JWT obtained through the Clerk SDK.
   schemas:
     SubscriptionStatus:
       type: object
@@ -924,7 +780,7 @@ components:
           format: date-time
         source:
           type: string
-          description: 'Access source: owner, beta, helcim, or none.'
+          description: "Access source: owner, beta, helcim, or none."
         subscribeUrl:
           type: string
           nullable: true
@@ -946,7 +802,24 @@ components:
           description: Helcim-hosted checkout URL to redirect the buyer to.
     AuthUser:
       type: object
-      required: [id, email, firstName, lastName, profileImageUrl, preferredName, birthday, struggles, strengths, interests, bio, motivationalQuote, phone, timezone, onboardedAt]
+      required:
+        [
+          id,
+          email,
+          firstName,
+          lastName,
+          profileImageUrl,
+          preferredName,
+          birthday,
+          struggles,
+          strengths,
+          interests,
+          bio,
+          motivationalQuote,
+          phone,
+          timezone,
+          onboardedAt,
+        ]
       properties:
         id:
           type: string
@@ -1000,48 +873,8 @@ components:
       properties:
         user:
           oneOf:
-            - $ref: '#/components/schemas/AuthUser'
-            - type: 'null'
-    MobileTokenExchangeRequest:
-      type: object
-      required: [code, code_verifier, redirect_uri, state]
-      properties:
-        code:
-          type: string
-          minLength: 1
-        code_verifier:
-          type: string
-          minLength: 1
-        redirect_uri:
-          type: string
-          minLength: 1
-          format: uri
-        state:
-          type: string
-          minLength: 1
-        nonce:
-          type: string
-          minLength: 1
-    MobileTokenExchangeSuccess:
-      type: object
-      required: [token]
-      properties:
-        token:
-          type: string
-    BrowserLogoutResponse:
-      type: object
-      required: [logoutUrl]
-      properties:
-        logoutUrl:
-          type: string
-          format: uri
-    LogoutSuccess:
-      type: object
-      required: [success]
-      properties:
-        success:
-          type: boolean
-          const: true
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
     ErrorEnvelope:
       type: object
       required: [error]
@@ -1265,7 +1098,15 @@ components:
 
     TodaySummary:
       type: object
-      required: [date, morningDone, eveningDone, bodyScansCount, habitsCompletedToday, totalHabits]
+      required:
+        [
+          date,
+          morningDone,
+          eveningDone,
+          bodyScansCount,
+          habitsCompletedToday,
+          totalHabits,
+        ]
       properties:
         date:
           type: string
@@ -1285,7 +1126,15 @@ components:
 
     HabitStreak:
       type: object
-      required: [habitId, habitName, currentStreak, longestStreak, completedCount, targetDays]
+      required:
+        [
+          habitId,
+          habitName,
+          currentStreak,
+          longestStreak,
+          completedCount,
+          targetDays,
+        ]
       properties:
         habitId:
           type: integer
@@ -1349,7 +1198,16 @@ components:
 
     ReminderSettings:
       type: object
-      required: [morningEnabled, morningTime, medicationEnabled, eveningEnabled, eveningTime, smsEnabled, emailEnabled]
+      required:
+        [
+          morningEnabled,
+          morningTime,
+          medicationEnabled,
+          eveningEnabled,
+          eveningTime,
+          smsEnabled,
+          emailEnabled,
+        ]
       properties:
         morningEnabled:
           type: boolean
@@ -1439,7 +1297,7 @@ components:
 
     ChatConversationWithMessages:
       allOf:
-        - $ref: '#/components/schemas/ChatConversation'
+        - $ref: "#/components/schemas/ChatConversation"
         - type: object
           required: [messages]
           properties:
@@ -1451,7 +1309,7 @@ components:
                 return at most 100 messages; the archive export endpoint returns
                 at most 500. The server never materialises the full transcript.
               items:
-                $ref: '#/components/schemas/ChatMessage'
+                $ref: "#/components/schemas/ChatMessage"
 
     ChatSendInput:
       type: object
@@ -1563,7 +1421,7 @@ components:
 
     MedicationWithStatus:
       allOf:
-        - $ref: '#/components/schemas/Medication'
+        - $ref: "#/components/schemas/Medication"
         - type: object
           required: [doses, recentEffectivenessAvg, recentEffectivenessCount]
           properties:
@@ -1571,7 +1429,7 @@ components:
               type: array
               description: Today's status for each scheduled dose, in time order
               items:
-                $ref: '#/components/schemas/MedicationDoseStatus'
+                $ref: "#/components/schemas/MedicationDoseStatus"
             recentEffectivenessAvg:
               type: number
               nullable: true
@@ -1687,7 +1545,8 @@ components:
           description: Every dose log in the window; client matches by medicationId + date + scheduledTime
           items:
             type: object
-            required: [medicationId, date, scheduledTime, takenAt, effectiveness]
+            required:
+              [medicationId, date, scheduledTime, takenAt, effectiveness]
             properties:
               medicationId:
                 type: integer

@@ -46,8 +46,8 @@ const B = "BBB_only_userB";
 
 beforeAll(async () => {
   await db.insert(usersTable).values([
-    { id: userAId, email: `${userAId}@example.test` },
-    { id: userBId, email: `${userBId}@example.test` },
+    { id: userAId },
+    { id: userBId },
   ]);
 
   const today = todayDateStr();

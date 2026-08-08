@@ -1,8 +1,13 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Webhook } from "svix";
 import { db, usersTable } from "@workspace/db";
+import { deleteAccount } from "../lib/accountLifecycle";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import {
+  markClerkIdentityDeleted,
+  syncClerkIdentity,
+} from "../lib/clerkIdentity";
 
 const router: IRouter = Router();
 
@@ -10,7 +15,10 @@ interface ClerkWebhookPayload {
   type: string;
   data: {
     id: string;
-    email_addresses?: { email_address: string; verification: { status: string } }[];
+    email_addresses?: {
+      email_address: string;
+      verification: { status: string };
+    }[];
     first_name?: string;
     last_name?: string;
     image_url?: string;
@@ -61,36 +69,20 @@ router.post("/clerk/webhook", async (req: Request, res: Response) => {
     switch (type) {
       case "user.created":
       case "user.updated": {
-        const email = data.email_addresses?.[0]?.email_address ?? null;
-        const emailVerified =
-          data.email_addresses?.[0]?.verification?.status === "verified";
         await db
           .insert(usersTable)
-          .values({
-            id: data.id,
-            email,
-            firstName: data.first_name ?? null,
-            lastName: data.last_name ?? null,
-            profileImageUrl: data.image_url ?? null,
-            emailVerifiedAt: emailVerified ? new Date() : null,
-          })
-          .onConflictDoUpdate({
-            target: usersTable.id,
-            set: {
-              email,
-              firstName: data.first_name ?? null,
-              lastName: data.last_name ?? null,
-              profileImageUrl: data.image_url ?? null,
-              emailVerifiedAt: emailVerified ? new Date() : null,
-            },
-          });
-        logger.info({ userId: data.id, type }, "Clerk user synced");
+          .values({ id: data.id })
+          .onConflictDoNothing();
+        logger.info({ userId: data.id, type }, "Clerk user mapping ensured");
         break;
       }
 
       case "user.deleted": {
-        await db.delete(usersTable).where(eq(usersTable.id, data.id));
-        logger.info({ userId: data.id, type }, "Clerk user deleted");
+        await deleteAccount(data.id);
+        logger.info(
+          { userId: data.id, type },
+          "Clerk user deletion policy applied",
+        );
         break;
       }
 

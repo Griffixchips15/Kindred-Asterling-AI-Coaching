@@ -4,8 +4,7 @@ import { db, medicationScheduleEntriesTable } from "@workspace/db";
 // A database executor: either the top-level `db` or a transaction handle. Used so
 // schedule reconciliation can run inside the same transaction as the med write.
 export type DbExecutor =
-  | typeof db
-  | Parameters<Parameters<typeof db.transaction>[0]>[0];
+  typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 // Normalize a list of "HH:MM" times: trim, de-duplicate, and sort ascending.
 export function normalizeTimes(times: string[]): string[] {
@@ -43,7 +42,12 @@ export async function reconcileScheduleEntries(
       await tx
         .update(medicationScheduleEntriesTable)
         .set({ endDate: today })
-        .where(eq(medicationScheduleEntriesTable.id, entry.id));
+        .where(
+          and(
+            eq(medicationScheduleEntriesTable.id, entry.id),
+            eq(medicationScheduleEntriesTable.userId, userId),
+          ),
+        );
     }
   }
 
