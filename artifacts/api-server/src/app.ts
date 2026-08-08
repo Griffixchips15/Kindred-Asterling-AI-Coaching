@@ -112,6 +112,30 @@ if (isTest) {
     publishableKey: process.env.CLERK_PUBLISHABLE_KEY!,
   });
   app.use(clerkClient.expressWithAuth());
+  // TEMPORARY DEBUG: capture Clerk's exact token rejection reason.
+  app.use(async (req, _res, next) => {
+    if (req.path.startsWith("/api") && req.path !== "/api/healthz") {
+      try {
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(req.headers)) {
+          if (typeof value === "string") headers.set(name, value);
+          else if (Array.isArray(value)) headers.set(name, value.join(","));
+        }
+        const request = new Request(
+          new URL(req.originalUrl || req.url, `${req.protocol}://${req.get("host")}`),
+          { method: req.method, headers },
+        );
+        const state = await clerkClient.authenticateRequest(request);
+        logger.info(
+          { url: req.path, clerkDebug: clerkClient.debugRequestState(state) },
+          "clerk-verification-debug",
+        );
+      } catch (err) {
+        logger.warn({ err, url: req.path }, "clerk-verification-debug-error");
+      }
+    }
+    next();
+  });
   app.use(authMiddleware);
 }
 
