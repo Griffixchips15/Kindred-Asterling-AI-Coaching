@@ -1,4 +1,10 @@
-import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import {
+  Router,
+  type IRouter,
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
 import healthRouter from "./health";
 import morningLogsRouter from "./morningLogs";
 import bodyScansRouter from "./bodyScans";
@@ -17,6 +23,7 @@ import remindersRouter from "./reminders";
 import adminRouter from "./admin";
 import userRouter from "./user";
 import clerkWebhookRouter from "./clerk-webhook";
+import accountRouter from "./account";
 import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
@@ -41,6 +48,7 @@ router.use(requireAuth);
 // Sensitive personal/wellness data must never be cached.
 router.use(noStore);
 
+router.use(accountRouter);
 router.use(morningLogsRouter);
 router.use(bodyScansRouter);
 router.use(eveningReportsRouter);

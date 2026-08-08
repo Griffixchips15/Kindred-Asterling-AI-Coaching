@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Webhook } from "svix";
 import { db, usersTable } from "@workspace/db";
+import { deleteAccount } from "../lib/accountLifecycle";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
@@ -10,7 +11,10 @@ interface ClerkWebhookPayload {
   type: string;
   data: {
     id: string;
-    email_addresses?: { email_address: string; verification: { status: string } }[];
+    email_addresses?: {
+      email_address: string;
+      verification: { status: string };
+    }[];
     first_name?: string;
     last_name?: string;
     image_url?: string;
@@ -89,8 +93,11 @@ router.post("/clerk/webhook", async (req: Request, res: Response) => {
       }
 
       case "user.deleted": {
-        await db.delete(usersTable).where(eq(usersTable.id, data.id));
-        logger.info({ userId: data.id, type }, "Clerk user deleted");
+        await deleteAccount(data.id);
+        logger.info(
+          { userId: data.id, type },
+          "Clerk user deletion policy applied",
+        );
         break;
       }
 
