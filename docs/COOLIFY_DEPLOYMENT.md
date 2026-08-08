@@ -20,10 +20,21 @@ PostgreSQL and Ollama services.
    variables. Mark keys, webhook signing secrets, database URLs, and encryption
    values as secrets. The Clerk publishable key is needed twice: the Vite build
    argument and `CLERK_PUBLISHABLE_KEY` at server runtime.
-6. Run database migrations as a one-off command from a trusted CI/admin
-   environment before switching traffic: `pnpm --filter @workspace/db migrate`.
-   Schema migration is deliberately not part of container startup, so a restart
-   cannot unexpectedly mutate production data.
+6. Initialize or upgrade the database from a trusted CI/admin environment before
+   switching traffic. Set `DATABASE_URL` for the target database, then choose the
+   procedure that matches its state:
+   - **Brand-new, empty database:** run
+     `pnpm --filter @workspace/db schema:init`. This creates the baseline directly
+     from the current Drizzle schema. Do not run the legacy incremental migrations
+     first: they begin by altering tables that do not exist in an empty database.
+   - **Existing database with the legacy application schema:** first run
+     `pnpm --filter @workspace/db migrate`, then run
+     `pnpm --filter @workspace/db push`. This ordering preserves and backfills
+     legacy medication data before Drizzle reconciles the remaining schema.
+
+   Take a backup before either operation. Inspect and approve any SQL prompts from
+   Drizzle in the admin environment. Schema changes are deliberately not part of
+   container startup, so a restart cannot unexpectedly mutate production data.
 
 The image installs exactly once with `pnpm install --frozen-lockfile`, builds only
 the web client and API, and packages the API's production dependency closure.
