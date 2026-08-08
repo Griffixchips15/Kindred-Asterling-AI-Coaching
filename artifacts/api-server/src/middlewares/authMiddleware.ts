@@ -1,6 +1,5 @@
 import { createClerkClient } from "@clerk/backend";
 import type { WithAuthProp } from "@clerk/clerk-sdk-node";
-import { db, usersTable } from "@workspace/db";
 import type { NextFunction, Request, Response } from "express";
 import { logger } from "../lib/logger";
 import { syncClerkIdentity } from "../lib/clerkIdentity";
@@ -67,12 +66,9 @@ export async function authMiddleware(
   if (!userId) return next();
 
   try {
-    const identity = await getClerkIdentity(userId);
-    await db
-      .insert(usersTable)
-      .values({ id: identity.id })
-      .onConflictDoNothing();
-    req.user = identity;
+    const clerkUser = await getClerkIdentity(userId);
+    await syncClerkIdentity(clerkUser);
+    req.user = clerkUser;
   } catch (err) {
     logger.warn({ err, userId }, "Failed to resolve Clerk identity");
   }

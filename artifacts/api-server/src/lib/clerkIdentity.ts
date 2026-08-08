@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 
 export interface ClerkIdentityData {
   id: string;
+  email?: string | null;
+  emailVerified?: boolean;
   primaryEmailAddressId?: string | null;
   emailAddresses?: Array<{
     id: string;
@@ -20,8 +22,10 @@ export function primaryEmail(identity: ClerkIdentityData) {
     ({ id }) => id === identity.primaryEmailAddressId,
   );
   return {
-    email: address?.emailAddress ?? null,
-    emailVerified: address?.verification?.status === "verified",
+    email: address?.emailAddress ?? identity.email ?? null,
+    emailVerified:
+      address?.verification?.status === "verified" ||
+      identity.emailVerified === true,
   };
 }
 

@@ -69,8 +69,7 @@
     "vaul": "^1.1.2",
     "vite": "catalog:",
     "wouter": "^3.3.5",
-    "zod": "catalog:",
-    "@workspace/auth-web": "workspace:*"
+    "zod": "catalog:"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.6",
