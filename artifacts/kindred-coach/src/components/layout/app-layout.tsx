@@ -17,6 +17,7 @@ import {
   Archive as ArchiveIcon,
   PanelLeftClose,
   PanelLeftOpen,
+  UserRoundCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoMark from "@/assets/brand/logo-mark.png";
@@ -138,6 +139,7 @@ const navItems = [
   { icon: CalendarDays, label: "Calendar", href: "/calendar" },
   { icon: Bell, label: "Reminders", href: "/reminders" },
   { icon: User, label: "Profile", href: "/profile" },
+  { icon: UserRoundCog, label: "Account security", href: "/account" },
   { icon: ArchiveIcon, label: "Archive", href: "/archive" },
 ];
 

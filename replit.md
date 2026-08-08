@@ -8,7 +8,7 @@ A personal wellness companion web app. Users journal their day (morning check-in
 - API: Express 5 + Pino logging + OIDC (Replit Auth) sessions
 - DB: PostgreSQL + Drizzle ORM
 - Frontend: React + Vite + Tailwind + React Query + Wouter
-- AI: Anthropic Claude via `@workspace/integrations-anthropic-ai` (Replit-managed; no user key, billed to Replit credits)
+- AI: Gemma 3 4B via an Ollama-compatible runtime (`OLLAMA_BASE_URL` and `OLLAMA_MODEL`)
 - Validation: Zod (`zod/v4`) + `drizzle-zod`; API codegen: Orval (hooks + Zod from OpenAPI)
 - Integrations: Google Calendar (installed, available for future use)
 
@@ -22,7 +22,7 @@ A personal wellness companion web app. Users journal their day (morning check-in
 
 ### Environment variables
 
-- **Core (configured):** `DATABASE_URL`, `SESSION_SECRET`, `AI_INTEGRATIONS_ANTHROPIC_BASE_URL`, `AI_INTEGRATIONS_ANTHROPIC_API_KEY` (last two managed by the Anthropic integration — do not edit). `GEMINI_API_KEY` is no longer used.
+- **Core:** `DATABASE_URL`, `SESSION_SECRET`, `OLLAMA_BASE_URL`, and `OLLAMA_MODEL`.
 - **Voice:** `ELEVENLABS_API_KEY` (STT + Kindred read-aloud). Unset → voice endpoints return 503, UI soft-fails.
 - **Reminders (fail-soft per channel):** SMS via Twilio (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`); email via Resend (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`). Unset secrets → that channel is skipped; the other still sends and the UI still saves prefs. Senders use env secrets directly (the Twilio connector proxy errored 20003). **Reminders only fire while the server runs — requires a Reserved VM (always-on) deploy.**
 - **Subscription/Helcim (fail closed):** secrets `HELCIM_API_KEY`, `HELCIM_WEBHOOK_SECRET`; vars `HELCIM_YEARLY_CHECKOUT_URL`, `HELCIM_LIFETIME_CHECKOUT_URL`, `HELCIM_PORTAL_URL`, `SUBSCRIPTION_OWNER_IDS` (immutable user IDs for owner bypass). Missing `HELCIM_API_KEY` → Helcim path locked, but owner/beta bypass still works.

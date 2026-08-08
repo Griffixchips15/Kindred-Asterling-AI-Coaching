@@ -11,7 +11,7 @@ Kindred is currently local-only, so immediate remote likelihood is low, but its 
 - Context-only: tests, generated API clients/schemas, scripts, and the existing `threat_model.md`.
 - Out of runtime scope: `node_modules`, build output, and `artifacts/mockup-sandbox/**` unless separately deployed.
 - Validated context: the app is local-only today; signup email is not verified; Helcim is the intended payment provider; the private repository contains real operator/user data.
-- Deployment assumption: Railway/Replit manifests indicate eventual public deployment, so findings note where priority increases when internet exposure is enabled.
+- Deployment assumption: Coolify manifests and the live production deployment indicate public exposure, so findings note where priority increases accordingly.
 
 Open questions that would change ranking:
 
