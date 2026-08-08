@@ -311,20 +311,32 @@ describe("POST /chat/send", () => {
     expect(res.status).toBe(200);
     expect(createMock).not.toHaveBeenCalled();
 
-    const conv = res.body as ConvWithMessages;
-    expect(
-      conv.messages.some(
-        (message) =>
-          message.role === "assistant" &&
-          message.content.includes("call or text 988"),
-      ),
-    ).toBe(true);
+    const safety = res.body as {
+      type: string;
+      message: string;
+      falsePositive: { label: string };
+      regionSelector: { id: string }[];
+    };
+    expect(safety.type).toBe("crisis_support");
+    expect(safety.message).toContain("local emergency services");
+    expect(safety.message).toContain("not medical care or an emergency service");
+    expect(safety.falsePositive.label).toBe("This doesn’t apply");
+    expect(safety.regionSelector).toContainEqual(
+      expect.objectContaining({ id: "international" }),
+    );
 
     const quotaRows = await db
       .select()
       .from(conversations)
       .where(eq(conversations.userId, userAId));
     expect(quotaRows).toHaveLength(0);
+
+    const storedMessages = await db
+      .select()
+      .from(messages)
+      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+      .where(eq(conversations.userId, userAId));
+    expect(storedMessages).toHaveLength(0);
   });
 
   it("persists the user turn and the assistant reply for the owner", async () => {
