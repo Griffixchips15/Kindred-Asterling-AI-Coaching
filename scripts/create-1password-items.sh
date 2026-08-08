@@ -17,7 +17,7 @@ op item create \
   --vault="$VAULT" \
   --category="Password" \
   --title="Kindred - Database Development" \
-  --tags="environment/development,service/railway" \
+  --tags="environment/development,service/coolify" \
   "credential[concealed]="
 echo "✓ Kindred - Database Development"
 
@@ -26,7 +26,7 @@ op item create \
   --vault="$VAULT" \
   --category="Password" \
   --title="Kindred - Database Production" \
-  --tags="environment/production,service/railway" \
+  --tags="environment/production,service/coolify" \
   "credential[concealed]="
 echo "✓ Kindred - Database Production"
 

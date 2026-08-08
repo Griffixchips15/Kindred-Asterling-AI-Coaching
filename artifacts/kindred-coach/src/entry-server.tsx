@@ -1,6 +1,7 @@
 import { renderToString } from "react-dom/server";
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ClerkProvider } from "@clerk/clerk-react";
 import { Router } from "wouter";
 import { PublicLayout } from "@/components/layout/public-layout";
 import Landing from "@/pages/public/landing";
@@ -59,9 +60,15 @@ export function render(url: string): string {
 
   return renderToString(
     <QueryClientProvider client={queryClient}>
-      <Router hook={hook}>
-        <PublicLayout>{pageContent}</PublicLayout>
-      </Router>
+      <ClerkProvider
+        publishableKey={
+          import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "pk_test_placeholder"
+        }
+      >
+        <Router hook={hook}>
+          <PublicLayout>{pageContent}</PublicLayout>
+        </Router>
+      </ClerkProvider>
     </QueryClientProvider>,
   );
 }

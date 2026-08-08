@@ -17,6 +17,7 @@ import {
   Archive as ArchiveIcon,
   PanelLeftClose,
   PanelLeftOpen,
+  UserRoundCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoMark from "@/assets/brand/logo-mark.png";
@@ -67,6 +68,7 @@ function ThemePicker({ collapsed }: { collapsed: boolean }) {
         collapsed ? "justify-center p-2" : "gap-3 px-3 py-2.5"
       )}
       data-testid="theme-picker-trigger"
+      aria-label="Change theme"
     >
       <Palette className="w-5 h-5 text-muted-foreground shrink-0" strokeWidth={2} />
       {!collapsed && (
@@ -138,6 +140,7 @@ const navItems = [
   { icon: CalendarDays, label: "Calendar", href: "/calendar" },
   { icon: Bell, label: "Reminders", href: "/reminders" },
   { icon: User, label: "Profile", href: "/profile" },
+  { icon: UserRoundCog, label: "Account security", href: "/account" },
   { icon: ArchiveIcon, label: "Archive", href: "/archive" },
 ];
 
@@ -344,6 +347,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   onClick={logout}
                   className="flex items-center justify-center p-2 rounded-lg transition-colors text-sm font-medium w-full text-sidebar-foreground hover:bg-sidebar-accent"
                   data-testid="logout"
+                  aria-label="Log out"
                 >
                   <LogOut className="w-5 h-5 text-muted-foreground" strokeWidth={2} />
                 </button>

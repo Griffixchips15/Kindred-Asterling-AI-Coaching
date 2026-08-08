@@ -81,6 +81,9 @@ overrides:
   postcss: '>=8.5.18'
   esbuild: '>=0.28.1'
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
+  '@clerk/clerk-react': '>=5.61.6'
+  js-cookie: '>=3.0.7'
+  nanoid: '>=3.3.17'
 
 importers:
 
@@ -95,6 +98,9 @@ importers:
 
   artifacts/api-server:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.78.0
+        version: 0.78.0(zod@3.25.76)
       '@clerk/backend':
         specifier: ^3.16.0
         version: 3.16.0(react@19.1.0)
@@ -648,6 +654,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.5
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.5)(yaml@2.9.0)
 
   lib/integrations-gemini-ai:
     dependencies:
@@ -666,6 +675,19 @@ importers:
         version: 25.9.5
       vitest:
         specifier: ^4.1.7
+        version: 4.1.10(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.5)(yaml@2.9.0)
+
+  lib/integrations/gemini_ai_integrations:
+    dependencies:
+      p-limit:
+        specifier: ^7.3.1
+        version: 7.3.1
+      p-retry:
+        specifier: ^7.1.1
+        version: 7.1.1
+    devDependencies:
+      vitest:
+        specifier: ^4.1.10
         version: 4.1.10(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.5)(yaml@2.9.0)
 
   lib/replit-auth-web:
@@ -3009,10 +3031,6 @@ packages:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
     engines: {node: '>=10'}
 
-  js-cookie@3.0.5:
-    resolution: {integrity: sha512-cEiJEAEoIbWfCZYKWhVwFuvPX1gETRYPw6LlaTKoxD3s2AkXzkCjnp6h0V77ozyqj0jakteJ4YqDJT830+lVGw==}
-    engines: {node: '>=14'}
-
   js-cookie@3.0.7:
     resolution: {integrity: sha512-z/wZZgDrkNV1eA0ULjM/F9/50Ya8fbzgKneSpoPsXSGd0KnpdtHfOZWK+GcwLk+EZbS4F9RBhU+K2RgzuDaItw==}
     engines: {node: '>=20'}
@@ -4368,7 +4386,7 @@ snapshots:
       '@clerk/types': 4.101.20(react@19.1.0)
       dequal: 2.0.3
       glob-to-regexp: 0.4.1
-      js-cookie: 3.0.5
+      js-cookie: 3.0.7
       std-env: 3.10.0
       swr: 2.3.4(react@19.1.0)
     optionalDependencies:
@@ -6449,8 +6467,6 @@ snapshots:
   jose@6.2.8: {}
 
   joycon@3.1.1: {}
-
-  js-cookie@3.0.5: {}
 
   js-cookie@3.0.7: {}
 

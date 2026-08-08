@@ -283,7 +283,7 @@ function generateIRAP() {
   sectionTitle(doc, "Current Stage");
   bodyText(
     doc,
-    "The platform is feature-complete and deployed on Railway (cloud hosting). The R&D phase is approximately 80% complete. Additional funding is needed for beta testing, user acquisition, wearable device integration, and production hardening."
+    "The platform is feature-complete and deployed on Coolify (self-hosted). The R&D phase is approximately 80% complete. Additional funding is needed for beta testing, user acquisition, wearable device integration, and production hardening."
   );
 
   addFooter(doc, 1, 1);
@@ -480,7 +480,7 @@ function generatePitchDeck() {
     {
       title: "Slide 9: Traction",
       content:
-        "\u2022 Feature-complete (12+ integrated features)\n\u2022 Deployed on Railway (cloud infrastructure)\n\u2022 Science-backed marketing site with SEO\n\u2022 Square payment processing live\n\u2022 [Add user metrics when available]",
+        "\u2022 Feature-complete (12+ integrated features)\n\u2022 Deployed on Coolify (self-hosted)\n\u2022 Science-backed marketing site with SEO\n\u2022 Square payment processing live\n\u2022 [Add user metrics when available]",
     },
     {
       title: "Slide 10: Roadmap",
@@ -541,7 +541,7 @@ function generateCommunityFutures() {
     .fontSize(9)
     .fillColor("#333333")
     .text(
-      '"Hi, my name is [Your Name]. I\u2019m an entrepreneur in Edmonton. I\u2019ve built an AI wellness companion app \u2014 it\u2019s a subscription platform that helps people with mental health and recovery through daily check-ins, AI coaching, and medication tracking. The app is feature-complete and deployed on Railway. I\u2019m calling because I need guidance on a couple of things and I heard Community Futures helps entrepreneurs like me."',
+      '"Hi, my name is [Your Name]. I\u2019m an entrepreneur in Edmonton. I\u2019ve built an AI wellness companion app \u2014 it\u2019s a subscription platform that helps people with mental health and recovery through daily check-ins, AI coaching, and medication tracking. The app is feature-complete and deployed on Coolify. I\u2019m calling because I need guidance on a couple of things and I heard Community Futures helps entrepreneurs like me."',
       { lineGap: 3 }
     );
 
@@ -600,7 +600,7 @@ function generateCommunityFutures() {
   bulletItem(doc, "Your one-page summary (kindred-one-pager.pdf)");
   bulletItem(
     doc,
-    "Your Railway URL so they can see the live app (kindred-asterling-ai-coaching.com)"
+    "Your Coolify URL so they can see the live app (kindred-asterling-ai-coaching.com)"
   );
   bulletItem(doc, "A brief list of your expenses so far (~$700 CAD)");
   bulletItem(

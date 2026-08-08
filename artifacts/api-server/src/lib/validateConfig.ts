@@ -33,6 +33,17 @@ export function validateRuntimeConfig(): void {
     }
   }
 
+  const calendarValues = [
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_CALENDAR_REDIRECT_URI",
+    "CALENDAR_OAUTH_STATE_SECRET",
+    "CALENDAR_TOKEN_ENCRYPTION_KEY",
+  ];
+  if (calendarValues.some((name) => process.env[name]?.trim())) {
+    calendarValues.forEach(requireValue);
+  }
+
   if (missing.length > 0) {
     throw new Error(
       `Missing required runtime configuration: ${[...new Set(missing)].join(", ")}`,

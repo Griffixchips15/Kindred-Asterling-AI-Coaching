@@ -34,22 +34,19 @@ import { createSession, deleteSession } from "./auth";
 // conversation, and a failed LLM turn never persists a fallback assistant reply
 // that would pollute the conversation. The outbound Ollama call is mocked so
 // the suite makes no real model calls.
-vi.mock("@workspace/integrations-anthropic-ai", () => ({
-  anthropic: {
-    messages: {
-      create: vi.fn(),
-    }
-  }
+vi.mock("./ollamaClient", () => ({
+  chatWithOllama: vi.fn(),
 }));
 
-import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { chatWithOllama } from "./ollamaClient";
 
-const createMock = vi.mocked(anthropic!.messages.create as any);
+const createMock = vi.mocked(chatWithOllama);
 
 function mockReplyOnce(text: string) {
   createMock.mockResolvedValueOnce({
-    content: [{ type: "text", text }],
-    stop_reason: "end_turn",
+    content: text,
+    toolCalls: [],
+    doneReason: "stop",
   });
 }
 
@@ -73,7 +70,7 @@ function mockToolUseOnce(
         },
       },
     ],
-    doneReason: "stop",
+    doneReason: "tool_calls",
   });
 }
 
@@ -91,7 +88,7 @@ function mockMultiToolUseOnce(
         arguments: tool.input ?? {},
       },
     })),
-    doneReason: "stop",
+    doneReason: "tool_calls",
   });
 }
 
@@ -108,7 +105,7 @@ function mockToolUseAlways(toolName: string) {
         },
       },
     ],
-    doneReason: "stop",
+    doneReason: "tool_calls",
   });
 }
 
