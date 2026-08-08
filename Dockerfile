@@ -14,7 +14,6 @@ COPY lib/api-client-react/package.json lib/api-client-react/package.json
 COPY lib/api-spec/package.json lib/api-spec/package.json
 COPY lib/api-zod/package.json lib/api-zod/package.json
 COPY lib/db/package.json lib/db/package.json
-COPY lib/auth-web/package.json lib/auth-web/package.json
 COPY scripts/package.json scripts/package.json
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile
@@ -24,7 +23,6 @@ COPY artifacts/kindred-coach artifacts/kindred-coach
 COPY lib/api-client-react lib/api-client-react
 COPY lib/api-zod lib/api-zod
 COPY lib/db lib/db
-COPY lib/auth-web lib/auth-web
 COPY tsconfig.base.json ./
 
 ARG VITE_CLERK_PUBLISHABLE_KEY

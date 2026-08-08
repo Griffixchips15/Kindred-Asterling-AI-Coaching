@@ -1,8 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Webhook } from "svix";
-import { db, usersTable } from "@workspace/db";
-import { deleteAccount } from "../lib/accountLifecycle";
-import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import {
   markClerkIdentityDeleted,
@@ -15,9 +12,11 @@ interface ClerkWebhookPayload {
   type: string;
   data: {
     id: string;
+    primary_email_address_id?: string | null;
     email_addresses?: {
+      id: string;
       email_address: string;
-      verification: { status: string };
+      verification?: { status?: string };
     }[];
     first_name?: string;
     last_name?: string;
@@ -69,20 +68,25 @@ router.post("/clerk/webhook", async (req: Request, res: Response) => {
     switch (type) {
       case "user.created":
       case "user.updated": {
-        await db
-          .insert(usersTable)
-          .values({ id: data.id })
-          .onConflictDoNothing();
-        logger.info({ userId: data.id, type }, "Clerk user mapping ensured");
+        await syncClerkIdentity({
+          id: data.id,
+          primaryEmailAddressId: data.primary_email_address_id,
+          emailAddresses: data.email_addresses?.map((address) => ({
+            id: address.id,
+            emailAddress: address.email_address,
+            verification: address.verification,
+          })),
+          firstName: data.first_name,
+          lastName: data.last_name,
+          imageUrl: data.image_url,
+        });
+        logger.info({ userId: data.id, type }, "Clerk user synced");
         break;
       }
 
       case "user.deleted": {
-        await deleteAccount(data.id);
-        logger.info(
-          { userId: data.id, type },
-          "Clerk user deletion policy applied",
-        );
+        await markClerkIdentityDeleted(data.id);
+        logger.info({ userId: data.id, type }, "Clerk user deleted");
         break;
       }
 
