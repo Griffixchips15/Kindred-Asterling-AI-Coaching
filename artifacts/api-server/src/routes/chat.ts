@@ -19,10 +19,16 @@ import {
   emitSafetySignalEvent,
 } from "../lib/crisisSafety";
 
+const CRISIS_RESPONSE =
+  "I'm sorry you're facing this. Kindred isn't a crisis service, but immediate help is available — call or text 988, or text HOME to 741741.";
+
 const router: IRouter = Router();
 
-// Gemma runs through the Ollama-compatible endpoint configured for the API.
-const CHAT_MODEL = process.env.OLLAMA_MODEL || "gemma3:4b";
+const AI_REQUEST_TIMEOUT_MS = Math.max(
+  1_000,
+  Number(process.env.AI_REQUEST_TIMEOUT_MS) || 30_000,
+);
+const AI_MAX_ATTEMPTS = 2;
 // Cap history sent to the model. Full history is still preserved in DB and
 // shown in the UI, but only the most recent turns are sent on each call so
 // that long sessions don't push token usage up or confuse the model with
@@ -52,6 +58,39 @@ const MAX_TOOL_OUTPUT_CHARS = 8000;
 // wants a fuller transcript, but still bounded to prevent oversized reads.
 const ARCHIVE_MESSAGE_LIMIT = 500;
 
+async function requestWithRetry(
+  provider: AIProvider,
+  request: Omit<Parameters<AIProvider["chat"]>[0], "timeoutMs">,
+): Promise<Awaited<ReturnType<AIProvider["chat"]>>> {
+  let lastError: AIProviderError | undefined;
+  for (let attempt = 0; attempt < AI_MAX_ATTEMPTS; attempt++) {
+    if (request.signal?.aborted)
+      throw new AIProviderError("aborted", "AI request was cancelled");
+    try {
+      return await provider.chat({
+        ...request,
+        timeoutMs: AI_REQUEST_TIMEOUT_MS,
+      });
+    } catch (error) {
+      lastError = normalizeProviderError(error);
+      if (!lastError.retryable || attempt + 1 >= AI_MAX_ATTEMPTS)
+        throw lastError;
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, 100 * (attempt + 1));
+        request.signal?.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timer);
+            reject(new AIProviderError("aborted", "AI request was cancelled"));
+          },
+          { once: true },
+        );
+      });
+    }
+  }
+  throw lastError ?? new AIProviderError("unknown", "AI request failed");
+}
+
 function clipMessage(s: string): string {
   const t = s.trim();
   return t.length > MAX_MESSAGE_CHARS ? t.slice(0, MAX_MESSAGE_CHARS) : t;
@@ -69,7 +108,9 @@ async function getOrCreateActive(userId: string) {
   const [existing] = await db
     .select()
     .from(conversations)
-    .where(and(eq(conversations.userId, userId), eq(conversations.status, "active")))
+    .where(
+      and(eq(conversations.userId, userId), eq(conversations.status, "active")),
+    )
     .orderBy(desc(conversations.createdAt))
     .limit(1);
   if (existing) return existing;
@@ -112,15 +153,18 @@ function clip(s: string | null | undefined, max: number): string | null {
 // override the system instruction.
 function sanitizeProfileText(text: string): string {
   return text
-    .replace(/```[\s\S]*?```/g, "[code removed]")           // fenced code blocks
-    .replace(/<\|?[\w/]+[\s\S]*?\|?>/g, "[tag removed]")    // special tokens
+    .replace(/```[\s\S]*?```/g, "[code removed]") // fenced code blocks
+    .replace(/<\|?[\w/]+[\s\S]*?\|?>/g, "[tag removed]") // special tokens
     .replace(/<\/?(system|assistant|human|user)[^>]*>/gi, "[tag removed]")
-    .replace(/\n{3,}/g, "\n\n")                              // collapse blank lines
+    .replace(/\n{3,}/g, "\n\n") // collapse blank lines
     .trim();
 }
 
-function buildSystemInstruction(user: User | null): string {
-  const name = user?.preferredName ?? user?.firstName ?? "friend";
+function buildSystemInstruction(
+  user: User | null,
+  clerkFirstName: string | null,
+): string {
+  const name = user?.preferredName ?? clerkFirstName ?? "friend";
   const struggles = clip(sanitizeProfileText(user?.struggles ?? ""), 500);
   const strengths = clip(sanitizeProfileText(user?.strengths ?? ""), 500);
   const interests = clip(sanitizeProfileText(user?.interests ?? ""), 500);
@@ -143,7 +187,10 @@ function buildSystemInstruction(user: User | null): string {
   if (strengths) parts.push(`Their strengths: ${strengths}.`);
   if (interests) parts.push(`They enjoy: ${interests}.`);
   if (bio) parts.push(`A bit about them, in their own words: ${bio}`);
-  if (quote) parts.push(`A quote that means something to them: "${quote}". You may reference it occasionally when it fits naturally — never force it.`);
+  if (quote)
+    parts.push(
+      `A quote that means something to them: "${quote}". You may reference it occasionally when it fits naturally — never force it.`,
+    );
   return parts.join(" ");
 }
 
@@ -213,218 +260,302 @@ router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Re
     return;
   }
 
-  // Atomic daily quota — reserves a slot before calling the provider
-  const quota = await checkAndIncrementDailyQuota(userId);
-  if (!quota.allowed) {
-    res.status(429).json({
-      error: "You've reached your daily message limit. Try again tomorrow.",
+router.post(
+  "/chat/append",
+  requireAuth,
+  chatLimiter,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = AppendChatMessageBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid input" });
+      return;
+    }
+    const clipped = clipMessage(parsed.data.content);
+    if (!clipped) {
+      res.status(400).json({ error: "Invalid input" });
+      return;
+    }
+    const userId = req.user!.id;
+    const conv = await getOrCreateActive(userId);
+    await db.insert(messages).values({
+      conversationId: conv.id,
+      role: parsed.data.role,
+      content: clipped,
     });
-    return;
-  }
+    const full = await loadWithMessages(conv.id, MESSAGE_RESPONSE_LIMIT);
+    res.json(JSON.parse(JSON.stringify(full)));
+  },
+);
 
-  const userRow = await getCurrentUserRow(userId);
-  const conv = await getOrCreateActive(userId);
+router.post(
+  "/chat/send",
+  requireAuth,
+  chatLimiter,
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = SendChatMessageBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid input" });
+      return;
+    }
+    const clipped = clipMessage(parsed.data.content);
+    if (!clipped) {
+      res.status(400).json({ error: "Invalid input" });
+      return;
+    }
+    const userId = req.user!.id;
 
-  await db.insert(messages).values({
-    conversationId: conv.id,
-    role: "user",
-    content: clipped,
-  });
+    if (detectCrisis(clipped)) {
+      logCrisis(userId, clipped);
+      res.json({
+        messages: [
+          { role: "user", content: clipped },
+          { role: "assistant", content: CRISIS_RESPONSE },
+        ],
+      });
+      return;
+    }
 
-  // Bounded SQL fetch: only pull the most recent HISTORY_TURN_LIMIT rows
-  // instead of the entire conversation. Otherwise an attacker who has
-  // already stored thousands of messages can force an O(N) DB read +
-  // serialize on every future /chat/send, even though the model payload
-  // itself is bounded by MAX_HISTORY_CHARS.
-  const recentDesc = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.conversationId, conv.id))
-    .orderBy(desc(messages.id))
-    .limit(HISTORY_TURN_LIMIT);
-  const recent = recentDesc.slice().reverse();
-  // Further trim oldest-first so the total characters forwarded to the model
-  // stay within MAX_HISTORY_CHARS, even if stored messages somehow exceed
-  // the per-message cap. Always keep at least the most recent turn.
-  const bounded: typeof recent = [];
-  let total = 0;
-  for (let i = recent.length - 1; i >= 0; i--) {
-    const len = recent[i].content.length;
-    if (bounded.length > 0 && total + len > MAX_HISTORY_CHARS) break;
-    bounded.unshift(recent[i]);
-    total += len;
-  }
-  // Ollama expects the conversation to begin with a user
-  // turn. Our history can start with an assistant message (the onboarding
-  // greeting), so drop any leading assistant turns before mapping.
-  let firstUserIdx = bounded.findIndex((m) => m.role === "user");
-  if (firstUserIdx < 0) firstUserIdx = bounded.length;
-  const chatMessages = bounded.slice(firstUserIdx).map((m) => ({
-    role: (m.role === "assistant" ? "assistant" : "user") as "assistant" | "user",
-    content: clipMessage(m.content),
-  }));
+    // Atomic daily quota — reserves a slot before calling the provider
+    const quota = await checkAndIncrementDailyQuota(userId);
+    if (!quota.allowed) {
+      res.status(429).json({
+        error: "You've reached your daily message limit. Try again tomorrow.",
+      });
+      return;
+    }
 
-  // The current user turn was just inserted above, so this should never be
-  // empty in normal flow. Guard explicitly: Ollama rejects an empty
-  // messages array, and we'd rather surface a clean retryable 502 than a
-  // raw API error.
-  if (chatMessages.length === 0) {
-    res.status(502).json({
-      error: "assistant_unavailable",
-      reason: "no_user_turn",
-      message:
-        "Kindred couldn't put a reply together this time. Try sending that again.",
+    const userRow = await getCurrentUserRow(userId);
+    const conv = await getOrCreateActive(userId);
+
+    await db.insert(messages).values({
+      conversationId: conv.id,
+      role: "user",
+      content: clipped,
     });
-    return;
-  }
 
-  let assistantText: string | null = null;
-  let failureReason: string | null = null;
-  // Agentic tool loop: Gemma may ask to read the user's own data (habits,
-  // medications, recent logs) before replying. We execute each requested tool
-  // scoped to THIS user, feed results back, and re-call until it produces a
-  // text reply. Capped so a misbehaving turn can't loop forever / burn tokens.
-  const MAX_TOOL_ITERATIONS = 4;
-  const system = buildSystemInstruction(userRow);
-  try {
-    const ollamaTools = chatTools.map((tool) => ({
-      type: "function",
-      function: {
+    // Bounded SQL fetch: only pull the most recent HISTORY_TURN_LIMIT rows
+    // instead of the entire conversation. Otherwise an attacker who has
+    // already stored thousands of messages can force an O(N) DB read +
+    // serialize on every future /chat/send, even though the model payload
+    // itself is bounded by MAX_HISTORY_CHARS.
+    const recentDesc = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, conv.id))
+      .orderBy(desc(messages.id))
+      .limit(HISTORY_TURN_LIMIT);
+    const recent = recentDesc.slice().reverse();
+    // Further trim oldest-first so the total characters forwarded to the model
+    // stay within MAX_HISTORY_CHARS, even if stored messages somehow exceed
+    // the per-message cap. Always keep at least the most recent turn.
+    const bounded: typeof recent = [];
+    let total = 0;
+    for (let i = recent.length - 1; i >= 0; i--) {
+      const len = recent[i].content.length;
+      if (bounded.length > 0 && total + len > MAX_HISTORY_CHARS) break;
+      bounded.unshift(recent[i]);
+      total += len;
+    }
+    // Providers expect the conversation to begin with a user
+    // turn. Our history can start with an assistant message (the onboarding
+    // greeting), so drop any leading assistant turns before mapping.
+    let firstUserIdx = bounded.findIndex((m) => m.role === "user");
+    if (firstUserIdx < 0) firstUserIdx = bounded.length;
+    const chatMessages = bounded.slice(firstUserIdx).map((m) => ({
+      role: (m.role === "assistant" ? "assistant" : "user") as
+        "assistant" | "user",
+      content: clipMessage(m.content),
+    }));
+
+    // The current user turn was just inserted above, so this should never be
+    // empty in normal flow. Guard explicitly: providers reject an empty
+    // messages array, and we'd rather surface a clean retryable 502 than a
+    // raw API error.
+    if (chatMessages.length === 0) {
+      await refundDailyQuota(userId);
+      res.status(502).json({
+        error: "assistant_unavailable",
+        reason: "no_user_turn",
+        message:
+          "Kindred couldn't put a reply together this time. Try sending that again.",
+      });
+      return;
+    }
+
+    let assistantText: string | null = null;
+    let failureReason:
+      AIProviderError["category"] | "empty_response" | "max_tool_iterations" =
+      "unknown";
+    // Agentic tool loop: Gemma may ask to read the user's own data (habits,
+    // medications, recent logs) before replying. We execute each requested tool
+    // scoped to THIS user, feed results back, and re-call until it produces a
+    // text reply. Capped so a misbehaving turn can't loop forever / burn tokens.
+    const MAX_TOOL_ITERATIONS = 4;
+    const system = buildSystemInstruction(userRow);
+    try {
+      const provider = getAIProvider();
+      if (!provider) throw new AIProviderError("unavailable", "AI is disabled");
+      const aiTools = chatTools.map((tool) => ({
         name: tool.name,
         description: tool.description,
-        parameters: tool.input_schema,
-      },
-    }));
-    const convo: OllamaMessage[] = chatMessages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-    for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
-      const result = await chatWithOllama({
-        model: CHAT_MODEL,
-        system,
-        messages: convo,
-        tools: ollamaTools,
-      });
+        inputSchema: tool.input_schema,
+      }));
+      const convo: AIMessage[] = chatMessages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+      const abortController = new AbortController();
+      const cancel = () => abortController.abort();
+      req.once("aborted", cancel);
+      res.once("close", cancel);
+      for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
+        const result = await requestWithRetry(provider, {
+          system,
+          messages: convo,
+          tools: aiTools,
+          signal: abortController.signal,
+        });
 
-      if (result.toolCalls.length > 0) {
-        // Record the assistant's tool-use turn, run each tool, and hand the
-        // results back as a user turn for the next iteration.
-        convo.push({ role: "assistant", content: result.content, tool_calls: result.toolCalls });
-        for (const block of result.toolCalls) {
-          let output: string;
-          try {
-            const raw = await runChatTool(
-              block.function.name,
-              block.function.arguments ?? {},
-              userId,
-            );
-            output =
-              raw.length > MAX_TOOL_OUTPUT_CHARS
-                ? raw.slice(0, MAX_TOOL_OUTPUT_CHARS)
-                : raw;
-          } catch (toolErr) {
-            req.log.error(
-              { err: toolErr, tool: block.function.name },
-              "chat tool execution failed",
-            );
-            output = JSON.stringify({ error: "tool_failed" });
+        if (result.toolCalls.length > 0) {
+          // Record the assistant's tool-use turn, run each tool, and hand the
+          // results back as a user turn for the next iteration.
+          convo.push({
+            role: "assistant",
+            content: result.content,
+            toolCalls: result.toolCalls,
+          });
+          for (const block of result.toolCalls) {
+            let output: string;
+            try {
+              const raw = await runChatTool(
+                block.name,
+                block.arguments,
+                userId,
+              );
+              output =
+                raw.length > MAX_TOOL_OUTPUT_CHARS
+                  ? raw.slice(0, MAX_TOOL_OUTPUT_CHARS)
+                  : raw;
+            } catch (toolErr) {
+              req.log.error(
+                { err: toolErr, tool: block.name },
+                "chat tool execution failed",
+              );
+              output = JSON.stringify({ error: "tool_failed" });
+            }
+            convo.push({ role: "tool", content: output, toolCallId: block.id });
           }
-          convo.push({ role: "tool", content: output });
+          continue;
         }
-        continue;
-      }
 
-      const textParts = result.content.trim();
-      if (textParts) {
-        assistantText = textParts;
-      } else {
-        failureReason = result.doneReason ?? "empty_response";
+        const textParts = result.content.trim();
+        if (textParts) {
+          assistantText = textParts;
+        } else {
+          failureReason = "empty_response";
+          req.log.warn(
+            { finishReason: result.finishReason },
+            "AI provider returned no text",
+          );
+        }
+        break;
+      }
+      if (!assistantText && failureReason === "unknown") {
+        failureReason = "max_tool_iterations";
         req.log.warn(
-          { doneReason: result.doneReason },
-          "Ollama returned no text",
+          { maxIterations: MAX_TOOL_ITERATIONS },
+          "AI provider did not finish within tool-iteration cap",
         );
       }
-      break;
+    } catch (err) {
+      failureReason = normalizeProviderError(err).category;
+      req.log.error({ err, category: failureReason }, "AI chat request failed");
     }
-    if (!assistantText && !failureReason) {
-      failureReason = "max_tool_iterations";
-      req.log.warn(
-        { maxIterations: MAX_TOOL_ITERATIONS },
-        "Ollama did not finish within tool-iteration cap",
-      );
-    }
-  } catch (err) {
-    failureReason = "exception";
-    req.log.error({ err }, "Ollama chat request failed");
-  }
 
-  if (!assistantText) {
-    await refundDailyQuota(userId);
-    // Do NOT persist a fallback assistant turn — it pollutes history and
-    // makes the next call see broken context. Surface a transient error
-    // to the client instead so the user can retry the same message.
-    res.status(502).json({
-      error: "assistant_unavailable",
-      reason: failureReason,
-      message:
-        "Kindred couldn't put a reply together this time. Try sending that again.",
+    if (!assistantText) {
+      await refundDailyQuota(userId);
+      // Do NOT persist a fallback assistant turn — it pollutes history and
+      // makes the next call see broken context. Surface a transient error
+      // to the client instead so the user can retry the same message.
+      res.status(502).json({
+        error: "assistant_unavailable",
+        reason: failureReason,
+        message:
+          "Kindred couldn't put a reply together this time. Try sending that again.",
+      });
+      return;
+    }
+
+    await db.insert(messages).values({
+      conversationId: conv.id,
+      role: "assistant",
+      content: clipMessage(assistantText),
     });
-    return;
-  }
 
-  await db.insert(messages).values({
-    conversationId: conv.id,
-    role: "assistant",
-    content: assistantText,
-  });
+    const full = await loadWithMessages(conv.id, MESSAGE_RESPONSE_LIMIT);
+    res.json(JSON.parse(JSON.stringify(full)));
+  },
+);
 
-  const full = await loadWithMessages(conv.id, MESSAGE_RESPONSE_LIMIT);
-  res.json(JSON.parse(JSON.stringify(full)));
-});
+router.post(
+  "/chat/archive",
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user!.id;
+    const conv = await getOrCreateActive(userId);
+    await db
+      .update(conversations)
+      .set({ status: "archived", archivedAt: new Date() })
+      .where(eq(conversations.id, conv.id));
+    const [created] = await db
+      .insert(conversations)
+      .values({ userId, title: "Coaching chat", status: "active" })
+      .returning();
+    const full = await loadWithMessages(created.id, MESSAGE_RESPONSE_LIMIT);
+    res.json(JSON.parse(JSON.stringify(full)));
+  },
+);
 
-router.post("/chat/archive", requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const userId = req.user!.id;
-  const conv = await getOrCreateActive(userId);
-  await db
-    .update(conversations)
-    .set({ status: "archived", archivedAt: new Date() })
-    .where(eq(conversations.id, conv.id));
-  const [created] = await db
-    .insert(conversations)
-    .values({ userId, title: "Coaching chat", status: "active" })
-    .returning();
-  const full = await loadWithMessages(created.id, MESSAGE_RESPONSE_LIMIT);
-  res.json(JSON.parse(JSON.stringify(full)));
-});
+router.get(
+  "/chat/archived",
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user!.id;
+    const rows = await db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.userId, userId),
+          eq(conversations.status, "archived"),
+        ),
+      )
+      .orderBy(desc(conversations.archivedAt));
+    res.json(JSON.parse(JSON.stringify(rows)));
+  },
+);
 
-router.get("/chat/archived", requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const userId = req.user!.id;
-  const rows = await db
-    .select()
-    .from(conversations)
-    .where(and(eq(conversations.userId, userId), eq(conversations.status, "archived")))
-    .orderBy(desc(conversations.archivedAt));
-  res.json(JSON.parse(JSON.stringify(rows)));
-});
-
-router.get("/chat/archived/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const userId = req.user!.id;
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id)) {
-    res.status(400).json({ error: "Invalid id" });
-    return;
-  }
-  const [conv] = await db
-    .select()
-    .from(conversations)
-    .where(and(eq(conversations.id, id), eq(conversations.userId, userId)));
-  if (!conv) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  const full = await loadWithMessages(conv.id, ARCHIVE_MESSAGE_LIMIT);
-  res.json(JSON.parse(JSON.stringify(full)));
-});
+router.get(
+  "/chat/archived/:id",
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user!.id;
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const [conv] = await db
+      .select()
+      .from(conversations)
+      .where(and(eq(conversations.id, id), eq(conversations.userId, userId)));
+    if (!conv) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const full = await loadWithMessages(conv.id, ARCHIVE_MESSAGE_LIMIT);
+    res.json(JSON.parse(JSON.stringify(full)));
+  },
+);
 
 export default router;

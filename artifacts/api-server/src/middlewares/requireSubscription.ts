@@ -22,7 +22,7 @@ export function requireSubscription(
     return;
   }
 
-  if (!user.emailVerifiedAt) {
+  if (!user.emailVerified) {
     res.status(403).json({ error: "Email verification required" });
     return;
   }
