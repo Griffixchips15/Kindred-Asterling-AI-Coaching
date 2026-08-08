@@ -1,8 +1,10 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Webhook } from "svix";
-import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import {
+  markClerkIdentityDeleted,
+  syncClerkIdentity,
+} from "../lib/clerkIdentity";
 
 const router: IRouter = Router();
 
@@ -10,7 +12,12 @@ interface ClerkWebhookPayload {
   type: string;
   data: {
     id: string;
-    email_addresses?: { email_address: string; verification: { status: string } }[];
+    primary_email_address_id?: string | null;
+    email_addresses?: {
+      id: string;
+      email_address: string;
+      verification?: { status?: string };
+    }[];
     first_name?: string;
     last_name?: string;
     image_url?: string;
@@ -61,35 +68,24 @@ router.post("/clerk/webhook", async (req: Request, res: Response) => {
     switch (type) {
       case "user.created":
       case "user.updated": {
-        const email = data.email_addresses?.[0]?.email_address ?? null;
-        const emailVerified =
-          data.email_addresses?.[0]?.verification?.status === "verified";
-        await db
-          .insert(usersTable)
-          .values({
-            id: data.id,
-            email,
-            firstName: data.first_name ?? null,
-            lastName: data.last_name ?? null,
-            profileImageUrl: data.image_url ?? null,
-            emailVerifiedAt: emailVerified ? new Date() : null,
-          })
-          .onConflictDoUpdate({
-            target: usersTable.id,
-            set: {
-              email,
-              firstName: data.first_name ?? null,
-              lastName: data.last_name ?? null,
-              profileImageUrl: data.image_url ?? null,
-              emailVerifiedAt: emailVerified ? new Date() : null,
-            },
-          });
+        await syncClerkIdentity({
+          id: data.id,
+          primaryEmailAddressId: data.primary_email_address_id,
+          emailAddresses: data.email_addresses?.map((address) => ({
+            id: address.id,
+            emailAddress: address.email_address,
+            verification: address.verification,
+          })),
+          firstName: data.first_name,
+          lastName: data.last_name,
+          imageUrl: data.image_url,
+        });
         logger.info({ userId: data.id, type }, "Clerk user synced");
         break;
       }
 
       case "user.deleted": {
-        await db.delete(usersTable).where(eq(usersTable.id, data.id));
+        await markClerkIdentityDeleted(data.id);
         logger.info({ userId: data.id, type }, "Clerk user deleted");
         break;
       }

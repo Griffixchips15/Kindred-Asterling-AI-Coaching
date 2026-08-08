@@ -2,8 +2,9 @@ import { type Request, type Response, type NextFunction } from "express";
 import type { WithAuthProp } from "@clerk/clerk-sdk-node";
 import { createClerkClient } from "@clerk/backend";
 import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { syncClerkIdentity } from "../lib/clerkIdentity";
 
 const clerk = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY!,
@@ -59,7 +60,12 @@ export async function authMiddleware(
         emailVerifiedAt: usersTable.emailVerifiedAt,
       })
       .from(usersTable)
-      .where(eq(usersTable.id, userId))
+      .where(
+        and(
+          eq(usersTable.clerkUserId, userId),
+          isNull(usersTable.clerkDeletedAt),
+        ),
+      )
       .limit(1);
 
     if (user) {
@@ -74,50 +80,7 @@ export async function authMiddleware(
   // User not found in local DB — fetch from Clerk and create
   try {
     const clerkUser = await clerk.users.getUser(userId);
-    const email = clerkUser.emailAddresses?.[0]?.emailAddress ?? null;
-    const emailVerified =
-      clerkUser.emailAddresses?.[0]?.verification?.status === "verified";
-
-    // Preserve an existing local account when its email matches the Clerk user.
-    // This keeps existing data and subscriptions attached to the local user ID.
-    if (email) {
-      const [existingByEmail] = await db
-        .select({
-          id: usersTable.id,
-          email: usersTable.email,
-          firstName: usersTable.firstName,
-          lastName: usersTable.lastName,
-          profileImageUrl: usersTable.profileImageUrl,
-          emailVerifiedAt: usersTable.emailVerifiedAt,
-        })
-        .from(usersTable)
-        .where(eq(usersTable.email, email))
-        .limit(1);
-
-      if (existingByEmail) {
-        req.user = existingByEmail;
-        next();
-        return;
-      }
-    }
-
-    await db.insert(usersTable).values({
-      id: userId,
-      email,
-      firstName: clerkUser.firstName ?? null,
-      lastName: clerkUser.lastName ?? null,
-      profileImageUrl: clerkUser.imageUrl ?? null,
-      emailVerifiedAt: emailVerified ? new Date() : null,
-    });
-
-    req.user = {
-      id: userId,
-      email,
-      firstName: clerkUser.firstName ?? null,
-      lastName: clerkUser.lastName ?? null,
-      profileImageUrl: clerkUser.imageUrl ?? null,
-      emailVerifiedAt: emailVerified ? new Date() : null,
-    };
+    req.user = await syncClerkIdentity(clerkUser);
 
     logger.info({ userId }, "User auto-created from Clerk auth");
   } catch (err) {
