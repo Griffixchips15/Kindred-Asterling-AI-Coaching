@@ -122,6 +122,9 @@ overrides:
   # GHSA-qjx8-664m-686j: js-cookie prototype hijack
   js-cookie: ">=3.0.7"
 
+  # GHSA-77f6-4x8j-4q3j: nanoid customAlphabet/customRandom infinite loop DoS
+  nanoid: ">=3.3.17"
+
 allowBuilds:
   '@google/genai': true
   esbuild: true
