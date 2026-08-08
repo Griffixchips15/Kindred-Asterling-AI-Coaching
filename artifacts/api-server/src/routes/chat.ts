@@ -8,13 +8,12 @@ import {
   type User,
 } from "@workspace/db";
 import { SendChatMessageBody, AppendChatMessageBody } from "@workspace/api-zod";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
-import type Anthropic from "@anthropic-ai/sdk";
 import { requireAuth } from "../middlewares/requireAuth";
 import { chatLimiter } from "../middlewares/rateLimiter";
 import { chatTools, runChatTool } from "../lib/chatTools";
 import { checkAndIncrementDailyQuota, refundDailyQuota } from "../lib/dailyQuota";
 import { logger } from "../lib/logger";
+import { chatWithOllama, type OllamaMessage } from "../lib/ollamaClient";
 
 const CRISIS_PATTERNS = [
   /\bsuicid(e|al)\b/i,
@@ -37,12 +36,8 @@ function logCrisis(userId: string, content: string): void {
 
 const router: IRouter = Router();
 
-// Claude via Replit's managed Anthropic integration — no user-supplied API key
-// and no third-party billing setup required.
-const CHAT_MODEL = "claude-sonnet-4-6";
-// Bound the assistant reply length. Kindred is intentionally terse (1-3
-// sentences), so a small cap keeps replies tight and token cost low.
-const MAX_OUTPUT_TOKENS = 400;
+// Gemma runs through the Ollama-compatible endpoint configured for the API.
+const CHAT_MODEL = process.env.OLLAMA_MODEL || "gemma3:4b";
 // Cap history sent to the model. Full history is still preserved in DB and
 // shown in the UI, but only the most recent turns are sent on each call so
 // that long sessions don't push token usage up or confuse the model with
@@ -62,7 +57,7 @@ const MAX_HISTORY_CHARS = 24000;
 // messages a conversation has accumulated.
 const MESSAGE_RESPONSE_LIMIT = 100;
 // Hard cap on the serialized JSON string returned by any single tool call
-// before it is appended to the Anthropic request. Per-field clipping in
+// before it is appended to the Ollama request. Per-field clipping in
 // chatTools.ts is the first line of defence; this is the final backstop so a
 // large result set (e.g. many habits/medications) can't still exceed a safe
 // size. At ~8KB per tool call and ≤4 iterations the worst-case tool payload
@@ -271,7 +266,7 @@ router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Re
     bounded.unshift(recent[i]);
     total += len;
   }
-  // Anthropic's messages API requires the conversation to begin with a user
+  // Ollama expects the conversation to begin with a user
   // turn. Our history can start with an assistant message (the onboarding
   // greeting), so drop any leading assistant turns before mapping.
   let firstUserIdx = bounded.findIndex((m) => m.role === "user");
@@ -282,7 +277,7 @@ router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Re
   }));
 
   // The current user turn was just inserted above, so this should never be
-  // empty in normal flow. Guard explicitly: Anthropic rejects an empty
+  // empty in normal flow. Guard explicitly: Ollama rejects an empty
   // messages array, and we'd rather surface a clean retryable 502 than a
   // raw API error.
   if (chatMessages.length === 0) {
@@ -297,38 +292,43 @@ router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Re
 
   let assistantText: string | null = null;
   let failureReason: string | null = null;
-  // Agentic tool loop: Claude may ask to read the user's own data (habits,
+  // Agentic tool loop: Gemma may ask to read the user's own data (habits,
   // medications, recent logs) before replying. We execute each requested tool
   // scoped to THIS user, feed results back, and re-call until it produces a
   // text reply. Capped so a misbehaving turn can't loop forever / burn tokens.
   const MAX_TOOL_ITERATIONS = 4;
-  const convo: Anthropic.MessageParam[] = chatMessages.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
   const system = buildSystemInstruction(userRow);
   try {
+    const ollamaTools = chatTools.map((tool) => ({
+      type: "function",
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.input_schema,
+      },
+    }));
+    const convo: OllamaMessage[] = chatMessages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
     for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
-      const result = await anthropic!.messages.create({
+      const result = await chatWithOllama({
         model: CHAT_MODEL,
-        max_tokens: MAX_OUTPUT_TOKENS,
         system,
         messages: convo,
-        tools: chatTools,
+        tools: ollamaTools,
       });
 
-      if (result.stop_reason === "tool_use") {
+      if (result.toolCalls.length > 0) {
         // Record the assistant's tool-use turn, run each tool, and hand the
         // results back as a user turn for the next iteration.
-        convo.push({ role: "assistant", content: result.content });
-        const toolResults: Anthropic.ToolResultBlockParam[] = [];
-        for (const block of result.content) {
-          if (block.type !== "tool_use") continue;
+        convo.push({ role: "assistant", content: result.content, tool_calls: result.toolCalls });
+        for (const block of result.toolCalls) {
           let output: string;
           try {
             const raw = await runChatTool(
-              block.name,
-              (block.input ?? {}) as Record<string, unknown>,
+              block.function.name,
+              block.function.arguments ?? {},
               userId,
             );
             output =
@@ -337,32 +337,24 @@ router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Re
                 : raw;
           } catch (toolErr) {
             req.log.error(
-              { err: toolErr, tool: block.name },
+              { err: toolErr, tool: block.function.name },
               "chat tool execution failed",
             );
             output = JSON.stringify({ error: "tool_failed" });
           }
-          toolResults.push({
-            type: "tool_result",
-            tool_use_id: block.id,
-            content: output,
-          });
+          convo.push({ role: "tool", content: output });
         }
-        convo.push({ role: "user", content: toolResults });
         continue;
       }
 
-      const textParts = result.content
-        .map((block) => (block.type === "text" ? block.text : ""))
-        .join("")
-        .trim();
+      const textParts = result.content.trim();
       if (textParts) {
         assistantText = textParts;
       } else {
-        failureReason = result.stop_reason ?? "empty_response";
+        failureReason = result.doneReason ?? "empty_response";
         req.log.warn(
-          { stopReason: result.stop_reason },
-          "Claude returned no text",
+          { doneReason: result.doneReason },
+          "Ollama returned no text",
         );
       }
       break;
@@ -371,12 +363,12 @@ router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Re
       failureReason = "max_tool_iterations";
       req.log.warn(
         { maxIterations: MAX_TOOL_ITERATIONS },
-        "Claude did not finish within tool-iteration cap",
+        "Ollama did not finish within tool-iteration cap",
       );
     }
   } catch (err) {
     failureReason = "exception";
-    req.log.error({ err }, "Claude messages.create failed");
+    req.log.error({ err }, "Ollama chat request failed");
   }
 
   if (!assistantText) {

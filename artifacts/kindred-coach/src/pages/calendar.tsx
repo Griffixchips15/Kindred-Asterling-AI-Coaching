@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useGetUpcomingCalendarEvents } from "@workspace/api-client-react";
 import { CalendarDays, Clock, AlertCircle } from "lucide-react";
 
@@ -39,6 +39,20 @@ function dateSubtitle(d: Date): string {
 }
 
 export default function CalendarPage() {
+  const [calendarConfigured, setCalendarConfigured] = useState(false);
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [statusLoaded, setStatusLoaded] = useState(false);
+  useEffect(() => {
+    fetch("/api/calendar/status", { credentials: "include" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((status: { configured?: boolean; connected?: boolean } | null) => {
+        setCalendarConfigured(Boolean(status?.configured));
+        setCalendarConnected(Boolean(status?.connected));
+        setStatusLoaded(true);
+      })
+      .catch(() => setStatusLoaded(true));
+  }, []);
+
   const { data, isLoading, isError, refetch, isFetching } =
     useGetUpcomingCalendarEvents();
 
@@ -99,13 +113,29 @@ export default function CalendarPage() {
         <div className="rounded-lg border border-border bg-card p-6 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
           <div className="text-sm">
-            <p className="font-medium text-foreground">
-              Calendar isn't available for your account.
-            </p>
+            <p className="font-medium text-foreground">Connect your Google Calendar</p>
             <p className="text-muted-foreground mt-1">
-              The calendar view is currently limited. If you think you should
-              have access, contact the app owner.
+              Kindred can use your upcoming events to make planning suggestions.
             </p>
+            {statusLoaded && calendarConfigured && !calendarConnected ? (
+              <a
+                href="/api/calendar/connect"
+                className="inline-flex mt-4 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                Connect Google Calendar
+              </a>
+            ) : calendarConnected ? (
+              <button
+                onClick={() => refetch()}
+                className="mt-4 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted"
+              >
+                Try again
+              </button>
+            ) : (
+              <p className="text-xs text-muted-foreground mt-3">
+                Calendar setup is not complete yet. Please try again later.
+              </p>
+            )}
           </div>
         </div>
       ) : grouped.days.length === 0 ? (
