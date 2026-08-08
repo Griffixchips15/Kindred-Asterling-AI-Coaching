@@ -1,3 +1,3 @@
-## 2024-08-07 - Added Delete Confirmation Dialog
-**Learning:** Adding a confirmation step for destructive actions prevents accidental data loss and improves user confidence.
-**Action:** When implementing destructive actions (like deleting a habit), always wrap the action in an `AlertDialog` to ask for confirmation.
+## 2026-34-06 - Added missing aria-labels to icon-only buttons
+**Learning:** The sidebar elements shrink to icon-only buttons when collapsed. While they use Tooltips, they still require an `aria-label` attribute directly on the `<button>` to be accessible to screen readers, especially because the tooltip content is conditionally rendered or visually separated.
+**Action:** When working with responsive sidebars or tooltips, always ensure the underlying interactive element (like `<button>` or `<a>`) maintains an `aria-label` if the text content is conditionally hidden.
