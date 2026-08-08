@@ -9,14 +9,13 @@ import {
   medicationsTable,
   medicationLogsTable,
 } from "@workspace/db";
-import type Anthropic from "@anthropic-ai/sdk";
 
 const DEFAULT_LIMIT = 7;
 const MAX_LIMIT = 30;
 // Per-field clip limits for tool outputs. Keeps individual fields from
 // bloating a tool result even when the DB contains near-limit stored values.
-const TOOL_FIELD_SHORT = 200;   // names, dosage, mood strings
-const TOOL_FIELD_LONG  = 1000;  // notes, sensations, wins/challenges
+const TOOL_FIELD_SHORT = 200; // names, dosage, mood strings
+const TOOL_FIELD_LONG = 1000; // notes, sensations, wins/challenges
 // Streak logic only looks back 90 days, so fetching older entries is waste.
 // Cap habits returned to prevent O(N habits × N entries) fan-out queries.
 const HABIT_ENTRY_LOOKBACK_DAYS = 90;
@@ -43,7 +42,11 @@ function todayDateStr(): string {
 // server-side to the requesting user (see runChatTool) — the model never gets
 // to choose whose data it reads. Outputs deliberately exclude internal row IDs
 // so existence of other records can't leak and the prompt stays small.
-export const chatTools: Anthropic.Tool[] = [
+export const chatTools: Array<{
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+}> = [
   {
     name: "get_recent_morning_logs",
     description:
@@ -119,7 +122,9 @@ async function getRecentMorningLogs(
   return rows.map((r) => ({
     date: r.date,
     mentalLoadLevel: r.mentalLoadLevel,
-    miniGoals: (r.miniGoals ?? []).map((g) => clipStr(g, TOOL_FIELD_SHORT)).filter(Boolean),
+    miniGoals: (r.miniGoals ?? [])
+      .map((g) => clipStr(g, TOOL_FIELD_SHORT))
+      .filter(Boolean),
     notes: clipStr(r.notes, TOOL_FIELD_LONG),
   }));
 }
@@ -156,7 +161,9 @@ async function getRecentBodyScans(
     .limit(limit);
   return rows.map((r) => ({
     scannedAt: new Date(r.scannedAt).toISOString(),
-    feelings: (r.feelings ?? []).map((f) => clipStr(f, TOOL_FIELD_SHORT)).filter(Boolean),
+    feelings: (r.feelings ?? [])
+      .map((f) => clipStr(f, TOOL_FIELD_SHORT))
+      .filter(Boolean),
     energyLevel: r.energyLevel,
     physicalSensations: clipStr(r.physicalSensations, TOOL_FIELD_LONG),
     notes: clipStr(r.notes, TOOL_FIELD_LONG),
@@ -256,7 +263,9 @@ async function getMedicationsStatus(userId: string): Promise<unknown> {
             ),
           )
       : [];
-  const takenSet = new Set(todays.map((l) => `${l.medicationId}|${l.scheduledTime}`));
+  const takenSet = new Set(
+    todays.map((l) => `${l.medicationId}|${l.scheduledTime}`),
+  );
   return meds.map((m) => {
     const times = Array.from(new Set(m.times.map((t) => t.trim()))).sort();
     return {
