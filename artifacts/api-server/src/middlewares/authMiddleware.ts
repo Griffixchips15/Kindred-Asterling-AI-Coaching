@@ -7,6 +7,7 @@ import { logger } from "../lib/logger";
 
 const clerk = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY!,
+  publishableKey: process.env.CLERK_PUBLISHABLE_KEY!,
 });
 
 declare global {
