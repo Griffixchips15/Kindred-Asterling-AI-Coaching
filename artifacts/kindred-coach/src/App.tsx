@@ -39,6 +39,15 @@ const queryClient = new QueryClient({
 });
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const clerkJsUrl = import.meta.env.VITE_CLERK_JS_URL || undefined;
+
+// Custom Clerk domain: the env var holds the full FAPI URL
+// (https://clerk.kindred-asterling-ai-coaching.com). Clerk's modern SDK
+// accepts the hostname via `domain` for custom Frontend API domains.
+const clerkFapiUrl = import.meta.env.VITE_CLERK_FAPI;
+const clerkDomain = clerkFapiUrl
+  ? clerkFapiUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")
+  : undefined;
 
 // Wires Clerk's session JWT into the API client so every /api request carries
 // `Authorization: Bearer <token>`. Required because the API validates Clerk
@@ -114,7 +123,11 @@ function App() {
   }
 
   return (
-    <ClerkProvider publishableKey={clerkPubKey}>
+    <ClerkProvider
+      publishableKey={clerkPubKey}
+      domain={clerkDomain}
+      clerkJSUrl={clerkJsUrl}
+    >
       <AuthTokenBridge />
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
