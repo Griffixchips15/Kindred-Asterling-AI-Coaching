@@ -4,7 +4,8 @@ import helmet from "helmet";
 import pinoHttp from "pino-http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createClerkClient } from "@clerk/clerk-sdk-node";import { authMiddleware } from "./middlewares/authMiddleware";
+import { createClerkClient } from "@clerk/clerk-sdk-node";
+import { authMiddleware } from "./middlewares/authMiddleware";
 import { sessionAuthMiddleware } from "./middlewares/sessionAuthMiddleware";
 import { generalLimiter, writeLimiter } from "./middlewares/rateLimiter";
 import router from "./routes";
@@ -113,6 +114,26 @@ if (isTest) {
   app.use(clerkClient.expressWithAuth());
   app.use(authMiddleware);
 }
+
+// TEMPORARY DEBUG: log Clerk auth state for failed requests
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api") && req.path !== "/api/healthz") {
+    const auth = (req as unknown as { auth?: { userId?: string | null; sessionId?: string | null } }).auth;
+    const authHeader = req.headers.authorization;
+    logger.info(
+      {
+        url: req.path,
+        method: req.method,
+        authUserId: auth?.userId ?? null,
+        authSessionId: auth?.sessionId ?? null,
+        hasAuthHeader: Boolean(authHeader),
+        authHeaderPrefix: authHeader ? authHeader.slice(0, 20) : null,
+      },
+      "clerk-auth-debug",
+    );
+  }
+  next();
+});
 
 app.use(generalLimiter);
 app.use((req, res, next) => {
