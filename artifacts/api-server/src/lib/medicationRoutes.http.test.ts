@@ -20,7 +20,10 @@ import {
 } from "@workspace/db";
 import * as schedule from "./medicationSchedule";
 import app from "../app";
-import { createSession, deleteSession } from "./auth";
+import {
+  registerTestClerkIdentity,
+  revokeTestClerkIdentity,
+} from "../middlewares/testClerkIdentityAdapter";
 
 // These tests drive the real Express medication routes over HTTP (auth
 // middleware, request validation, status codes, ownership checks, and the write
@@ -53,24 +56,12 @@ let server: Server;
 let baseUrl: string;
 let tokenA: string;
 let tokenB: string;
-const sids: string[] = [];
+const tokens: string[] = [];
 
 async function makeSession(userId: string): Promise<string> {
-  // No expires_at, so the auth middleware accepts the session without an OIDC
-  // refresh round-trip.
-  const sid = await createSession({
-    user: {
-      id: userId,
-      email: `${userId}@example.test`,
-      firstName: null,
-      lastName: null,
-      profileImageUrl: null,
-      emailVerifiedAt: new Date(),
-    },
-    access_token: "test-access-token",
-  });
-  sids.push(sid);
-  return sid;
+  const token = registerTestClerkIdentity({ id: userId });
+  tokens.push(token);
+  return token;
 }
 
 interface ApiResult {
@@ -126,10 +117,7 @@ async function createMed(
 }
 
 beforeAll(async () => {
-  await db.insert(usersTable).values([
-    { id: userAId, email: `${userAId}@example.test`, emailVerifiedAt: new Date() },
-    { id: userBId, email: `${userBId}@example.test`, emailVerifiedAt: new Date() },
-  ]);
+  await db.insert(usersTable).values([{ id: userAId }, { id: userBId }]);
   tokenA = await makeSession(userAId);
   tokenB = await makeSession(userBId);
   await new Promise<void>((resolve) => {
@@ -148,7 +136,7 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
-  await Promise.all(sids.map((s) => deleteSession(s)));
+  tokens.forEach(revokeTestClerkIdentity);
   for (const id of [userAId, userBId]) {
     await db.delete(usersTable).where(eq(usersTable.id, id));
   }

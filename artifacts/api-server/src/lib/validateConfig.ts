@@ -6,8 +6,16 @@ export function validateRuntimeConfig(): void {
 
   requireValue("DATABASE_URL");
   requireValue("PORT");
-  requireValue("OLLAMA_BASE_URL");
-  requireValue("OLLAMA_MODEL");
+  const aiProvider = (process.env.AI_PROVIDER || "ollama").toLowerCase();
+  if (aiProvider === "ollama") {
+    requireValue("OLLAMA_BASE_URL");
+    requireValue("OLLAMA_MODEL");
+  } else if (aiProvider === "openai") {
+    requireValue("OPENAI_API_KEY");
+    requireValue("OPENAI_MODEL");
+  } else if (!["disabled", "none", "off"].includes(aiProvider)) {
+    throw new Error("AI_PROVIDER must be one of: ollama, openai, disabled");
+  }
 
   if (process.env.NODE_ENV === "production") {
     requireValue("APP_PUBLIC_URL");

@@ -1,8 +1,20 @@
-import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { like, eq, and, isNull, sql } from "drizzle-orm";
-import { db, usersTable, betaGrantsTable, entitlementAuditTable } from "@workspace/db";
+import {
+  Router,
+  type IRouter,
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
+import { eq, and, isNull, sql } from "drizzle-orm";
+import {
+  db,
+  usersTable,
+  betaGrantsTable,
+  entitlementAuditTable,
+} from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ownerIds } from "../lib/subscriptionService";
+import { findClerkIdentitiesByEmail } from "../middlewares/authMiddleware";
 
 function ownerEmails(): Set<string> {
   return new Set(
@@ -23,7 +35,10 @@ function requireOwner(req: Request, res: Response, next: NextFunction): void {
     next();
     return;
   }
-  if (req.user.email && ownerEmails().has(req.user.email.trim().toLowerCase())) {
+  if (
+    req.user.email &&
+    ownerEmails().has(req.user.email.trim().toLowerCase())
+  ) {
     next();
     return;
   }
@@ -36,26 +51,20 @@ const router: IRouter = Router();
 router.use("/admin", requireAuth, requireOwner);
 
 router.get("/admin/users", async (req, res): Promise<void> => {
-  const rawQ = (req.query.q as string || "").trim().toLowerCase();
+  const rawQ = ((req.query.q as string) || "").trim().toLowerCase();
   if (!rawQ) {
     res.json({ users: [] });
     return;
   }
 
-  const q = rawQ.replace(/[%_]/g, "\\$&");
-
-  const users = await db
-    .select({
-      id: usersTable.id,
-      email: usersTable.email,
-      firstName: usersTable.firstName,
-      lastName: usersTable.lastName,
-      emailVerifiedAt: usersTable.emailVerifiedAt,
-      createdAt: usersTable.createdAt,
-    })
-    .from(usersTable)
-    .where(like(sql`lower(${usersTable.email})`, `%${q}%`))
-    .limit(20);
+  const identities = await findClerkIdentitiesByEmail(rawQ);
+  const users = identities.slice(0, 20).map((identity) => ({
+    id: identity.id,
+    email: identity.email,
+    firstName: identity.firstName,
+    lastName: identity.lastName,
+    emailVerifiedAt: identity.emailVerified ? new Date().toISOString() : null,
+  }));
 
   res.json({ users });
 });

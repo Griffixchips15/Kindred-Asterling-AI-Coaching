@@ -17,6 +17,11 @@ import {
 } from "../lib/dailyQuota";
 import { logger } from "../lib/logger";
 import { chatWithOllama, type OllamaMessage } from "../lib/ollamaClient";
+import {
+  crisisSupportResponse,
+  detectCrisis,
+  emitSafetySignalEvent,
+} from "../lib/crisisSafety";
 
 const CRISIS_PATTERNS = [
   /\bsuicid(e|al)\b/i,
@@ -42,8 +47,11 @@ function logCrisis(userId: string, content: string): void {
 
 const router: IRouter = Router();
 
-// Gemma runs through the Ollama-compatible endpoint configured for the API.
-const CHAT_MODEL = process.env.OLLAMA_MODEL || "gemma3:4b";
+const AI_REQUEST_TIMEOUT_MS = Math.max(
+  1_000,
+  Number(process.env.AI_REQUEST_TIMEOUT_MS) || 30_000,
+);
+const AI_MAX_ATTEMPTS = 2;
 // Cap history sent to the model. Full history is still preserved in DB and
 // shown in the UI, but only the most recent turns are sent on each call so
 // that long sessions don't push token usage up or confuse the model with
@@ -72,6 +80,39 @@ const MAX_TOOL_OUTPUT_CHARS = 8000;
 // Slightly higher cap for the archive export path where the user explicitly
 // wants a fuller transcript, but still bounded to prevent oversized reads.
 const ARCHIVE_MESSAGE_LIMIT = 500;
+
+async function requestWithRetry(
+  provider: AIProvider,
+  request: Omit<Parameters<AIProvider["chat"]>[0], "timeoutMs">,
+): Promise<Awaited<ReturnType<AIProvider["chat"]>>> {
+  let lastError: AIProviderError | undefined;
+  for (let attempt = 0; attempt < AI_MAX_ATTEMPTS; attempt++) {
+    if (request.signal?.aborted)
+      throw new AIProviderError("aborted", "AI request was cancelled");
+    try {
+      return await provider.chat({
+        ...request,
+        timeoutMs: AI_REQUEST_TIMEOUT_MS,
+      });
+    } catch (error) {
+      lastError = normalizeProviderError(error);
+      if (!lastError.retryable || attempt + 1 >= AI_MAX_ATTEMPTS)
+        throw lastError;
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, 100 * (attempt + 1));
+        request.signal?.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timer);
+            reject(new AIProviderError("aborted", "AI request was cancelled"));
+          },
+          { once: true },
+        );
+      });
+    }
+  }
+  throw lastError ?? new AIProviderError("unknown", "AI request failed");
+}
 
 function clipMessage(s: string): string {
   const t = s.trim();
@@ -151,8 +192,11 @@ function sanitizeProfileText(text: string): string {
     .trim();
 }
 
-function buildSystemInstruction(user: User | null): string {
-  const name = user?.preferredName ?? user?.firstName ?? "friend";
+function buildSystemInstruction(
+  user: User | null,
+  clerkFirstName: string | null,
+): string {
+  const name = user?.preferredName ?? clerkFirstName ?? "friend";
   const struggles = clip(sanitizeProfileText(user?.struggles ?? ""), 500);
   const strengths = clip(sanitizeProfileText(user?.strengths ?? ""), 500);
   const interests = clip(sanitizeProfileText(user?.interests ?? ""), 500);
@@ -168,7 +212,6 @@ function buildSystemInstruction(user: User | null): string {
     "Vary your openings and rhythm. Do not start consecutive replies the same way. It is fine — often better — to make a statement, share an observation, or simply sit with what they said without asking anything at all.",
     "If the user sends a short logistical message ('brb', 'heading to therapy', 'one sec'), reply with a short acknowledgement that names the thing they mentioned (e.g. 'Take your time at therapy.'). Never default to a generic 'tell me more'.",
     "Avoid sycophancy ('what a great question', 'that's amazing'). Avoid therapist clichés. Never give medical advice or diagnose.",
-    "CRISIS PROTOCOL — If the user mentions self-harm, suicidal thoughts, or a crisis, respond with: (1) a brief acknowledgment of what they said, (2) a clear statement that you're not a crisis service, and (3) the national crisis resources: 988 Suicide & Crisis Lifeline (call or text 988) and Crisis Text Line (text HOME to 741741). Keep it simple and direct; do NOT add filler or commentary. Example: 'I hear you. I'm not a crisis service, but help is available — call or text 988, or text HOME to 741741.' Do not offer to 'stay with them' or 'talk through it' — direct them to the helplines. Then ask if there's anything else they'd like to talk about.",
     "You can quietly look things up about them when it genuinely helps: recent morning check-ins, evening reflections, body scans, habit streaks, and today's medications. Only look something up when the conversation actually calls for it — never for small talk or short logistical messages — and read only what you need. Weave anything you find in naturally, like you simply remember it; never mention tools, functions, data, lookups, or that you checked anything.",
   ];
   if (user?.birthday) parts.push(`Their birthday is ${user.birthday}.`);

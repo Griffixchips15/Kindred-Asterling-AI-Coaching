@@ -40,7 +40,9 @@ const email = `rem-${suffix}@example.test`;
 // Use UTC so the user's local "HH:MM" equals the UTC time we pass in `now`.
 const TZ = "UTC";
 
-async function setSettings(over: Partial<typeof reminderSettingsTable.$inferInsert>) {
+async function setSettings(
+  over: Partial<typeof reminderSettingsTable.$inferInsert>,
+) {
   await db
     .insert(reminderSettingsTable)
     .values({ userId, ...over })
@@ -58,7 +60,7 @@ async function deliveryCount(): Promise<number> {
 beforeAll(async () => {
   await db
     .insert(usersTable)
-    .values({ id: userId, email, phone: "+15551234567", timezone: TZ })
+    .values({ id: userId, phone: "+15551234567", timezone: TZ })
     .onConflictDoNothing();
 });
 
