@@ -1,8 +1,10 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Webhook } from "svix";
-import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import {
+  markClerkIdentityDeleted,
+  syncClerkIdentity,
+} from "../lib/clerkIdentity";
 
 const router: IRouter = Router();
 
@@ -66,7 +68,7 @@ router.post("/clerk/webhook", async (req: Request, res: Response) => {
       }
 
       case "user.deleted": {
-        await db.delete(usersTable).where(eq(usersTable.id, data.id));
+        await markClerkIdentityDeleted(data.id);
         logger.info({ userId: data.id, type }, "Clerk user deleted");
         break;
       }

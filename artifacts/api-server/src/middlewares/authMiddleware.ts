@@ -3,6 +3,7 @@ import type { WithAuthProp } from "@clerk/clerk-sdk-node";
 import { db, usersTable } from "@workspace/db";
 import type { NextFunction, Request, Response } from "express";
 import { logger } from "../lib/logger";
+import { syncClerkIdentity } from "../lib/clerkIdentity";
 
 export interface ClerkIdentity {
   id: string;

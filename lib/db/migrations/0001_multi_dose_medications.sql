@@ -13,7 +13,6 @@
 -- a plain push would drop `time_of_day` and with it every medication's schedule
 -- and every log's dose mapping.
 
-BEGIN;
 
 -- 1. medications: add times[] and backfill from the single time_of_day.
 ALTER TABLE medications ADD COLUMN IF NOT EXISTS times text[];
@@ -62,5 +61,3 @@ CREATE UNIQUE INDEX IF NOT EXISTS medication_logs_user_med_date_time_unique
 
 -- 4. Now that data is preserved, drop the legacy single-time column.
 ALTER TABLE medications DROP COLUMN IF EXISTS time_of_day;
-
-COMMIT;
