@@ -8,7 +8,6 @@
 -- Idempotent: the table is created IF NOT EXISTS, and the backfill only seeds
 -- medications that have no schedule rows yet. Safe to run before `drizzle-kit push`.
 
-BEGIN;
 
 CREATE TABLE IF NOT EXISTS medication_schedule_entries (
   id serial PRIMARY KEY,
@@ -33,5 +32,3 @@ CROSS JOIN LATERAL unnest(m.times) AS t(time)
 WHERE NOT EXISTS (
   SELECT 1 FROM medication_schedule_entries e WHERE e.medication_id = m.id
 );
-
-COMMIT;
