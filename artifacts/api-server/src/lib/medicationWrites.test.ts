@@ -64,7 +64,7 @@ async function logsForUser() {
 beforeAll(async () => {
   await db
     .insert(usersTable)
-    .values({ id: userId, email: `${userId}@example.test` });
+    .values({ id: userId });
 });
 
 afterEach(async () => {
