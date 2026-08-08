@@ -18,7 +18,7 @@ A personal wellness companion web app. Users journal their day (morning check-in
 - `pnpm --filter @workspace/kindred-coach run dev` — web frontend
 - `pnpm run typecheck` / `pnpm run build` — full typecheck / typecheck + build
 - `pnpm --filter @workspace/api-spec run codegen` — regen hooks + Zod from `lib/api-spec/openapi.yaml`
-- `pnpm --filter @workspace/db run push` — push DB schema (dev only; prod needs a separate push after deploy)
+- `pnpm --filter @workspace/db run migrate` — apply reviewed SQL migrations (never use `drizzle-kit push` for destructive production changes)
 
 ### Environment variables
 
@@ -33,7 +33,7 @@ A personal wellness companion web app. Users journal their day (morning check-in
 - **DB schema (source of truth):** `lib/db/src/schema/*` — every user-data table has a `userId` FK that cascades on delete
 - **API contract (source of truth):** `lib/api-spec/openapi.yaml` — never hand-edit generated client/zod files
 - **API routes:** `artifacts/api-server/src/routes/*` — all data routes scoped to `req.user!.id` behind `requireAuth`
-- **Auth:** `artifacts/api-server/src/routes/auth.ts` (Replit OIDC + session cookies)
+- **Auth:** Clerk bearer JWTs; PostgreSQL stores only the Clerk user ID mapping and wellness profile fields.
 - **AI chat:** system prompt `chat.ts → buildSystemInstruction()`; tools + executor `lib/chatTools.ts` (agentic loop in `/chat/send`)
 - **Subscription/paywall:** backend `lib/subscriptionService.ts` (`resolveSubscription` — checks owner IDs → beta grants → Helcim cache), `middlewares/requireSubscription.ts`, `routes/subscription.ts` (status + Helcim checkout + webhook), `lib/helcimClient.ts` (Helcim API + webhook verification), schema `lib/db/src/schema/subscriptions.ts`, `lib/db/src/schema/beta.ts` (beta grants); frontend `SubscriptionGate` in `App.tsx` + `components/checkout-button.tsx`
 - **Voice:** backend `lib/elevenlabs.ts` (Scribe STT + TTS, voice "River") + `routes/voice.ts` (`/voice/transcribe`, `/voice/speak` — binary, bypass codegen); frontend `lib/voice-api.ts`, `hooks/use-voice-recorder.ts`, `components/voice-input-button.tsx` + `speak-button.tsx`

@@ -187,8 +187,11 @@ function sanitizeProfileText(text: string): string {
     .trim();
 }
 
-function buildSystemInstruction(user: User | null): string {
-  const name = user?.preferredName ?? user?.firstName ?? "friend";
+function buildSystemInstruction(
+  user: User | null,
+  clerkFirstName: string | null,
+): string {
+  const name = user?.preferredName ?? clerkFirstName ?? "friend";
   const struggles = clip(sanitizeProfileText(user?.struggles ?? ""), 500);
   const strengths = clip(sanitizeProfileText(user?.strengths ?? ""), 500);
   const interests = clip(sanitizeProfileText(user?.interests ?? ""), 500);

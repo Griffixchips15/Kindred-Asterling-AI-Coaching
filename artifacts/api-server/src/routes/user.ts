@@ -38,14 +38,19 @@ router.get("/auth/user", requireAuth, async (req: Request, res: Response) => {
     return;
   }
 
-  const { passwordHash: _ph, ...user } = row;
   const publicUser: PublicUser = {
-    ...user,
-    createdAt: user.createdAt.toISOString(),
-    emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
-    onboardedAt: user.onboardedAt?.toISOString() ?? null,
-    birthday: user.birthday ?? null,
-    isOwner: ownerIds().has(user.id),
+    ...row,
+    email: req.user!.email,
+    firstName: req.user!.firstName,
+    lastName: req.user!.lastName,
+    profileImageUrl: req.user!.profileImageUrl,
+    createdAt: row.createdAt.toISOString(),
+    emailVerifiedAt: req.user!.emailVerified
+      ? row.createdAt.toISOString()
+      : null,
+    onboardedAt: row.onboardedAt?.toISOString() ?? null,
+    birthday: row.birthday ?? null,
+    isOwner: ownerIds().has(row.id),
   };
 
   res.json({ user: publicUser });

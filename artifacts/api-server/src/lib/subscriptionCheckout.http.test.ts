@@ -13,7 +13,10 @@ import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 
 import app from "../app";
-import { createSession, deleteSession } from "./auth";
+import {
+  registerTestClerkIdentity,
+  revokeTestClerkIdentity,
+} from "../middlewares/testClerkIdentityAdapter";
 
 const suffix = Math.random().toString(36).slice(2, 10);
 const userId = `test-checkout-${suffix}`;
@@ -22,22 +25,12 @@ const email = `${userId}@example.test`;
 let server: Server;
 let baseUrl: string;
 let token: string;
-const sids: string[] = [];
+const tokens: string[] = [];
 
 async function makeSession(uid: string): Promise<string> {
-  const sid = await createSession({
-    user: {
-      id: uid,
-      email: `${uid}@example.test`,
-      firstName: null,
-      lastName: null,
-      profileImageUrl: null,
-      emailVerifiedAt: new Date(),
-    },
-    access_token: "test-access-token",
-  });
-  sids.push(sid);
-  return sid;
+  const token = registerTestClerkIdentity({ id: uid, email });
+  tokens.push(token);
+  return token;
 }
 
 interface ApiResult {
@@ -71,10 +64,7 @@ async function api(
 }
 
 beforeAll(async () => {
-  await db
-    .insert(usersTable)
-    .values({ id: userId, email })
-    .onConflictDoNothing();
+  await db.insert(usersTable).values({ id: userId }).onConflictDoNothing();
   token = await makeSession(userId);
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => {
@@ -85,7 +75,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  for (const sid of sids) await deleteSession(sid);
+  tokens.forEach(revokeTestClerkIdentity);
   await db.delete(usersTable).where(eq(usersTable.id, userId));
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
@@ -122,8 +112,10 @@ describe("POST /api/subscription/checkout", () => {
   });
 
   it("returns the Helcim checkout URL for an authenticated buyer", async () => {
-    process.env.HELCIM_YEARLY_CHECKOUT_URL = "https://subscriptions.helcim.com/subscribe/test123";
-    process.env.HELCIM_LIFETIME_CHECKOUT_URL = "https://subscriptions.helcim.com/subscribe/test456";
+    process.env.HELCIM_YEARLY_CHECKOUT_URL =
+      "https://subscriptions.helcim.com/subscribe/test123";
+    process.env.HELCIM_LIFETIME_CHECKOUT_URL =
+      "https://subscriptions.helcim.com/subscribe/test456";
     process.env.HELCIM_API_KEY = "test-key";
     process.env.HELCIM_WEBHOOK_SECRET = "dGVzdC1zZWNyZXQ=";
 
@@ -138,8 +130,10 @@ describe("POST /api/subscription/checkout", () => {
   });
 
   it("returns the lifetime Helcim checkout URL", async () => {
-    process.env.HELCIM_YEARLY_CHECKOUT_URL = "https://subscriptions.helcim.com/subscribe/test123";
-    process.env.HELCIM_LIFETIME_CHECKOUT_URL = "https://subscriptions.helcim.com/subscribe/test456";
+    process.env.HELCIM_YEARLY_CHECKOUT_URL =
+      "https://subscriptions.helcim.com/subscribe/test123";
+    process.env.HELCIM_LIFETIME_CHECKOUT_URL =
+      "https://subscriptions.helcim.com/subscribe/test456";
     process.env.HELCIM_API_KEY = "test-key";
     process.env.HELCIM_WEBHOOK_SECRET = "dGVzdC1zZWNyZXQ=";
 

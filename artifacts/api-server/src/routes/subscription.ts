@@ -1,6 +1,12 @@
 import { Router, type IRouter, type Request } from "express";
-import { sql, eq } from "drizzle-orm";
-import { db, usersTable, subscriptionsTable, processedWebhooksTable, entitlementAuditTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import {
+  db,
+  usersTable,
+  subscriptionsTable,
+  processedWebhooksTable,
+  entitlementAuditTable,
+} from "@workspace/db";
 import {
   GetSubscriptionStatusResponse,
   CreateCheckoutBody,
@@ -8,6 +14,7 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { resolveSubscription } from "../lib/subscriptionService";
 import { logger } from "../lib/logger";
+import { findClerkIdentitiesByEmail } from "../middlewares/authMiddleware";
 import {
   verifyHelcimWebhook,
   parseHelcimEvent,
@@ -92,7 +99,9 @@ router.post(
         : process.env.HELCIM_LIFETIME_CHECKOUT_URL;
 
     if (!url) {
-      res.status(503).json({ error: `No checkout URL configured for ${planType} plan.` });
+      res
+        .status(503)
+        .json({ error: `No checkout URL configured for ${planType} plan.` });
       return;
     }
 
@@ -148,27 +157,38 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
     let customerId: string | null = event.customerId ?? null;
 
     if (!customerId && event.data) {
-      customerId = (event.data.customerId ?? event.data.customer_id) as string | null;
+      customerId = (event.data.customerId ?? event.data.customer_id) as
+        string | null;
     }
 
     if (customerId) {
       // Validate event type is known before modifying access
       const allowedEvents: HelcimEventType[] = [
-        "checkout.completed", "subscription.created", "subscription.renewed",
-        "subscription.cancelled", "subscription.expired", "invoice.paid", "invoice.payment_failed",
+        "checkout.completed",
+        "subscription.created",
+        "subscription.renewed",
+        "subscription.cancelled",
+        "subscription.expired",
+        "invoice.paid",
+        "invoice.payment_failed",
       ];
       if (!allowedEvents.includes(event.eventType)) {
-        logger.warn({ eventType: event.eventType }, "Unknown Helcim event type — skipping");
+        logger.warn(
+          { eventType: event.eventType },
+          "Unknown Helcim event type — skipping",
+        );
       } else {
         const email =
           event.customerEmail ?? (await getHelcimCustomerEmail(customerId));
         if (email) {
-          const [u] = await db
-            .select()
-            .from(usersTable)
-            .where(sql`lower(${usersTable.email}) = ${email.trim().toLowerCase()}`)
-            .limit(1);
+          const [u] = await findClerkIdentitiesByEmail(
+            email.trim().toLowerCase(),
+          );
           if (u) {
+            await db
+              .insert(usersTable)
+              .values({ id: u.id })
+              .onConflictDoNothing();
             const status = eventToStatus(event.eventType);
             const periodEnd = extractPeriodEnd(event.data ?? {});
             const subId = event.subscriptionId ?? null;
@@ -177,7 +197,7 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
               .insert(subscriptionsTable)
               .values({
                 userId: u.id,
-                email: u.email,
+                email,
                 status,
                 paymentCustomerId: customerId,
                 paymentSubscriptionId: subId,
@@ -187,7 +207,7 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
               .onConflictDoUpdate({
                 target: subscriptionsTable.userId,
                 set: {
-                  email: u.email,
+                  email,
                   status,
                   paymentCustomerId: customerId,
                   paymentSubscriptionId: subId,
@@ -217,10 +237,13 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
     }
 
     // Mark event as processed in PostgreSQL
-    await db.insert(processedWebhooksTable).values({
-      webhookId,
-      eventType: event.eventType,
-    }).onConflictDoNothing();
+    await db
+      .insert(processedWebhooksTable)
+      .values({
+        webhookId,
+        eventType: event.eventType,
+      })
+      .onConflictDoNothing();
   } catch (err) {
     logger.error({ err }, "Helcim webhook processing failed");
     res.status(500).json({ error: "Webhook processing failed" });

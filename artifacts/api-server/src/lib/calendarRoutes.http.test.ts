@@ -1,11 +1,26 @@
-import { vi, describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
+import {
+  vi,
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  afterEach,
+} from "vitest";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { eq } from "drizzle-orm";
 import { db, pool, usersTable } from "@workspace/db";
 import app from "../app";
-import { createSession, deleteSession } from "./auth";
-import { fetchUpcomingEvents, hasCalendarConnection, isCalendarConfigured } from "./googleCalendar";
+import {
+  registerTestClerkIdentity,
+  revokeTestClerkIdentity,
+} from "../middlewares/testClerkIdentityAdapter";
+import {
+  fetchUpcomingEvents,
+  hasCalendarConnection,
+  isCalendarConfigured,
+} from "./googleCalendar";
 
 vi.mock("./googleCalendar", () => ({
   createOAuthState: vi.fn(),
@@ -25,9 +40,12 @@ const userId = `test-calhttp-user-${suffix}`;
 let server: Server;
 let baseUrl: string;
 let token: string;
-const sids: string[] = [];
+const tokens: string[] = [];
 
-async function api(path: string, authToken?: string): Promise<{ status: number; body: unknown }> {
+async function api(
+  path: string,
+  authToken?: string,
+): Promise<{ status: number; body: unknown }> {
   const headers: Record<string, string> = {};
   if (authToken) headers.authorization = `Bearer ${authToken}`;
   const response = await fetch(`${baseUrl}${path}`, { headers });
@@ -36,12 +54,9 @@ async function api(path: string, authToken?: string): Promise<{ status: number; 
 }
 
 beforeAll(async () => {
-  await db.insert(usersTable).values({ id: userId, email: `${userId}@example.test` });
-  token = await createSession({
-    user: { id: userId, email: `${userId}@example.test`, firstName: null, lastName: null, profileImageUrl: null, emailVerifiedAt: new Date() },
-    access_token: "test-access-token",
-  });
-  sids.push(token);
+  await db.insert(usersTable).values({ id: userId });
+  token = registerTestClerkIdentity({ id: userId });
+  tokens.push(token);
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => resolve());
   });
@@ -55,9 +70,11 @@ afterEach(() => {
 });
 
 afterAll(async () => {
-  await Promise.all(sids.map((sid) => deleteSession(sid)));
+  tokens.forEach(revokeTestClerkIdentity);
   await db.delete(usersTable).where(eq(usersTable.id, userId));
-  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  await new Promise<void>((resolve, reject) =>
+    server.close((err) => (err ? reject(err) : resolve())),
+  );
   await pool.end();
 });
 
@@ -72,7 +89,9 @@ describe("GET /calendar/upcoming", () => {
     connectedMock.mockResolvedValue(false);
     const response = await api("/calendar/upcoming", token);
     expect(response.status).toBe(409);
-    expect((response.body as { error: string }).error).toBe("calendar_not_connected");
+    expect((response.body as { error: string }).error).toBe(
+      "calendar_not_connected",
+    );
   });
 
   it("returns events for a connected user", async () => {
