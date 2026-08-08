@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -16,47 +16,55 @@ import { resolveSubscription } from "../lib/subscriptionService";
 import { logger } from "../lib/logger";
 import { findClerkIdentitiesByEmail } from "../middlewares/authMiddleware";
 import {
-  verifyHelcimWebhook,
-  parseHelcimEvent,
+  checkoutUrl,
+  createHelcimCustomer,
   getHelcimCustomerEmail,
-  isCheckoutConfigured as isHelcimCheckoutConfigured,
+  isCheckoutConfigured,
+  parseHelcimEvent,
+  verifyCustomerReference,
+  verifyHelcimWebhook,
   type HelcimEventType,
+  type SubscriptionStatus,
 } from "../lib/helcimClient";
 
-function eventToStatus(eventType: HelcimEventType): string {
-  switch (eventType) {
-    case "checkout.completed":
-    case "subscription.created":
-    case "subscription.renewed":
-    case "invoice.paid":
-      return "active";
-    case "subscription.cancelled":
-      return "active"; // active until period end
-    case "subscription.expired":
-    case "invoice.payment_failed":
-      return "inactive";
-    default:
-      return "inactive";
-  }
-}
+const allowedEvents = new Set<HelcimEventType>([
+  "checkout.completed",
+  "subscription.created",
+  "subscription.renewed",
+  "subscription.cancelled",
+  "subscription.expired",
+  "invoice.paid",
+  "invoice.payment_failed",
+]);
 
-function extractPeriodEnd(data: Record<string, unknown>): Date | null {
-  // Try common field names Helcim might use
+function periodEnd(data: Record<string, unknown>): Date | null {
   const raw =
     data.currentPeriodEnd ??
     data.current_period_end ??
     data.periodEnd ??
     data.period_end ??
     data.renewalDate ??
-    data.renewal_date;
+    data.dateBilling;
   if (!raw) return null;
-  const d = new Date(raw as string | number);
-  return isNaN(d.getTime()) ? null : d;
+  const value = new Date(raw as string | number);
+  return Number.isNaN(value.getTime()) ? null : value;
+}
+
+function statusFor(
+  type: HelcimEventType,
+  end: Date | null,
+): SubscriptionStatus {
+  if (type === "invoice.payment_failed") return "past_due";
+  if (type === "subscription.expired") return "expired";
+  if (type === "subscription.cancelled")
+    return end && end.getTime() > Date.now()
+      ? "cancel_at_period_end"
+      : "cancelled";
+  return "active";
 }
 
 const router: IRouter = Router();
 
-// Read the current user's legacy subscription status for billing/account flows.
 router.get(
   "/subscription/status",
   requireAuth,
@@ -66,18 +74,12 @@ router.get(
       { id: user.id, email: user.email },
       { forceRefresh: true },
     );
-    const data = GetSubscriptionStatusResponse.parse({
-      active: status.active,
-      status: status.status,
-      currentPeriodEnd: status.currentPeriodEnd,
-      source: status.source,
-      subscribeUrl: null,
-    });
-    res.json(data);
+    res.json(
+      GetSubscriptionStatusResponse.parse({ ...status, subscribeUrl: null }),
+    );
   },
 );
 
-// Redirect to Helcim's hosted subscription page for the chosen plan.
 router.post(
   "/subscription/checkout",
   requireAuth,
@@ -87,170 +89,210 @@ router.post(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    if (!isHelcimCheckoutConfigured()) {
+    if (!isCheckoutConfigured()) {
       res.status(503).json({ error: "Checkout is not configured yet." });
       return;
     }
-
-    const planType = parsed.data.planType;
-    const url =
-      planType === "yearly"
+    const base =
+      parsed.data.planType === "yearly"
         ? process.env.HELCIM_YEARLY_CHECKOUT_URL
         : process.env.HELCIM_LIFETIME_CHECKOUT_URL;
-
-    if (!url) {
+    if (!base) {
       res
         .status(503)
-        .json({ error: `No checkout URL configured for ${planType} plan.` });
+        .json({
+          error: `No checkout URL configured for ${parsed.data.planType} plan.`,
+        });
       return;
     }
 
-    res.json({ checkoutUrl: url });
+    try {
+      const customerId = await db.transaction(async (tx) => {
+        // Serializes checkout creation per internal ID, including the provider call.
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${req.user!.id}))`,
+        );
+        const [existing] = await tx
+          .select()
+          .from(subscriptionsTable)
+          .where(eq(subscriptionsTable.userId, req.user!.id))
+          .limit(1);
+        if (existing?.paymentCustomerId) return existing.paymentCustomerId;
+        const created = await createHelcimCustomer({
+          id: req.user!.id,
+          email: req.user!.email ?? null,
+        });
+        await tx
+          .insert(subscriptionsTable)
+          .values({
+            userId: req.user!.id,
+            email: req.user!.email,
+            status: "pending",
+            paymentCustomerId: created,
+            lastCheckedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: subscriptionsTable.userId,
+            set: {
+              paymentCustomerId: created,
+              email: req.user!.email,
+              status: "pending",
+              lastCheckedAt: new Date(),
+            },
+            setWhere: isNull(subscriptionsTable.paymentCustomerId),
+          });
+        const [saved] = await tx
+          .select({ id: subscriptionsTable.paymentCustomerId })
+          .from(subscriptionsTable)
+          .where(eq(subscriptionsTable.userId, req.user!.id));
+        if (!saved?.id) throw new Error("Unable to persist Helcim customer ID");
+        return saved.id;
+      });
+      res.json({ checkoutUrl: checkoutUrl(base, customerId) });
+    } catch (err) {
+      logger.error(
+        { err, userId: req.user!.id },
+        "Helcim checkout initiation failed",
+      );
+      res.status(502).json({ error: "Unable to initiate checkout." });
+    }
   },
 );
 
-// Helcim webhook endpoint. Helcim signs payloads with HMAC-SHA256 using a
-// per-account verifier token sent in webhook-id / webhook-timestamp / webhook-signature headers.
 router.post("/payment/webhook", async (req, res): Promise<void> => {
   const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
-  const bodyStr = rawBody
+  const body = rawBody
     ? rawBody.toString("utf8")
     : JSON.stringify(req.body ?? {});
-
   const webhookId = req.header("webhook-id");
-  const webhookTimestamp = req.header("webhook-timestamp");
-  const webhookSignature = req.header("webhook-signature");
-
-  // If no signature headers are present, this is a Helcim URL-verification ping.
-  // Return 200 so Helcim accepts the webhook URL.
-  if (!webhookId || !webhookTimestamp || !webhookSignature) {
-    logger.info("Helcim webhook ping (no signature headers) — returning OK");
+  const timestamp = req.header("webhook-timestamp");
+  const signature = req.header("webhook-signature");
+  if (!webhookId || !timestamp || !signature) {
     res.json({ received: true });
     return;
   }
-
-  const sigResult = verifyHelcimWebhook(bodyStr, {
-    "webhook-id": webhookId,
-    "webhook-timestamp": webhookTimestamp,
-    "webhook-signature": webhookSignature,
-  });
-
-  if (!sigResult) {
-    res.status(401).json({ error: "Invalid signature" });
-    return;
-  }
-
-  // Prevent replay: skip if this event ID was already processed
-  const [existing] = await db
-    .select({ webhookId: processedWebhooksTable.webhookId })
-    .from(processedWebhooksTable)
-    .where(eq(processedWebhooksTable.webhookId, webhookId))
-    .limit(1);
-  if (existing) {
-    logger.info({ webhookId }, "Duplicate webhook event — skipping");
-    res.json({ received: true });
-    return;
-  }
-
   try {
     const event = parseHelcimEvent(req.body);
-    let customerId: string | null = event.customerId ?? null;
-
-    if (!customerId && event.data) {
-      customerId = (event.data.customerId ?? event.data.customer_id) as
-        string | null;
-    }
-
-    if (customerId) {
-      // Validate event type is known before modifying access
-      const allowedEvents: HelcimEventType[] = [
-        "checkout.completed",
-        "subscription.created",
-        "subscription.renewed",
-        "subscription.cancelled",
-        "subscription.expired",
-        "invoice.paid",
-        "invoice.payment_failed",
-      ];
-      if (!allowedEvents.includes(event.eventType)) {
-        logger.warn(
-          { eventType: event.eventType },
-          "Unknown Helcim event type — skipping",
-        );
-      } else {
-        const email =
-          event.customerEmail ?? (await getHelcimCustomerEmail(customerId));
-        if (email) {
-          const [u] = await findClerkIdentitiesByEmail(
-            email.trim().toLowerCase(),
-          );
-          if (u) {
-            await db
-              .insert(usersTable)
-              .values({ id: u.id })
-              .onConflictDoNothing();
-            const status = eventToStatus(event.eventType);
-            const periodEnd = extractPeriodEnd(event.data ?? {});
-            const subId = event.subscriptionId ?? null;
-
-            await db
-              .insert(subscriptionsTable)
-              .values({
-                userId: u.id,
-                email,
-                status,
-                paymentCustomerId: customerId,
-                paymentSubscriptionId: subId,
-                currentPeriodEnd: periodEnd,
-                lastCheckedAt: new Date(),
-              })
-              .onConflictDoUpdate({
-                target: subscriptionsTable.userId,
-                set: {
-                  email,
-                  status,
-                  paymentCustomerId: customerId,
-                  paymentSubscriptionId: subId,
-                  currentPeriodEnd: periodEnd,
-                  lastCheckedAt: new Date(),
-                },
-              });
-
-            await db.insert(entitlementAuditTable).values({
-              userId: u.id,
-              action: `helcim_${event.eventType}`,
-              metadata: {
-                customerId,
-                subscriptionId: subId,
-                status,
-                periodEnd: periodEnd?.toISOString(),
-              },
-            });
-
-            logger.info(
-              { eventType: event.eventType, userId: u.id, status },
-              "Helcim webhook — subscription upserted",
-            );
-          }
-        }
+    if (!allowedEvents.has(event.eventType) || !event.customerId)
+      throw new Error("Unsupported or uncorrelated Helcim event");
+    const customerId = event.customerId;
+    const result = await db.transaction(async (tx) => {
+      // Verification is deliberately inside the same unit of work as the claim and effects.
+      if (
+        !verifyHelcimWebhook(body, {
+          "webhook-id": webhookId,
+          "webhook-timestamp": timestamp,
+          "webhook-signature": signature,
+        })
+      ) {
+        throw new InvalidWebhookSignatureError();
       }
-    }
+      // Claim first, but the claim rolls back with every other effect on failure.
+      const [claim] = await tx
+        .insert(processedWebhooksTable)
+        .values({ webhookId, eventType: event.eventType })
+        .onConflictDoNothing()
+        .returning();
+      if (!claim) return "duplicate" as const;
+      let [subscription] = await tx
+        .select()
+        .from(subscriptionsTable)
+        .where(eq(subscriptionsTable.paymentCustomerId, customerId))
+        .limit(1);
 
-    // Mark event as processed in PostgreSQL
-    await db
-      .insert(processedWebhooksTable)
-      .values({
-        webhookId,
-        eventType: event.eventType,
-      })
-      .onConflictDoNothing();
+      // Controlled migration only: signed customer reference, then explicitly-enabled legacy email matching.
+      if (!subscription) {
+        const referencedUser = verifyCustomerReference(customerId);
+        let userId = referencedUser;
+        const fallbackEmail =
+          !userId && process.env.HELCIM_EMAIL_MIGRATION_FALLBACK === "true"
+            ? (event.customerEmail ??
+              (await getHelcimCustomerEmail(customerId)))
+            : null;
+        if (fallbackEmail) {
+          const [legacyUser] = await tx
+            .select({ id: usersTable.id })
+            .from(usersTable)
+            .where(
+              sql`lower(${usersTable.email}) = ${fallbackEmail.trim().toLowerCase()}`,
+            )
+            .limit(1);
+          userId = legacyUser?.id ?? null;
+        }
+        if (!userId) throw new Error("No internal user for Helcim customer");
+        const [user] = await tx
+          .select()
+          .from(usersTable)
+          .where(eq(usersTable.id, userId))
+          .limit(1);
+        if (!user) throw new Error("Referenced internal user does not exist");
+        [subscription] = await tx
+          .insert(subscriptionsTable)
+          .values({
+            userId: user.id,
+            email: user.email,
+            status: "pending",
+            paymentCustomerId: customerId,
+          })
+          .onConflictDoUpdate({
+            target: subscriptionsTable.userId,
+            set: { paymentCustomerId: customerId },
+            setWhere: isNull(subscriptionsTable.paymentCustomerId),
+          })
+          .returning();
+      }
+      if (!subscription) throw new Error("Unable to correlate subscription");
+
+      const end = periodEnd(event.data);
+      const status = statusFor(event.eventType, end);
+      const reordered = Boolean(
+        subscription.providerEventAt &&
+        event.occurredAt <= subscription.providerEventAt,
+      );
+      if (!reordered) {
+        await tx
+          .update(subscriptionsTable)
+          .set({
+            status,
+            paymentSubscriptionId:
+              event.subscriptionId ?? subscription.paymentSubscriptionId,
+            currentPeriodEnd: end,
+            providerEventAt: event.occurredAt,
+            lastCheckedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(subscriptionsTable.userId, subscription.userId),
+              eq(subscriptionsTable.paymentCustomerId, customerId),
+            ),
+          );
+      }
+      await tx.insert(entitlementAuditTable).values({
+        userId: subscription.userId,
+        action: `helcim_${event.eventType}`,
+        metadata: {
+          webhookId,
+          customerId: event.customerId,
+          subscriptionId: event.subscriptionId,
+          status,
+          reordered,
+          occurredAt: event.occurredAt.toISOString(),
+        },
+      });
+      return reordered ? ("reordered" as const) : ("processed" as const);
+    });
+    logger.info({ webhookId, result }, "Helcim webhook handled");
+    res.json({ received: true });
   } catch (err) {
-    logger.error({ err }, "Helcim webhook processing failed");
+    if (err instanceof InvalidWebhookSignatureError) {
+      res.status(401).json({ error: "Invalid signature" });
+      return;
+    }
+    logger.error({ err, webhookId }, "Helcim webhook processing failed");
     res.status(500).json({ error: "Webhook processing failed" });
-    return;
   }
-
-  res.json({ received: true });
 });
+
+class InvalidWebhookSignatureError extends Error {}
 
 export default router;

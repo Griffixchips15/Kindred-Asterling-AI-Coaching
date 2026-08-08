@@ -1,0 +1,95 @@
+{
+  "source": "Helcim webhook envelope (webhook-id/timestamp/signature headers with type/data body) and Subscribers API field names",
+  "fixtures": [
+    {
+      "scenario": "purchase",
+      "body": {
+        "type": "checkout.completed",
+        "timestamp": "2026-06-01T12:00:00Z",
+        "data": {
+          "id": "sub_100",
+          "customerCode": "CST1200",
+          "dateBilling": "2027-06-01"
+        }
+      }
+    },
+    {
+      "scenario": "renewal",
+      "body": {
+        "type": "subscription.renewed",
+        "timestamp": "2027-06-01T12:00:00Z",
+        "data": {
+          "id": "sub_100",
+          "customerCode": "CST1200",
+          "dateBilling": "2028-06-01"
+        }
+      }
+    },
+    {
+      "scenario": "cancellation",
+      "body": {
+        "type": "subscription.cancelled",
+        "timestamp": "2027-07-01T12:00:00Z",
+        "data": {
+          "id": "sub_100",
+          "customerCode": "CST1200",
+          "currentPeriodEnd": "2028-06-01T00:00:00Z"
+        }
+      }
+    },
+    {
+      "scenario": "expiration",
+      "body": {
+        "type": "subscription.expired",
+        "timestamp": "2028-06-01T00:00:01Z",
+        "data": { "id": "sub_100", "customerCode": "CST1200" }
+      }
+    },
+    {
+      "scenario": "payment_failure",
+      "body": {
+        "type": "invoice.payment_failed",
+        "timestamp": "2027-06-01T12:00:00Z",
+        "data": { "subscriptionId": "sub_100", "customerCode": "CST1200" }
+      }
+    },
+    {
+      "scenario": "duplicate_delivery",
+      "webhookId": "msg_duplicate",
+      "deliveries": 2,
+      "body": {
+        "type": "invoice.paid",
+        "timestamp": "2027-06-01T12:05:00Z",
+        "data": { "subscriptionId": "sub_100", "customerCode": "CST1200" }
+      }
+    },
+    {
+      "scenario": "reordered_events",
+      "deliveryOrder": ["2027-07-01T12:00:00Z", "2027-06-01T12:00:00Z"],
+      "body": {
+        "type": "subscription.renewed",
+        "data": { "id": "sub_100", "customerCode": "CST1200" }
+      }
+    },
+    {
+      "scenario": "missing_user",
+      "body": {
+        "type": "checkout.completed",
+        "timestamp": "2026-06-01T12:00:00Z",
+        "data": { "id": "sub_404", "customerCode": "CST-NO-USER" }
+      }
+    },
+    {
+      "scenario": "changed_email",
+      "body": {
+        "type": "subscription.renewed",
+        "timestamp": "2027-06-01T12:00:00Z",
+        "data": {
+          "id": "sub_100",
+          "customerCode": "CST1200",
+          "email": "new-address@example.test"
+        }
+      }
+    }
+  ]
+}

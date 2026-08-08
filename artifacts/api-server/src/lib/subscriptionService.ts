@@ -1,5 +1,10 @@
 import { eq, and, isNull, sql } from "drizzle-orm";
-import { db, subscriptionsTable, betaGrantsTable, entitlementAuditTable } from "@workspace/db";
+import {
+  db,
+  subscriptionsTable,
+  betaGrantsTable,
+  entitlementAuditTable,
+} from "@workspace/db";
 import { isHelcimConfigured } from "./helcimClient";
 import { logger } from "./logger";
 
@@ -37,7 +42,11 @@ function ownerEmails(): Set<string> {
 
 function rowIsActive(row: SubscriptionRow | undefined): boolean {
   if (!row) return false;
-  if (row.status !== "active") return false;
+  if (row.status !== "active" && row.status !== "cancel_at_period_end")
+    return false;
+  // A cancellation only grants access when Helcim supplied an authoritative end.
+  if (row.status === "cancel_at_period_end" && !row.currentPeriodEnd)
+    return false;
   if (row.currentPeriodEnd && row.currentPeriodEnd.getTime() < Date.now()) {
     return false;
   }
@@ -51,11 +60,21 @@ const INACTIVE: AccessStatus = {
   source: "none",
 };
 
-async function audit(userId: string, action: string, actorId?: string, metadata?: Record<string, unknown>): Promise<void> {
+async function audit(
+  userId: string,
+  action: string,
+  actorId?: string,
+  metadata?: Record<string, unknown>,
+): Promise<void> {
   try {
-    await db.insert(entitlementAuditTable).values({ userId, action, actorId, metadata: metadata ?? null });
+    await db
+      .insert(entitlementAuditTable)
+      .values({ userId, action, actorId, metadata: metadata ?? null });
   } catch (err) {
-    logger.error({ err, userId, action }, "Failed to write entitlement audit log");
+    logger.error(
+      { err, userId, action },
+      "Failed to write entitlement audit log",
+    );
   }
 }
 
@@ -65,12 +84,22 @@ export async function resolveSubscription(
 ): Promise<AccessStatus> {
   // Owner access — immutable user ID bypass
   if (ownerIds().has(user.id)) {
-    return { active: true, status: "active", currentPeriodEnd: null, source: "owner" };
+    return {
+      active: true,
+      status: "active",
+      currentPeriodEnd: null,
+      source: "owner",
+    };
   }
 
   // Owner email bypass (temporary — for bootstrapping before user ID is known)
   if (user.email && ownerEmails().has(user.email.trim().toLowerCase())) {
-    return { active: true, status: "active", currentPeriodEnd: null, source: "owner" };
+    return {
+      active: true,
+      status: "active",
+      currentPeriodEnd: null,
+      source: "owner",
+    };
   }
 
   // Beta grant check
@@ -87,13 +116,20 @@ export async function resolveSubscription(
     .limit(1);
 
   if (betaGrant) {
-    return { active: true, status: "active", currentPeriodEnd: null, source: "beta" };
+    return {
+      active: true,
+      status: "active",
+      currentPeriodEnd: null,
+      source: "beta",
+    };
   }
 
   // Payment provider check
   const paymentConfigured = isHelcimConfigured();
   if (!paymentConfigured) {
-    logger.warn("No payment provider configured — denying access (fail closed)");
+    logger.warn(
+      "No payment provider configured — denying access (fail closed)",
+    );
     return INACTIVE;
   }
 
@@ -111,7 +147,7 @@ export async function resolveSubscription(
     const active = rowIsActive(row);
     return {
       active,
-      status: active ? "active" : row.status ?? "inactive",
+      status: active ? "active" : (row.status ?? "inactive"),
       currentPeriodEnd: row.currentPeriodEnd
         ? row.currentPeriodEnd.toISOString()
         : null,
@@ -124,7 +160,7 @@ export async function resolveSubscription(
     const active = rowIsActive(row);
     return {
       active,
-      status: active ? "active" : row.status ?? "inactive",
+      status: active ? "active" : (row.status ?? "inactive"),
       currentPeriodEnd: row.currentPeriodEnd
         ? row.currentPeriodEnd.toISOString()
         : null,
