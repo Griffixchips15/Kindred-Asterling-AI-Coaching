@@ -16,7 +16,13 @@ import {
   refundDailyQuota,
 } from "../lib/dailyQuota";
 import { logger } from "../lib/logger";
-import { chatWithOllama, type OllamaMessage } from "../lib/ollamaClient";
+import {
+  AIProviderError,
+  getAIProvider,
+  normalizeProviderError,
+  type AIMessage,
+  type AIProvider,
+} from "../lib/ai";
 
 const CRISIS_PATTERNS = [
   /\bsuicid(e|al)\b/i,
@@ -40,10 +46,16 @@ function logCrisis(userId: string, content: string): void {
   );
 }
 
+const CRISIS_RESPONSE =
+  "I'm sorry you're facing this. Kindred isn't a crisis service, but immediate help is available — call or text 988, or text HOME to 741741.";
+
 const router: IRouter = Router();
 
-// Gemma runs through the Ollama-compatible endpoint configured for the API.
-const CHAT_MODEL = process.env.OLLAMA_MODEL || "gemma3:4b";
+const AI_REQUEST_TIMEOUT_MS = Math.max(
+  1_000,
+  Number(process.env.AI_REQUEST_TIMEOUT_MS) || 30_000,
+);
+const AI_MAX_ATTEMPTS = 2;
 // Cap history sent to the model. Full history is still preserved in DB and
 // shown in the UI, but only the most recent turns are sent on each call so
 // that long sessions don't push token usage up or confuse the model with
@@ -72,6 +84,39 @@ const MAX_TOOL_OUTPUT_CHARS = 8000;
 // Slightly higher cap for the archive export path where the user explicitly
 // wants a fuller transcript, but still bounded to prevent oversized reads.
 const ARCHIVE_MESSAGE_LIMIT = 500;
+
+async function requestWithRetry(
+  provider: AIProvider,
+  request: Omit<Parameters<AIProvider["chat"]>[0], "timeoutMs">,
+): Promise<Awaited<ReturnType<AIProvider["chat"]>>> {
+  let lastError: AIProviderError | undefined;
+  for (let attempt = 0; attempt < AI_MAX_ATTEMPTS; attempt++) {
+    if (request.signal?.aborted)
+      throw new AIProviderError("aborted", "AI request was cancelled");
+    try {
+      return await provider.chat({
+        ...request,
+        timeoutMs: AI_REQUEST_TIMEOUT_MS,
+      });
+    } catch (error) {
+      lastError = normalizeProviderError(error);
+      if (!lastError.retryable || attempt + 1 >= AI_MAX_ATTEMPTS)
+        throw lastError;
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, 100 * (attempt + 1));
+        request.signal?.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timer);
+            reject(new AIProviderError("aborted", "AI request was cancelled"));
+          },
+          { once: true },
+        );
+      });
+    }
+  }
+  throw lastError ?? new AIProviderError("unknown", "AI request failed");
+}
 
 function clipMessage(s: string): string {
   const t = s.trim();
@@ -255,6 +300,13 @@ router.post(
 
     if (detectCrisis(clipped)) {
       logCrisis(userId, clipped);
+      res.json({
+        messages: [
+          { role: "user", content: clipped },
+          { role: "assistant", content: CRISIS_RESPONSE },
+        ],
+      });
+      return;
     }
 
     // Atomic daily quota — reserves a slot before calling the provider
@@ -298,7 +350,7 @@ router.post(
       bounded.unshift(recent[i]);
       total += len;
     }
-    // Ollama expects the conversation to begin with a user
+    // Providers expect the conversation to begin with a user
     // turn. Our history can start with an assistant message (the onboarding
     // greeting), so drop any leading assistant turns before mapping.
     let firstUserIdx = bounded.findIndex((m) => m.role === "user");
@@ -310,10 +362,11 @@ router.post(
     }));
 
     // The current user turn was just inserted above, so this should never be
-    // empty in normal flow. Guard explicitly: Ollama rejects an empty
+    // empty in normal flow. Guard explicitly: providers reject an empty
     // messages array, and we'd rather surface a clean retryable 502 than a
     // raw API error.
     if (chatMessages.length === 0) {
+      await refundDailyQuota(userId);
       res.status(502).json({
         error: "assistant_unavailable",
         reason: "no_user_turn",
@@ -324,32 +377,37 @@ router.post(
     }
 
     let assistantText: string | null = null;
-    let failureReason: string | null = null;
+    let failureReason:
+      AIProviderError["category"] | "empty_response" | "max_tool_iterations" =
+      "unknown";
     // Agentic tool loop: Gemma may ask to read the user's own data (habits,
     // medications, recent logs) before replying. We execute each requested tool
     // scoped to THIS user, feed results back, and re-call until it produces a
     // text reply. Capped so a misbehaving turn can't loop forever / burn tokens.
     const MAX_TOOL_ITERATIONS = 4;
-    const system = buildSystemInstruction(userRow, req.user?.firstName ?? null);
+    const system = buildSystemInstruction(userRow);
     try {
-      const ollamaTools = chatTools.map((tool) => ({
-        type: "function",
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.input_schema,
-        },
+      const provider = getAIProvider();
+      if (!provider) throw new AIProviderError("unavailable", "AI is disabled");
+      const aiTools = chatTools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.input_schema,
       }));
-      const convo: OllamaMessage[] = chatMessages.map((m) => ({
+      const convo: AIMessage[] = chatMessages.map((m) => ({
         role: m.role,
         content: m.content,
       }));
+      const abortController = new AbortController();
+      const cancel = () => abortController.abort();
+      req.once("aborted", cancel);
+      res.once("close", cancel);
       for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
-        const result = await chatWithOllama({
-          model: CHAT_MODEL,
+        const result = await requestWithRetry(provider, {
           system,
           messages: convo,
-          tools: ollamaTools,
+          tools: aiTools,
+          signal: abortController.signal,
         });
 
         if (result.toolCalls.length > 0) {
@@ -358,14 +416,14 @@ router.post(
           convo.push({
             role: "assistant",
             content: result.content,
-            tool_calls: result.toolCalls,
+            toolCalls: result.toolCalls,
           });
           for (const block of result.toolCalls) {
             let output: string;
             try {
               const raw = await runChatTool(
-                block.function.name,
-                block.function.arguments ?? {},
+                block.name,
+                block.arguments,
                 userId,
               );
               output =
@@ -374,12 +432,12 @@ router.post(
                   : raw;
             } catch (toolErr) {
               req.log.error(
-                { err: toolErr, tool: block.function.name },
+                { err: toolErr, tool: block.name },
                 "chat tool execution failed",
               );
               output = JSON.stringify({ error: "tool_failed" });
             }
-            convo.push({ role: "tool", content: output });
+            convo.push({ role: "tool", content: output, toolCallId: block.id });
           }
           continue;
         }
@@ -388,24 +446,24 @@ router.post(
         if (textParts) {
           assistantText = textParts;
         } else {
-          failureReason = result.doneReason ?? "empty_response";
+          failureReason = "empty_response";
           req.log.warn(
-            { doneReason: result.doneReason },
-            "Ollama returned no text",
+            { finishReason: result.finishReason },
+            "AI provider returned no text",
           );
         }
         break;
       }
-      if (!assistantText && !failureReason) {
+      if (!assistantText && failureReason === "unknown") {
         failureReason = "max_tool_iterations";
         req.log.warn(
           { maxIterations: MAX_TOOL_ITERATIONS },
-          "Ollama did not finish within tool-iteration cap",
+          "AI provider did not finish within tool-iteration cap",
         );
       }
     } catch (err) {
-      failureReason = "exception";
-      req.log.error({ err }, "Ollama chat request failed");
+      failureReason = normalizeProviderError(err).category;
+      req.log.error({ err, category: failureReason }, "AI chat request failed");
     }
 
     if (!assistantText) {
@@ -425,7 +483,7 @@ router.post(
     await db.insert(messages).values({
       conversationId: conv.id,
       role: "assistant",
-      content: assistantText,
+      content: clipMessage(assistantText),
     });
 
     const full = await loadWithMessages(conv.id, MESSAGE_RESPONSE_LIMIT);
