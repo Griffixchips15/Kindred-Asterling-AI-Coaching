@@ -13,10 +13,7 @@
       "path": "./lib/api-zod"
     },
     {
-      "path": "./lib/integrations-gemini-ai"
-    },
-    {
-      "path": "./lib/integrations-anthropic-ai"
+      "path": "./lib/auth-web"
     }
   ]
 }

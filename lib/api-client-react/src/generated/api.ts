@@ -2779,7 +2779,8 @@ export const getGetUpcomingCalendarEventsUrl = () => {
 }
 
 /**
- * The Google Calendar connector is project-scoped (Replit Connectors are tied to the app builder's Replit account, not the requesting user). To prevent leaking the builder's schedule to other users, this endpoint is gated by CALENDAR_OWNER_USER_ID and returns 403 for any non-owner caller.
+ * The Google Calendar connector is project-scoped (OAuth credentials are tied to the application, not the requesting user). To prevent leaking the builder's schedule to other users, this endpoint is gated by CALENDAR_OWNER_USER_ID and returns 403 for any non-owner caller.
+
  * @summary Get upcoming Google Calendar events (today + 3 days)
  */
 export const getUpcomingCalendarEvents = async ( options?: Parameters<typeof customFetch>[1]): Promise<CalendarEvent[]> => {

@@ -38,7 +38,7 @@ export const writeLimiter = rateLimit({
 // Chat is uniquely expensive: every /chat/send hits a third-party LLM with
 // billable tokens, and even /chat/append grows the history that future sends
 // re-bill. Hold chat to a much tighter per-user budget than generic writes so
-// one account can't burn the Gemini quota or drive up cost.
+// one account can't burn the Ollama quota or drive up cost.
 export const chatLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
   limit: 20,

@@ -7,8 +7,8 @@ import {
   afterAll,
   afterEach,
 } from "vitest";
-import type { AddressInfo } from "node:net";
-import type { Server } from "node:http";
+import type { AddressInfo } from "net";
+import type { Server } from "http";
 import { eq, sql } from "drizzle-orm";
 import {
   db,
@@ -22,7 +22,6 @@ import {
   habitsTable,
   habitEntriesTable,
   medicationsTable,
-  medicationLogsTable,
 } from "@workspace/db";
 import app from "../app";
 import {
@@ -55,9 +54,8 @@ function mockReplyOnce(text: string) {
     finishReason: "stop",
   });
 }
-
 function failReplyOnce() {
-  createMock.mockRejectedValue(new Error("provider unavailable"));
+  createMock.mockRejectedValueOnce(new Error("ollama unavailable"));
 }
 
 // Mocks a single provider turn that asks to call a tool. The route runs the tool

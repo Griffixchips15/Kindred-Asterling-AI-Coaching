@@ -31,7 +31,8 @@ const allowedOrigins = new Set(
     .map((origin) => origin.replace(/\/$/, "")),
 );
 
-app.set("trust proxy", 1);
+const trustedProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS ?? "1", 10);
+app.set("trust proxy", Number.isFinite(trustedProxyHops) ? trustedProxyHops : 1);
 
 // Security headers — Helmet sets CSP, X-Frame-Options, HSTS, etc.
 app.use(

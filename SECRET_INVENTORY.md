@@ -20,27 +20,24 @@
 
 ### Items (created via CLI)
 
-| 1Password Item                   | Tags                                           | Populated?                                      |
-| -------------------------------- | ---------------------------------------------- | ----------------------------------------------- |
-| Kindred - Database Development   | `environment/development` `service/coolify`    | **Needs dev URL**                               |
-| Kindred - Database Production    | `environment/production` `service/coolify`     | ✅ In 1Password                                 |
-| Kindred - Session Secret         | `environment/development`                      | ✅ In 1Password                                 |
-| Kindred - Anthropic Development  | `environment/development` `service/anthropic`  | **Needs API key**                               |
-| Kindred - Anthropic Production   | `environment/production` `service/anthropic`   | **Needs API key**                               |
-| Kindred - Gemini Development     | `environment/development` `service/anthropic`  | ✅ In 1Password                                 |
-| Kindred - ElevenLabs Development | `environment/development` `service/elevenlabs` | ✅ In 1Password                                 |
-| Kindred - ElevenLabs Production  | `environment/production` `service/elevenlabs`  | **Needs API key**                               |
-| Kindred - Stripe Test            | `environment/development` `service/stripe`     | **Needs test keys**                             |
-| Kindred - Stripe Production      | `environment/production` `service/stripe`      | ✅ Key + webhook populated, **needs price IDs** |
-| Kindred - Twilio Development     | `environment/development` `service/twilio`     | **Needs credentials**                           |
-| Kindred - Twilio Production      | `environment/production` `service/twilio`      | **Needs credentials**                           |
-| Kindred - Resend Development     | `environment/development` `service/resend`     | ✅ In 1Password                                 |
-| Kindred - Resend Production      | `environment/production` `service/resend`      | ✅ Same key, **needs from email**               |
-| Kindred - App Config             | `environment/development`                      | ✅ Pre-filled                                   |
-| Kindred - Owner Recovery Codes   |                                                | **Needs codes**                                 |
-| Kindred - Cloudflare             | `service/cloudflare`                           | ✅ In 1Password                                 |
-| Kindred - GitLab                 | `service/gitlab`                               | ✅ In 1Password                                 |
-| Kindred - Twilio Recovery        | `service/twilio`                               | ✅ In 1Password                                 |
+| 1Password Item | Tags | Populated? |
+|---|---|---|
+| Kindred - Database Development | `environment/development` `service/coolify` | **Needs dev URL** |
+| Kindred - Database Production | `environment/production` `service/coolify` | ✅ In 1Password |
+| Kindred - Session Secret | `environment/development` | ✅ In 1Password |
+| Kindred - ElevenLabs Development | `environment/development` `service/elevenlabs` | ✅ In 1Password |
+| Kindred - ElevenLabs Production | `environment/production` `service/elevenlabs` | **Needs API key** |
+| Kindred - Stripe Test | `environment/development` `service/stripe` | **Needs test keys** |
+| Kindred - Stripe Production | `environment/production` `service/stripe` | ✅ Key + webhook populated, **needs price IDs** |
+| Kindred - Twilio Development | `environment/development` `service/twilio` | **Needs credentials** |
+| Kindred - Twilio Production | `environment/production` `service/twilio` | **Needs credentials** |
+| Kindred - Resend Development | `environment/development` `service/resend` | ✅ In 1Password |
+| Kindred - Resend Production | `environment/production` `service/resend` | ✅ Same key, **needs from email** |
+| Kindred - App Config | `environment/development` | ✅ Pre-filled |
+| Kindred - Owner Recovery Codes | | **Needs codes** |
+| Kindred - Cloudflare | `service/cloudflare` | ✅ In 1Password |
+| Kindred - GitLab | `service/gitlab` | ✅ In 1Password |
+| Kindred - Twilio Recovery | `service/twilio` | ✅ In 1Password |
 
 ---
 
@@ -56,21 +53,19 @@
 
 Clerk owns identity, email verification, sessions, and account security. Configure `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`, and `CLERK_WEBHOOK_SECRET` in the deployment secret store; the legacy `SESSION_SECRET` is retired.
 
-### AI: Anthropic
 
-| Variable                             | 1Password Item                  | 1Password Field | Dev Source                    | Production Source |
-| ------------------------------------ | ------------------------------- | --------------- | ----------------------------- | ----------------- |
-| `ANTHROPIC_API_KEY`                  | Kindred - Anthropic Development | `api key`       | `.env.1password` via `op run` | Coolify env var   |
-| `AI_INTEGRATIONS_ANTHROPIC_API_KEY`  | Kindred - Anthropic Development | `api key`       | `.env.1password` via `op run` | Coolify env var   |
-| `AI_INTEGRATIONS_ANTHROPIC_BASE_URL` | Kindred - Anthropic Development | `base url`      | `.env.1password` via `op run` | Coolify env var   |
+| Variable | 1Password Item | 1Password Field | Dev Source | Production Source |
+|---|---|---|---|---|
+| `ANTHROPIC_API_KEY` | Kindred - Anthropic Development | `api key` | `.env.1password` via `op run` | Coolify env var |
+| `AI_INTEGRATIONS_ANTHROPIC_API_KEY` | Kindred - Anthropic Development | `api key` | `.env.1password` via `op run` | Coolify env var |
+| `AI_INTEGRATIONS_ANTHROPIC_BASE_URL` | Kindred - Anthropic Development | `base url` | `.env.1password` via `op run` | Coolify env var |
 
-### AI: Gemini
 
-| Variable                          | 1Password Item               | 1Password Field | Dev Source                    | Production Source |
-| --------------------------------- | ---------------------------- | --------------- | ----------------------------- | ----------------- |
-| `GEMINI_API_KEY`                  | Kindred - Gemini Development | `api key`       | `.env.1password` via `op run` | Coolify env var   |
-| `AI_INTEGRATIONS_GEMINI_API_KEY`  | Kindred - Gemini Development | `api key`       | `.env.1password` via `op run` | Coolify env var   |
-| `AI_INTEGRATIONS_GEMINI_BASE_URL` | Kindred - Gemini Development | `base url`      | `.env.1password` via `op run` | Coolify env var   |
+| Variable | 1Password Item | 1Password Field | Dev Source | Production Source |
+|---|---|---|---|---|
+| `GEMINI_API_KEY` | Kindred - Gemini Development | `api key` | `.env.1password` via `op run` | Coolify env var |
+| `AI_INTEGRATIONS_GEMINI_API_KEY` | Kindred - Gemini Development | `api key` | `.env.1password` via `op run` | Coolify env var |
+| `AI_INTEGRATIONS_GEMINI_BASE_URL` | Kindred - Gemini Development | `base url` | `.env.1password` via `op run` | Coolify env var |
 
 ### Payments: Stripe
 
@@ -149,18 +144,24 @@ Clerk owns identity, email verification, sessions, and account security. Configu
 
 Run `op edit "Kindred - <item name>"` to fill these:
 
-| Item                            | Field(s) to fill                                                       | Where to find the value                     |
-| ------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------- |
-| Kindred - Database Development  | `credential`                                                           | Local PostgreSQL or separate dev DB         |
-| Kindred - Anthropic Development | `api key`                                                              | https://console.anthropic.com/settings/keys |
-| Kindred - Anthropic Production  | `api key`                                                              | Same or separate prod key                   |
-| Kindred - ElevenLabs Production | `api key`                                                              | https://elevenlabs.io/app/settings/api-keys |
-| Kindred - Stripe Test           | `secret key`, `yearly price id`, `lifetime price id`, `webhook secret` | https://dashboard.stripe.com/test/apikeys   |
-| Kindred - Stripe Production     | `yearly price id`, `lifetime price id`                                 | https://dashboard.stripe.com/prices         |
-| Kindred - Twilio Development    | `account sid`, `auth token`, `phone number`                            | https://console.twilio.com                  |
-| Kindred - Twilio Production     | `account sid`, `auth token`, `phone number`                            | Same account, prod credentials              |
-| Kindred - Resend Production     | `from email`                                                           | Your verified domain email                  |
-| Kindred - Owner Recovery Codes  | `recovery codes`                                                       | 1Password recovery kit, backup codes        |
+| Item | Field(s) to fill | Where to find the value |
+|---|---|---|
+| Kindred - Database Development | `credential` | Local PostgreSQL or separate dev DB |
+| Kindred - Anthropic Development | `api key` | https://console.anthropic.com/settings/keys |
+| Kindred - Anthropic Production | `api key` | Same or separate prod key |
+| Kindred - ElevenLabs Production | `api key` | https://elevenlabs.io/app/settings/api-keys |
+| Kindred - Stripe Test | `secret key`, `yearly price id`, `lifetime price id`, `webhook secret` | https://dashboard.stripe.com/test/apikeys |
+| Kindred - Stripe Production | `yearly price id`, `lifetime price id` | https://dashboard.stripe.com/prices |
+| Kindred - Twilio Development | `account sid`, `auth token`, `phone numb
+## Secret-by-Secret Inventory
+
+### Database
+
+| Variable       | 1Password Item                 | 1Password Field | Dev Source                    | Production Source                    |
+| -------------- | ------------------------------ | --------------- | ---er` | https://console.twilio.com |
+| Kindred - Twilio Production | `account sid`, `auth token`, `phone number` | Same account, prod credentials |
+| Kindred - Resend Production | `from email` | Your verified domain email |
+| Kindred - Owner Recovery Codes | `recovery codes` | 1Password recovery kit, backup codes |
 
 ## Rotation Procedure
 

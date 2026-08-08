@@ -196,7 +196,7 @@ export default function Chat() {
           await sendChatMessage({ content: text });
         } catch (err: unknown) {
           // Server didn't persist the user message? It did — /chat/send
-          // saves the user turn before calling Gemini, so refetch so the
+          // saves the user turn before calling Ollama, so refetch so the
           // user's message still shows, then surface a transient banner
           // so they can retry without losing what they typed.
           setSendError(

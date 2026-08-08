@@ -1,6 +1,39 @@
-import { date, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { date, index, jsonb, pgTable, text, timestamp, varchar } from "@drizzle-orm/pg-core";
 
-// Application-owned data keyed by the authoritative Clerk user ID.
+export interface AuthSession {
+  sid: string;
+  sess: Record<string, unknown>;
+  expire: Date;
+}
+
+export interface AuthUser {
+  id: string;
+  preferredName: string | null;
+  birthday: Date | null;
+  struggles: string | null;
+  strengths: string | null;
+  interests: string | null;
+  bio: string | null;
+  motivationalQuote: string | null;
+  phone: string | null;
+  timezone: string | null;
+  onboardedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// (IMPORTANT) This table is mandatory for authentication, don't drop it.
+export const sessionsTable = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
+
+// (IMPORTANT) This table is mandatory for authentication, don't drop it.
 export const usersTable = pgTable("users", {
   // The sole identity mapping: this primary key is the Clerk user ID.
   id: varchar("id").primaryKey(),
