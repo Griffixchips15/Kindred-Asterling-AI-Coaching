@@ -76,6 +76,7 @@
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.3",
-    "@clerk/shared": "^4.25.8"
+    "@clerk/shared": "^4.25.8",
+    "@workspace/replit-auth-web": "workspace:*"
   }
 }

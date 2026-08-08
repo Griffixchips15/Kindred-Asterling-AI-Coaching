@@ -97,6 +97,9 @@ importers:
 
   artifacts/api-server:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.78.0
+        version: 0.78.0(zod@3.25.76)
       '@clerk/backend':
         specifier: ^3.13.1
         version: 3.15.0(react@19.1.0)
@@ -200,6 +203,9 @@ importers:
       '@clerk/shared':
         specifier: ^4.25.8
         version: 4.25.10(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@workspace/replit-auth-web':
+        specifier: workspace:*
+        version: link:../../lib/replit-auth-web
     devDependencies:
       '@hookform/resolvers':
         specifier: ^3.10.0
