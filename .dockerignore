@@ -13,4 +13,7 @@ coverage
 attached_assets
 artifacts/mockup-sandbox
 scripts
+!scripts/
+scripts/*
+!scripts/package.json
 *.md
