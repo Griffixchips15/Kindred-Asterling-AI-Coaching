@@ -1,6 +1,3 @@
-## 2024-05-19 - Adding ARIA labels to Archive chat download buttons
-**Learning:** Archive feature buttons (TXT, PDF downloads) lack ARIA labels, making screen reader usage difficult when scanning buttons.
-**Action:** Always add aria-label attributes to action buttons especially those that use icons or abbreviations.
-## 2026-08-04 - [Add ARIA label to main chat send button]
-**Learning:** The main primary action button in a chat interface (the 'Send' button) was an icon-only button without an `aria-label`. When important interactive elements lack proper accessible names, screen readers cannot announce their purpose, severely breaking the core functionality for users who rely on assistive technologies.
-**Action:** Always ensure that icon-only interactive elements, especially those representing primary actions like submitting a chat form, have descriptive `aria-label` attributes added. Also ensure to add aria-labels to main input elements like textarea and dates to provide better screen reader context.
+## 2024-08-07 - Added Delete Confirmation Dialog
+**Learning:** Adding a confirmation step for destructive actions prevents accidental data loss and improves user confidence.
+**Action:** When implementing destructive actions (like deleting a habit), always wrap the action in an `AlertDialog` to ask for confirmation.
