@@ -1,5 +1,13 @@
 import { sql } from "drizzle-orm";
-import { date, index, jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import {
+  date,
+  index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  varchar,
+} from "drizzle-orm/pg-core";
 
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
 export const sessionsTable = pgTable(
@@ -14,7 +22,13 @@ export const sessionsTable = pgTable(
 
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
 export const usersTable = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  // Authentication-provider identifiers are never application identifiers.
+  // Keeping this mapping explicit preserves references when Clerk data changes.
+  clerkUserId: varchar("clerk_user_id").unique(),
+  clerkDeletedAt: timestamp("clerk_deleted_at", { withTimezone: true }),
   email: varchar("email").unique(),
   passwordHash: varchar("password_hash"),
   firstName: varchar("first_name"),
@@ -31,19 +45,30 @@ export const usersTable = pgTable("users", {
   timezone: varchar("timezone"),
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   onboardedAt: timestamp("onboarded_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const emailVerificationTokensTable = pgTable(
   "email_verification_tokens",
   {
-    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-    userId: varchar("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
     token: varchar("token").notNull().unique(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     usedAt: timestamp("used_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [index("IDX_email_verification_user").on(table.userId)],
 );
