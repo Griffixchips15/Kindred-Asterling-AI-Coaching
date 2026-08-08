@@ -8,7 +8,7 @@ A personal wellness companion web app. Users journal their day (morning check-in
 - API: Express 5 + Pino logging + OIDC (Replit Auth) sessions
 - DB: PostgreSQL + Drizzle ORM
 - Frontend: React + Vite + Tailwind + React Query + Wouter
-- AI: Gemma 3 4B via an Ollama-compatible runtime (`OLLAMA_BASE_URL` and `OLLAMA_MODEL`)
+- AI: provider-neutral server interface; select `ollama`, `openai`, or `disabled` with `AI_PROVIDER`
 - Validation: Zod (`zod/v4`) + `drizzle-zod`; API codegen: Orval (hooks + Zod from OpenAPI)
 - Integrations: Google Calendar (installed, available for future use)
 
@@ -18,11 +18,11 @@ A personal wellness companion web app. Users journal their day (morning check-in
 - `pnpm --filter @workspace/kindred-coach run dev` — web frontend
 - `pnpm run typecheck` / `pnpm run build` — full typecheck / typecheck + build
 - `pnpm --filter @workspace/api-spec run codegen` — regen hooks + Zod from `lib/api-spec/openapi.yaml`
-- `pnpm --filter @workspace/db run push` — push DB schema (dev only; prod needs a separate push after deploy)
+- `pnpm --filter @workspace/db run migrate` — apply reviewed SQL migrations (never use `drizzle-kit push` for destructive production changes)
 
 ### Environment variables
 
-- **Core:** `DATABASE_URL`, `SESSION_SECRET`, `OLLAMA_BASE_URL`, and `OLLAMA_MODEL`.
+- **Core:** `DATABASE_URL` and `SESSION_SECRET`; AI variables are required only for the provider selected by `AI_PROVIDER`.
 - **Voice:** `ELEVENLABS_API_KEY` (STT + Kindred read-aloud). Unset → voice endpoints return 503, UI soft-fails.
 - **Reminders (fail-soft per channel):** SMS via Twilio (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`); email via Resend (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`). Unset secrets → that channel is skipped; the other still sends and the UI still saves prefs. Senders use env secrets directly (the Twilio connector proxy errored 20003). **Reminders only fire while the server runs — requires a Reserved VM (always-on) deploy.**
 - **Subscription/Helcim (fail closed):** secrets `HELCIM_API_KEY`, `HELCIM_WEBHOOK_SECRET`; vars `HELCIM_YEARLY_CHECKOUT_URL`, `HELCIM_LIFETIME_CHECKOUT_URL`, `HELCIM_PORTAL_URL`, `SUBSCRIPTION_OWNER_IDS` (immutable user IDs for owner bypass). Missing `HELCIM_API_KEY` → Helcim path locked, but owner/beta bypass still works.
@@ -33,7 +33,7 @@ A personal wellness companion web app. Users journal their day (morning check-in
 - **DB schema (source of truth):** `lib/db/src/schema/*` — every user-data table has a `userId` FK that cascades on delete
 - **API contract (source of truth):** `lib/api-spec/openapi.yaml` — never hand-edit generated client/zod files
 - **API routes:** `artifacts/api-server/src/routes/*` — all data routes scoped to `req.user!.id` behind `requireAuth`
-- **Auth:** `artifacts/api-server/src/routes/auth.ts` (Replit OIDC + session cookies)
+- **Auth:** Clerk bearer JWTs; PostgreSQL stores only the Clerk user ID mapping and wellness profile fields.
 - **AI chat:** system prompt `chat.ts → buildSystemInstruction()`; tools + executor `lib/chatTools.ts` (agentic loop in `/chat/send`)
 - **Subscription/paywall:** backend `lib/subscriptionService.ts` (`resolveSubscription` — checks owner IDs → beta grants → Helcim cache), `middlewares/requireSubscription.ts`, `routes/subscription.ts` (status + Helcim checkout + webhook), `lib/helcimClient.ts` (Helcim API + webhook verification), schema `lib/db/src/schema/subscriptions.ts`, `lib/db/src/schema/beta.ts` (beta grants); frontend `SubscriptionGate` in `App.tsx` + `components/checkout-button.tsx`
 - **Voice:** backend `lib/elevenlabs.ts` (Scribe STT + TTS, voice "River") + `routes/voice.ts` (`/voice/transcribe`, `/voice/speak` — binary, bypass codegen); frontend `lib/voice-api.ts`, `hooks/use-voice-recorder.ts`, `components/voice-input-button.tsx` + `speak-button.tsx`

@@ -19,7 +19,7 @@ describe("requireSubscription", () => {
       user: undefined,
       log: {
         error: vi.fn(),
-      }
+      },
     };
     res = {
       status: vi.fn().mockReturnThis(),
@@ -48,16 +48,20 @@ describe("requireSubscription", () => {
   });
 
   it("should return 403 if email is not verified", () => {
-    req.user = { id: "user-1", email: "test@example.com", emailVerifiedAt: null };
+    req.user = { id: "user-1", emailVerified: false };
     requireSubscription(req as Request, res as Response, next as NextFunction);
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith({ error: "Email verification required" });
+    expect(res.json).toHaveBeenCalledWith({
+      error: "Email verification required",
+    });
     expect(next).not.toHaveBeenCalled();
   });
 
   it("should call next if subscription is active", async () => {
-    req.user = { id: "user-1", email: "test@example.com", emailVerifiedAt: new Date() };
-    vi.mocked(resolveSubscription).mockResolvedValueOnce({ active: true } as any);
+    req.user = { id: "user-1", emailVerified: true };
+    vi.mocked(resolveSubscription).mockResolvedValueOnce({
+      active: true,
+    } as any);
 
     requireSubscription(req as Request, res as Response, next as NextFunction);
 
@@ -68,8 +72,10 @@ describe("requireSubscription", () => {
   });
 
   it("should return 402 if subscription is inactive", async () => {
-    req.user = { id: "user-1", email: "test@example.com", emailVerifiedAt: new Date() };
-    vi.mocked(resolveSubscription).mockResolvedValueOnce({ active: false } as any);
+    req.user = { id: "user-1", emailVerified: true };
+    vi.mocked(resolveSubscription).mockResolvedValueOnce({
+      active: false,
+    } as any);
 
     requireSubscription(req as Request, res as Response, next as NextFunction);
 
@@ -81,14 +87,17 @@ describe("requireSubscription", () => {
   });
 
   it("should return 402 and log error if resolveSubscription throws", async () => {
-    req.user = { id: "user-1", email: "test@example.com", emailVerifiedAt: new Date() };
+    req.user = { id: "user-1", emailVerified: true };
     const mockError = new Error("Database connection failed");
     vi.mocked(resolveSubscription).mockRejectedValueOnce(mockError);
 
     requireSubscription(req as Request, res as Response, next as NextFunction);
 
     await vi.waitFor(() => {
-      expect(req.log.error).toHaveBeenCalledWith({ err: mockError }, "subscription gate check failed");
+      expect(req.log.error).toHaveBeenCalledWith(
+        { err: mockError },
+        "subscription gate check failed",
+      );
       expect(res.status).toHaveBeenCalledWith(402);
       expect(res.json).toHaveBeenCalledWith({ error: "Subscription required" });
     });

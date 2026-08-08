@@ -14,6 +14,7 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { resolveSubscription } from "../lib/subscriptionService";
 import { logger } from "../lib/logger";
+import { findClerkIdentitiesByEmail } from "../middlewares/authMiddleware";
 import {
   checkoutUrl,
   createHelcimCustomer,
