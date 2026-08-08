@@ -404,3 +404,9 @@ export function startReminderScheduler(): void {
   });
   logger.info("Reminder scheduler started (every minute)");
 }
+
+export function stopReminderScheduler(): void {
+  task?.stop();
+  task = null;
+  logger.info("Reminder scheduler stopped");
+}

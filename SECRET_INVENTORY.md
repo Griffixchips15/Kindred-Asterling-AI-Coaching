@@ -25,9 +25,6 @@
 | Kindred - Database Development | `environment/development` `service/coolify` | **Needs dev URL** |
 | Kindred - Database Production | `environment/production` `service/coolify` | ✅ In 1Password |
 | Kindred - Session Secret | `environment/development` | ✅ In 1Password |
-| Kindred - Anthropic Development | `environment/development` `service/anthropic` | **Needs API key** |
-| Kindred - Anthropic Production | `environment/production` `service/anthropic` | **Needs API key** |
-| Kindred - Gemini Development | `environment/development` `service/anthropic` | ✅ In 1Password |
 | Kindred - ElevenLabs Development | `environment/development` `service/elevenlabs` | ✅ In 1Password |
 | Kindred - ElevenLabs Production | `environment/production` `service/elevenlabs` | **Needs API key** |
 | Kindred - Stripe Test | `environment/development` `service/stripe` | **Needs test keys** |
@@ -58,21 +55,13 @@
 |---|---|---|---|---|
 | `SESSION_SECRET` | Kindred - Session Secret | `credential` | `.env.1password` via `op run` | Coolify env var (set from 1Password) |
 
-### AI: Anthropic
 
 | Variable | 1Password Item | 1Password Field | Dev Source | Production Source |
 |---|---|---|---|---|
-| `ANTHROPIC_API_KEY` | Kindred - Anthropic Development | `api key` | `.env.1password` via `op run` | Coolify env var |
-| `AI_INTEGRATIONS_ANTHROPIC_API_KEY` | Kindred - Anthropic Development | `api key` | `.env.1password` via `op run` | Coolify env var |
-| `AI_INTEGRATIONS_ANTHROPIC_BASE_URL` | Kindred - Anthropic Development | `base url` | `.env.1password` via `op run` | Coolify env var |
 
-### AI: Gemini
 
 | Variable | 1Password Item | 1Password Field | Dev Source | Production Source |
 |---|---|---|---|---|
-| `GEMINI_API_KEY` | Kindred - Gemini Development | `api key` | `.env.1password` via `op run` | Coolify env var |
-| `AI_INTEGRATIONS_GEMINI_API_KEY` | Kindred - Gemini Development | `api key` | `.env.1password` via `op run` | Coolify env var |
-| `AI_INTEGRATIONS_GEMINI_BASE_URL` | Kindred - Gemini Development | `base url` | `.env.1password` via `op run` | Coolify env var |
 
 ### Payments: Stripe
 
@@ -154,8 +143,6 @@ Run `op edit "Kindred - <item name>"` to fill these:
 | Item | Field(s) to fill | Where to find the value |
 |---|---|---|
 | Kindred - Database Development | `credential` | Local PostgreSQL or separate dev DB |
-| Kindred - Anthropic Development | `api key` | https://console.anthropic.com/settings/keys |
-| Kindred - Anthropic Production | `api key` | Same or separate prod key |
 | Kindred - ElevenLabs Production | `api key` | https://elevenlabs.io/app/settings/api-keys |
 | Kindred - Stripe Test | `secret key`, `yearly price id`, `lifetime price id`, `webhook secret` | https://dashboard.stripe.com/test/apikeys |
 | Kindred - Stripe Production | `yearly price id`, `lifetime price id` | https://dashboard.stripe.com/prices |

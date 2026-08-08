@@ -251,7 +251,7 @@ function generateIRAP() {
   );
   bulletItem(
     doc,
-    "Integration of multiple AI services (Anthropic Claude, ElevenLabs voice) with graceful degradation"
+    "Integration of multiple AI services (Ollama, ElevenLabs voice) with graceful degradation"
   );
   bulletItem(
     doc,

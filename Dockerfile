@@ -1,44 +1,49 @@
+# syntax=docker/dockerfile:1.7
 FROM node:24-bookworm-slim AS build
 
-ARG CACHEBUST=1
-
-ENV NODE_ENV=development
-
-# Force cache invalidation for stripe catalog removal
-RUN echo "cachebust-stripe-removal-2026-07-23"
-
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
-
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH \
+    NODE_ENV=development
 WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 
-RUN npm install --global pnpm@10
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc tsconfig*.json ./
+COPY artifacts/api-server/package.json artifacts/api-server/package.json
+COPY artifacts/kindred-coach/package.json artifacts/kindred-coach/package.json
+COPY lib/api-client-react/package.json lib/api-client-react/package.json
+COPY lib/api-spec/package.json lib/api-spec/package.json
+COPY lib/api-zod/package.json lib/api-zod/package.json
+COPY lib/db/package.json lib/db/package.json
+COPY lib/auth-web/package.json lib/auth-web/package.json
+COPY scripts/package.json scripts/package.json
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile
 
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
-COPY artifacts/api-server/package.json ./artifacts/api-server/package.json
-COPY artifacts/kindred-coach/package.json ./artifacts/kindred-coach/package.json
-COPY lib/ lib/
-COPY scripts/package.json ./scripts/package.json
+COPY artifacts/api-server artifacts/api-server
+COPY artifacts/kindred-coach artifacts/kindred-coach
+COPY lib/api-client-react lib/api-client-react
+COPY lib/api-zod lib/api-zod
+COPY lib/db lib/db
+COPY lib/auth-web lib/auth-web
+COPY tsconfig.base.json ./
 
-RUN rm -f pnpm-lock.yaml && pnpm install --prod=false
-
-COPY . .
-
-RUN pnpm install --prod=false
-
-RUN pnpm -r --filter '!@workspace/mockup-sandbox' --if-present run build
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
+RUN pnpm --filter @workspace/kindred-coach run build \
+ && pnpm --filter @workspace/api-server run build \
+ && pnpm --filter @workspace/api-server deploy --prod --legacy /app/runtime
 
 FROM node:24-bookworm-slim AS runtime
-
-ENV NODE_ENV=production
-ENV PORT=3000
-
+ENV NODE_ENV=production \
+    PORT=8080
 WORKDIR /app
-
-RUN npm install --global pnpm@10
-
-COPY --from=build /app /app
-
-EXPOSE 3000
-
-CMD ["/bin/sh", "entrypoint.sh"]
+RUN groupadd --system --gid 10001 kindred \
+ && useradd --system --uid 10001 --gid kindred --home-dir /app kindred
+COPY --from=build --chown=kindred:kindred /app/runtime/node_modules ./node_modules
+COPY --from=build --chown=kindred:kindred /app/artifacts/api-server/dist ./artifacts/api-server/dist
+COPY --from=build --chown=kindred:kindred /app/artifacts/kindred-coach/dist/public ./artifacts/kindred-coach/dist/public
+USER kindred
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/api/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+CMD ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]

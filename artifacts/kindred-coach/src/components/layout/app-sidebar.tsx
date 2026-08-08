@@ -21,7 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import logoMark from "@/assets/brand/logo-mark.png";
 import { ReactNode, useEffect, useState } from "react";
-import { useAuth } from "@workspace/replit-auth-web";
+import { useAuth } from "@workspace/auth-web";
 import { format, parseISO } from "date-fns";
 import { useTheme, THEME_OPTIONS, type ThemeName } from "@/hooks/use-theme";
 import {

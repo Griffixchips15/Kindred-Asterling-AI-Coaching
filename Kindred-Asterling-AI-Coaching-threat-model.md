@@ -7,7 +7,7 @@ Kindred is currently local-only, so immediate remote likelihood is low, but its 
 ## Scope and assumptions
 
 - In scope: `artifacts/api-server/**`, `artifacts/kindred-coach/**`, `lib/api-*`, `lib/db/**`, `lib/integrations-*`, deployment manifests, CI workflows, repository secret handling, and tracked `attached_assets/**`.
-- Runtime scope: Express 5 API, React/Vite web client, PostgreSQL/Drizzle, Anthropic, ElevenLabs, Helcim/Stripe code, Google Calendar connector, Twilio, Resend, and the reminder scheduler.
+- Runtime scope: Express 5 API, React/Vite web client, PostgreSQL/Drizzle, Ollama, ElevenLabs, Helcim/Stripe code, Google Calendar connector, Twilio, Resend, and the reminder scheduler.
 - Context-only: tests, generated API clients/schemas, scripts, and the existing `threat_model.md`.
 - Out of runtime scope: `node_modules`, build output, and `artifacts/mockup-sandbox/**` unless separately deployed.
 - Validated context: the app is local-only today; signup email is not verified; Helcim is the intended payment provider; the private repository contains real operator/user data.
@@ -26,16 +26,16 @@ Open questions that would change ranking:
 - React/Vite browser client: authenticated wellness UI and API consumer (`artifacts/kindred-coach/src/App.tsx`, `lib/api-client-react/src/custom-fetch.ts`).
 - Express API: request parsing, CORS, sessions, rate limits, subscription gate, business routes, static frontend (`artifacts/api-server/src/app.ts`, `artifacts/api-server/src/routes/index.ts`).
 - PostgreSQL: users, raw session IDs, profiles, chat, wellness records, medication state, reminders, and subscription cache (`lib/db/src/index.ts`, `lib/db/src/schema/**`).
-- AI and voice providers: Anthropic coaching/tool loop and ElevenLabs speech services (`artifacts/api-server/src/routes/chat.ts`, `artifacts/api-server/src/lib/elevenlabs.ts`).
+- AI and voice providers: Ollama coaching/tool loop and ElevenLabs speech services (`artifacts/api-server/src/routes/chat.ts`, `artifacts/api-server/src/lib/elevenlabs.ts`).
 - Payment providers: Helcim webhook/lookup path and residual Stripe lookup code (`artifacts/api-server/src/routes/subscription.ts`, `artifacts/api-server/src/lib/helcimClient.ts`, `artifacts/api-server/src/lib/stripeClient.ts`).
-- Connector and messaging providers: Replit Google Calendar connector, Twilio, and Resend (`googleCalendar.ts`, `twilio.ts`, `resend.ts`).
+- Connector and messaging providers: Google Calendar OAuth integration, Twilio, and Resend (`googleCalendar.ts`, `twilio.ts`, `resend.ts`).
 - Scheduler: once-per-minute process that reads all enabled users and sends reminders (`artifacts/api-server/src/lib/reminderScheduler.ts`).
 
 ### Data flows and trust boundaries
 
 - Browser -> Express API: credentials, session cookie or bearer session ID, chat, health records, medication data, profile/contact details, and audio over HTTPS/JSON or raw HTTP bodies. CORS is allow-listed, cookies are `HttpOnly`, `Secure` in production, and `SameSite=Lax`; JSON is capped at 32 KB, voice at 10 MB, and write/general/chat rate limits apply. Most domain bodies use generated Zod schemas.
 - Express API -> PostgreSQL: credentials hashes, raw session IDs, PII, wellness/medication data, chats, and entitlement cache over PostgreSQL TLS. Drizzle parameterization and pervasive `req.user.id` predicates provide query and tenant controls. Production TLS explicitly sets `rejectUnauthorized: false`.
-- Express API -> Anthropic: user chat, bounded recent history, selected profile data, and user-scoped tool results over provider HTTPS. Message/history/tool output and iteration caps exist; the provider receives highly sensitive data by design.
+- Express API -> Ollama: user chat, bounded recent history, selected profile data, and user-scoped tool results over provider HTTPS. Message/history/tool output and iteration caps exist; the provider receives highly sensitive data by design.
 - Express API -> ElevenLabs: authenticated users' audio or requested speech text over provider HTTPS. Size limits and route-level rate limits exist; content-type is accepted from the request and forwarded as metadata.
 - Helcim -> Express webhook: payment events over public HTTPS with HMAC signature and a five-minute timestamp window. Unsigned requests receive a no-op 200; signed events are parsed, but the route does not directly persist event state or deduplicate event IDs.
 - Express API -> Helcim/Stripe: API credentials and customer lookup data over HTTPS. Entitlement can be linked by email; application email ownership is not verified.
@@ -49,7 +49,7 @@ Open questions that would change ranking:
 flowchart LR
   U["User browser"] -->|HTTPS| API["Express API"]
   API -->|SQL TLS| DB["PostgreSQL"]
-  API -->|Prompts| AI["Anthropic"]
+  API -->|Prompts| AI["Ollama"]
   API -->|Audio text| VOICE["ElevenLabs"]
   PAY["Helcim"] -->|Webhook| API
   API -->|Customer lookup| PAY
@@ -112,7 +112,7 @@ flowchart LR
 3. Steal all user sessions: attacker obtains database access or intercepts a database connection with unverifiable TLS -> reads raw `sid` values -> replays them as bearer tokens -> accesses wellness and chat data.
 4. Expose private records through source access: developer/CI account is compromised -> attacker clones the private repository -> downloads tracked chat exports, screenshots, PDFs, and security CSV -> real operator/user data leaves the controlled environment.
 5. Abuse accounts after deployment: attacker distributes login/register attempts across IPs or manipulates proxy-derived identity -> general write limits are diluted -> credentials are stuffed or large numbers of users/sessions are created -> account or database abuse.
-6. Manipulate coaching context: authenticated user stores prompt-like profile/chat content -> Anthropic receives it with sensitive tool results -> model behavior is redirected or unsafe coaching is produced -> privacy or user-safety harm occurs, although cross-user tool access remains server-blocked.
+6. Manipulate coaching context: authenticated user stores prompt-like profile/chat content -> Ollama receives it with sensitive tool results -> model behavior is redirected or unsafe coaching is produced -> privacy or user-safety harm occurs, although cross-user tool access remains server-blocked.
 7. Leak medication context: user enables SMS/email reminders and later loses control of the address/number or notifications appear on a shared device -> scheduler sends medication names/times -> a third party learns health information.
 8. Consume provider budget: paid account repeatedly invokes bounded chat, STT, and TTS routes -> per-user limits slow but do not impose daily spend quotas -> AI/voice budget and service capacity are consumed.
 
@@ -129,7 +129,7 @@ flowchart LR
 | TM-007 | Stale destination, shared device, messaging provider, or account attacker | Reminders enabled with phone/email | Receive or expose medication/wellness reminder content | Health-information disclosure and user harm | Medication data, contact data, reminders | Opt-in channel flags, authenticated settings, delivery dedup, request timeouts (`reminders.ts`, `reminderScheduler.ts`) | Medication names/times can appear in SMS/email and lock-screen previews; no destination verification or re-consent lifecycle | Verify phone/email before enabling; default to privacy-preserving reminder text; offer content sensitivity setting; re-confirm destinations periodically; document provider handling | Track destination changes and delivery failures; notify user when channels are enabled or changed | Medium | Medium | medium |
 | TM-008 | Authenticated subscriber | Valid paid account | Repeatedly invoke chat, voice transcription, or TTS within rolling limits | Provider cost and degraded availability | AI/voice quotas, API availability | General/write/chat limits, body/history/token/tool caps (`rateLimiter.ts`, `chat.ts`, `voice.ts`) | No daily per-account/provider budgets, concurrency caps, or circuit breaker; voice uses generic write limit | Add daily token/audio quotas, concurrent-call limits, provider timeouts for every call, budget alarms, and emergency feature flags | Export provider usage/cost by user and endpoint; alert on sudden spend or 429/5xx increases | Medium after deployment | Medium | medium |
 | TM-009 | Cross-site attacker or injected frontend content | Victim is logged in; malicious same-site/subdomain or XSS context exists | Trigger authenticated writes or frame the app | Record tampering, unwanted sends, UI redress | Record integrity, sessions | `SameSite=Lax`, CORS allow-list, state-changing POST/PATCH/DELETE, React escaping (`app.ts`, `auth.ts`) | No CSRF token/Origin enforcement; no Helmet/CSP/HSTS/frame policy in Express | Enforce Origin/Referer on cookie-authenticated writes or use CSRF tokens; add Helmet with CSP, HSTS, frame ancestors, nosniff, and referrer policy | Log rejected origins and CSRF failures; CSP reporting | Low now; medium after deployment | Medium | medium |
-| TM-010 | Supply-chain attacker or vulnerable dependency | Build/install or reachable vulnerable library behavior | Compromise build dependency or trigger known parser weakness | Build integrity loss or application DoS | Build artifacts, credentials, availability | Lockfile, one-day minimum release age, CodeQL, Codacy, overrides (`pnpm-workspace.yaml`, `.github/workflows/**`) | `pnpm audit --prod` reports two moderate and one low issue; `protobufjs` resolves below 8.6.6; some GitHub actions use mutable major tags | Upgrade/override `protobufjs >=8.6.6`; remove unused Gemini runtime dependencies; pin third-party actions by commit SHA; produce SBOM and scan images | Fail CI on exploitable production advisories; monitor lockfile/action changes | Low given no user-controlled proto parsing found | Medium | low |
+| TM-010 | Supply-chain attacker or vulnerable dependency | Build/install or reachable vulnerable library behavior | Compromise build dependency or trigger known parser weakness | Build integrity loss or application DoS | Build artifacts, credentials, availability | Lockfile, one-day minimum release age, CodeQL, Codacy, overrides (`pnpm-workspace.yaml`, `.github/workflows/**`) | `pnpm audit --prod` reports two moderate and one low issue; `protobufjs` resolves below 8.6.6; some GitHub actions use mutable major tags | Upgrade/override `protobufjs >=8.6.6`; remove unused Ollama runtime dependencies; pin third-party actions by commit SHA; produce SBOM and scan images | Fail CI on exploitable production advisories; monitor lockfile/action changes | Low given no user-controlled proto parsing found | Medium | low |
 
 ## Criticality calibration
 

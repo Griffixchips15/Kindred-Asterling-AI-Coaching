@@ -2,9 +2,6 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
-const runtimeErrorOverlay = process.env.REPL_ID
-  ? (await import("@replit/vite-plugin-runtime-error-modal")).default
-  : () => [];
 
 // PORT and BASE_PATH are set by the dev/preview workflow. A `vite build`
 // during the monorepo production build runs without that workflow context,
@@ -13,20 +10,6 @@ const runtimeErrorOverlay = process.env.REPL_ID
 // correct production base.
 const rawPort = process.env.PORT;
 const basePath = process.env.BASE_PATH;
-
-const devOnlyPlugins =
-  process.env.NODE_ENV !== "production" && process.env.REPL_ID !== undefined
-    ? [
-        await import("@replit/vite-plugin-cartographer").then((m) =>
-          m.cartographer({
-            root: path.resolve(import.meta.dirname, ".."),
-          }),
-        ),
-        await import("@replit/vite-plugin-dev-banner").then((m) =>
-          m.devBanner(),
-        ),
-      ]
-    : [];
 
 export default defineConfig(({ command }) => {
   const isServe = command === "serve";
@@ -53,12 +36,7 @@ export default defineConfig(({ command }) => {
 
   return {
     base: resolvedBase,
-    plugins: [
-      react(),
-      tailwindcss(),
-      runtimeErrorOverlay(),
-      ...devOnlyPlugins,
-    ],
+    plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         "@": path.resolve(import.meta.dirname, "src"),

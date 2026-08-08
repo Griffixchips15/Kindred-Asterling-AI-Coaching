@@ -51,7 +51,7 @@ function mockReplyOnce(text: string) {
 }
 
 function failReplyOnce() {
-  createMock.mockRejectedValueOnce(new Error("anthropic unavailable"));
+  createMock.mockRejectedValueOnce(new Error("ollama unavailable"));
 }
 
 // Mocks a single Ollama turn that asks to call a tool. The route runs the tool
