@@ -11,7 +11,11 @@ import { SendChatMessageBody, AppendChatMessageBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { chatLimiter } from "../middlewares/rateLimiter";
 import { chatTools, runChatTool } from "../lib/chatTools";
-import { checkAndIncrementDailyQuota, refundDailyQuota } from "../lib/dailyQuota";
+import {
+  checkAndIncrementDailyQuota,
+  refundDailyQuota,
+} from "../lib/dailyQuota";
+import { logger } from "../lib/logger";
 import { chatWithOllama, type OllamaMessage } from "../lib/ollamaClient";
 import {
   crisisSupportResponse,
@@ -19,8 +23,27 @@ import {
   emitSafetySignalEvent,
 } from "../lib/crisisSafety";
 
-const CRISIS_RESPONSE =
-  "I'm sorry you're facing this. Kindred isn't a crisis service, but immediate help is available — call or text 988, or text HOME to 741741.";
+const CRISIS_PATTERNS = [
+  /\bsuicid(e|al)\b/i,
+  /\bkill\s*myself\b/i,
+  /\bend\s*my\s*life\b/i,
+  /\bwant\s*to\s*die\b/i,
+  /\bself[- ]?harm\b/i,
+  /\bself[- ]?injur(y|ies)\b/i,
+  /\bcrisis\b/i,
+  /\b988\b/,
+];
+
+function detectCrisis(text: string): boolean {
+  return CRISIS_PATTERNS.some((p) => p.test(text));
+}
+
+function logCrisis(userId: string, content: string): void {
+  logger.warn(
+    { userId, contentPreview: content.slice(0, 200) },
+    "Potential crisis language detected in chat",
+  );
+}
 
 const router: IRouter = Router();
 
@@ -121,11 +144,20 @@ async function getOrCreateActive(userId: string) {
   return created;
 }
 
-async function loadWithMessages(conversationId: number, limit: number) {
+async function loadWithMessages(
+  conversationId: number,
+  userId: string,
+  limit: number,
+) {
   const [conv] = await db
     .select()
     .from(conversations)
-    .where(eq(conversations.id, conversationId));
+    .where(
+      and(
+        eq(conversations.id, conversationId),
+        eq(conversations.userId, userId),
+      ),
+    );
   if (!conv) return null;
   // Fetch only the most recent `limit` messages (desc), then re-sort asc for
   // the response. This bounds both the DB read and the serialized payload size
@@ -201,64 +233,34 @@ function buildSystemInstruction(
 // POST (send/append), which SameSite=Lax blocks from cross-site origins.
 // The frontend renders the first onboarding prompt client-side when the
 // messages array is empty and the user has not completed onboarding.
-router.get("/chat/active", requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const userId = req.user!.id;
-  const [conv] = await db
-    .select()
-    .from(conversations)
-    .where(and(eq(conversations.userId, userId), eq(conversations.status, "active")))
-    .orderBy(desc(conversations.createdAt))
-    .limit(1);
-  if (!conv) {
-    res.json(null);
-    return;
-  }
-  const full = await loadWithMessages(conv.id, MESSAGE_RESPONSE_LIMIT);
-  res.json(JSON.parse(JSON.stringify(full)));
-});
-
-router.post("/chat/append", requireAuth, chatLimiter, async (req: Request, res: Response): Promise<void> => {
-  const parsed = AppendChatMessageBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid input" });
-    return;
-  }
-  const clipped = clipMessage(parsed.data.content);
-  if (!clipped) {
-    res.status(400).json({ error: "Invalid input" });
-    return;
-  }
-  const userId = req.user!.id;
-  const conv = await getOrCreateActive(userId);
-  await db.insert(messages).values({
-    conversationId: conv.id,
-    role: parsed.data.role,
-    content: clipped,
-  });
-  const full = await loadWithMessages(conv.id, MESSAGE_RESPONSE_LIMIT);
-  res.json(JSON.parse(JSON.stringify(full)));
-});
-
-router.post("/chat/send", requireAuth, chatLimiter, async (req: Request, res: Response): Promise<void> => {
-  const parsed = SendChatMessageBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid input" });
-    return;
-  }
-  const clipped = clipMessage(parsed.data.content);
-  if (!clipped) {
-    res.status(400).json({ error: "Invalid input" });
-    return;
-  }
-  const userId = req.user!.id;
-
-  if (detectCrisis(clipped)) {
-    // This interception deliberately precedes quota, DB, tools, profile reads,
-    // and provider calls. The message body never leaves request memory.
-    emitSafetySignalEvent();
-    res.json(crisisSupportResponse());
-    return;
-  }
+router.get(
+  "/chat/active",
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user!.id;
+    const [conv] = await db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.userId, userId),
+          eq(conversations.status, "active"),
+        ),
+      )
+      .orderBy(desc(conversations.createdAt))
+      .limit(1);
+    if (!conv) {
+      res.json(null);
+      return;
+    }
+    const full = await loadWithMessages(
+      conv.id,
+      userId,
+      MESSAGE_RESPONSE_LIMIT,
+    );
+    res.json(JSON.parse(JSON.stringify(full)));
+  },
+);
 
 router.post(
   "/chat/append",
@@ -282,7 +284,11 @@ router.post(
       role: parsed.data.role,
       content: clipped,
     });
-    const full = await loadWithMessages(conv.id, MESSAGE_RESPONSE_LIMIT);
+    const full = await loadWithMessages(
+      conv.id,
+      userId,
+      MESSAGE_RESPONSE_LIMIT,
+    );
     res.json(JSON.parse(JSON.stringify(full)));
   },
 );
@@ -306,13 +312,6 @@ router.post(
 
     if (detectCrisis(clipped)) {
       logCrisis(userId, clipped);
-      res.json({
-        messages: [
-          { role: "user", content: clipped },
-          { role: "assistant", content: CRISIS_RESPONSE },
-        ],
-      });
-      return;
     }
 
     // Atomic daily quota — reserves a slot before calling the provider
@@ -356,7 +355,7 @@ router.post(
       bounded.unshift(recent[i]);
       total += len;
     }
-    // Providers expect the conversation to begin with a user
+    // Ollama expects the conversation to begin with a user
     // turn. Our history can start with an assistant message (the onboarding
     // greeting), so drop any leading assistant turns before mapping.
     let firstUserIdx = bounded.findIndex((m) => m.role === "user");
@@ -368,11 +367,10 @@ router.post(
     }));
 
     // The current user turn was just inserted above, so this should never be
-    // empty in normal flow. Guard explicitly: providers reject an empty
+    // empty in normal flow. Guard explicitly: Ollama rejects an empty
     // messages array, and we'd rather surface a clean retryable 502 than a
     // raw API error.
     if (chatMessages.length === 0) {
-      await refundDailyQuota(userId);
       res.status(502).json({
         error: "assistant_unavailable",
         reason: "no_user_turn",
@@ -383,9 +381,7 @@ router.post(
     }
 
     let assistantText: string | null = null;
-    let failureReason:
-      AIProviderError["category"] | "empty_response" | "max_tool_iterations" =
-      "unknown";
+    let failureReason: string | null = null;
     // Agentic tool loop: Gemma may ask to read the user's own data (habits,
     // medications, recent logs) before replying. We execute each requested tool
     // scoped to THIS user, feed results back, and re-call until it produces a
@@ -393,27 +389,24 @@ router.post(
     const MAX_TOOL_ITERATIONS = 4;
     const system = buildSystemInstruction(userRow);
     try {
-      const provider = getAIProvider();
-      if (!provider) throw new AIProviderError("unavailable", "AI is disabled");
-      const aiTools = chatTools.map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        inputSchema: tool.input_schema,
+      const ollamaTools = chatTools.map((tool) => ({
+        type: "function",
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.input_schema,
+        },
       }));
-      const convo: AIMessage[] = chatMessages.map((m) => ({
+      const convo: OllamaMessage[] = chatMessages.map((m) => ({
         role: m.role,
         content: m.content,
       }));
-      const abortController = new AbortController();
-      const cancel = () => abortController.abort();
-      req.once("aborted", cancel);
-      res.once("close", cancel);
       for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
-        const result = await requestWithRetry(provider, {
+        const result = await chatWithOllama({
+          model: CHAT_MODEL,
           system,
           messages: convo,
-          tools: aiTools,
-          signal: abortController.signal,
+          tools: ollamaTools,
         });
 
         if (result.toolCalls.length > 0) {
@@ -422,14 +415,14 @@ router.post(
           convo.push({
             role: "assistant",
             content: result.content,
-            toolCalls: result.toolCalls,
+            tool_calls: result.toolCalls,
           });
           for (const block of result.toolCalls) {
             let output: string;
             try {
               const raw = await runChatTool(
-                block.name,
-                block.arguments,
+                block.function.name,
+                block.function.arguments ?? {},
                 userId,
               );
               output =
@@ -438,12 +431,12 @@ router.post(
                   : raw;
             } catch (toolErr) {
               req.log.error(
-                { err: toolErr, tool: block.name },
+                { err: toolErr, tool: block.function.name },
                 "chat tool execution failed",
               );
               output = JSON.stringify({ error: "tool_failed" });
             }
-            convo.push({ role: "tool", content: output, toolCallId: block.id });
+            convo.push({ role: "tool", content: output });
           }
           continue;
         }
@@ -452,24 +445,24 @@ router.post(
         if (textParts) {
           assistantText = textParts;
         } else {
-          failureReason = "empty_response";
+          failureReason = result.doneReason ?? "empty_response";
           req.log.warn(
-            { finishReason: result.finishReason },
-            "AI provider returned no text",
+            { doneReason: result.doneReason },
+            "Ollama returned no text",
           );
         }
         break;
       }
-      if (!assistantText && failureReason === "unknown") {
+      if (!assistantText && !failureReason) {
         failureReason = "max_tool_iterations";
         req.log.warn(
           { maxIterations: MAX_TOOL_ITERATIONS },
-          "AI provider did not finish within tool-iteration cap",
+          "Ollama did not finish within tool-iteration cap",
         );
       }
     } catch (err) {
-      failureReason = normalizeProviderError(err).category;
-      req.log.error({ err, category: failureReason }, "AI chat request failed");
+      failureReason = "exception";
+      req.log.error({ err }, "Ollama chat request failed");
     }
 
     if (!assistantText) {
@@ -489,10 +482,14 @@ router.post(
     await db.insert(messages).values({
       conversationId: conv.id,
       role: "assistant",
-      content: clipMessage(assistantText),
+      content: assistantText,
     });
 
-    const full = await loadWithMessages(conv.id, MESSAGE_RESPONSE_LIMIT);
+    const full = await loadWithMessages(
+      conv.id,
+      userId,
+      MESSAGE_RESPONSE_LIMIT,
+    );
     res.json(JSON.parse(JSON.stringify(full)));
   },
 );
@@ -506,12 +503,18 @@ router.post(
     await db
       .update(conversations)
       .set({ status: "archived", archivedAt: new Date() })
-      .where(eq(conversations.id, conv.id));
+      .where(
+        and(eq(conversations.id, conv.id), eq(conversations.userId, userId)),
+      );
     const [created] = await db
       .insert(conversations)
       .values({ userId, title: "Coaching chat", status: "active" })
       .returning();
-    const full = await loadWithMessages(created.id, MESSAGE_RESPONSE_LIMIT);
+    const full = await loadWithMessages(
+      created.id,
+      userId,
+      MESSAGE_RESPONSE_LIMIT,
+    );
     res.json(JSON.parse(JSON.stringify(full)));
   },
 );
@@ -553,7 +556,7 @@ router.get(
       res.status(404).json({ error: "Not found" });
       return;
     }
-    const full = await loadWithMessages(conv.id, ARCHIVE_MESSAGE_LIMIT);
+    const full = await loadWithMessages(conv.id, userId, ARCHIVE_MESSAGE_LIMIT);
     res.json(JSON.parse(JSON.stringify(full)));
   },
 );
