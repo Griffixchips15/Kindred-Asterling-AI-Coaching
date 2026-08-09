@@ -23,6 +23,7 @@ import {
   type AIMessage,
   type AIProvider,
 } from "../lib/ai";
+import { crisisSupportResponse } from "../lib/crisisSafety";
 
 const CRISIS_PATTERNS = [
   /\bsuicid(e|al)\b/i,
@@ -306,12 +307,7 @@ router.post(
 
     if (detectCrisis(clipped)) {
       logCrisis(userId, clipped);
-      res.json({
-        messages: [
-          { role: "user", content: clipped },
-          { role: "assistant", content: CRISIS_RESPONSE },
-        ],
-      });
+      res.json(crisisSupportResponse());
       return;
     }
 

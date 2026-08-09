@@ -1,0 +1,36 @@
+<<<<<<< SEARCH
+  it("returns the Helcim checkout URL for an authenticated buyer", async () => {
+    process.env.HELCIM_YEARLY_CHECKOUT_URL =
+      "https://subscriptions.helcim.com/subscribe/test123";
+    process.env.HELCIM_LIFETIME_CHECKOUT_URL =
+      "https://subscriptions.helcim.com/subscribe/test456";
+    process.env.HELCIM_API_KEY = "test-key";
+    process.env.HELCIM_WEBHOOK_SECRET = "dGVzdC1zZWNyZXQ=";
+=======
+  it("returns the Helcim checkout URL for an authenticated buyer", async () => {
+    process.env.HELCIM_YEARLY_CHECKOUT_URL =
+      "https://subscriptions.helcim.com/subscribe/test123";
+    process.env.HELCIM_LIFETIME_CHECKOUT_URL =
+      "https://subscriptions.helcim.com/subscribe/test456";
+    process.env.HELCIM_API_KEY = "test-key";
+    process.env.HELCIM_WEBHOOK_SECRET = "dGVzdC1zZWNyZXQ=";
+    process.env.HELCIM_CUSTOMER_REFERENCE_SECRET = "test-customer-reference-secret";
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+  it("returns the lifetime Helcim checkout URL", async () => {
+    process.env.HELCIM_YEARLY_CHECKOUT_URL =
+      "https://subscriptions.helcim.com/subscribe/test123";
+    process.env.HELCIM_LIFETIME_CHECKOUT_URL =
+      "https://subscriptions.helcim.com/subscribe/test456";
+    process.env.HELCIM_API_KEY = "test-key";
+    process.env.HELCIM_WEBHOOK_SECRET = "dGVzdC1zZWNyZXQ=";
+=======
+  it("returns the lifetime Helcim checkout URL", async () => {
+    process.env.HELCIM_YEARLY_CHECKOUT_URL =
+      "https://subscriptions.helcim.com/subscribe/test123";
+    process.env.HELCIM_LIFETIME_CHECKOUT_URL =
+      "https://subscriptions.helcim.com/subscribe/test456";
+    process.env.HELCIM_API_KEY = "test-key";
+    process.env.HELCIM_WEBHOOK_SECRET = "dGVzdC1zZWNyZXQ=";
+    process.env.HELCIM_CUSTOMER_REFERENCE_SECRET = "test-customer-reference-secret";
+>>>>>>> REPLACE
