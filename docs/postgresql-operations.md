@@ -50,6 +50,94 @@ aws s3 cp "kindred-${stamp}.dump.age" "s3://$BACKUP_BUCKET/postgres/"
 
 Keep encryption private keys outside Coolify/Contabo (password manager plus offline recovery copy), restrict bucket access to the backup service account, enable object lock/versioning, and alert on missing/zero-byte uploads. Retain **7 daily, 5 weekly, and 12 monthly** backups; lifecycle deletion occurs only after those windows. Take an additional encrypted backup immediately before every schema migration and retain it for 30 days. Review backup job logs every business day.
 
+### Troubleshoot Coolify backup permission and role errors
+
+These two messages are independent failures; fix both before treating the backup as
+healthy:
+
+```text
+/data/coolify/backups/.../pg-dump-all-<timestamp>.gz: Permission denied
+pg_dumpall: ... FATAL: role "<host-user>" does not exist
+```
+
+1. **Confirm which user and environment run the job.** Run the checks in the same
+   context as the failing command (the Coolify terminal or backup container, not
+   an unrelated root shell):
+
+   ```sh
+   id
+   umask
+   env | grep -E '^(PGHOST|PGPORT|PGDATABASE|PGUSER)=' | sed 's/=.*$/=<set>/'
+   target=/data/coolify/backups/databases/<database-resource-id>
+   namei -l "$target"
+   test -d "$target" && test -w "$target" && echo writable
+   ```
+
+   Do not print `PGPASSWORD` or a connection URL into the job log.
+
+2. **Repair the backup directory, not the whole `/data` tree.** Stop the schedule,
+   create the exact resource directory if it is absent, and make it owned by the
+   UID/GID reported by `id` in step 1. Run this on the Coolify host as an
+   administrator, substituting the observed numeric IDs:
+
+   ```sh
+   install -d -o <backup-uid> -g <backup-gid> -m 0750 \
+     /data/coolify/backups/databases/<database-resource-id>
+   chown -R <backup-uid>:<backup-gid> \
+     /data/coolify/backups/databases/<database-resource-id>
+   find /data/coolify/backups/databases/<database-resource-id> \
+     -type d -exec chmod 0750 {} +
+   find /data/coolify/backups/databases/<database-resource-id> \
+     -type f -exec chmod 0640 {} +
+   ```
+
+   If `namei` shows an unwritable parent or the filesystem is read-only/full, fix
+   that mount first. Do not use `chmod -R 777`; it exposes database dumps and can
+   hide an incorrect bind-mount or container UID.
+
+3. **Set a real PostgreSQL login explicitly.** When `PGUSER`/`--username` is
+   absent, PostgreSQL clients default to the operating-system user. A generated
+   name such as `S3FilesRole_749189` therefore indicates that S3 credentials or a
+   host identity were accidentally used as the database identity. In the Coolify
+   database resource's backup settings, use the PostgreSQL resource's username,
+   password, host, port, and database; use the S3 access key and secret only in
+   the destination-storage fields. For a custom job, pass an explicit connection:
+
+   ```sh
+   export PGHOST='<postgres-service-host>'
+   export PGPORT='5432'
+   export PGDATABASE='kindred'
+   export PGUSER='<postgres-backup-login>'
+   export PGPASSFILE='/run/secrets/postgres-backup.pgpass'
+   pg_dump --format=custom --no-owner --no-acl \
+     --file=/tmp/kindred.dump "$PGDATABASE"
+   ```
+
+   Prefer `pg_dump` for this application's single database. `pg_dumpall` also
+   dumps cluster-wide objects and normally needs broader privileges. If the
+   Coolify built-in PostgreSQL backup intentionally uses `pg_dumpall`, select the
+   PostgreSQL admin login created with that resource rather than the restricted
+   application or S3 user.
+
+4. **Verify database and object storage separately.** First produce a non-empty
+   dump in the job's writable temporary directory, then use Coolify's **Validate
+   Connection** action for the S3 destination. Check the bucket name, region,
+   endpoint (including `https://` and any provider-required path-style setting),
+   access key, secret, and permissions to put, list, get, and delete test objects.
+   Only after both tests pass should the scheduled job stream/upload the dump.
+
+5. **Prove the repaired backup.** Run one manual backup, confirm the job exits
+   zero and the remote object is non-empty, download that exact object, and
+   restore it into an isolated PostgreSQL instance. A successful S3 connection
+   test alone does not prove that a database dump was created or is restorable.
+
+After changing a PostgreSQL resource username or password, update the backup
+configuration and restart/redeploy the resource as Coolify requires so the
+scheduled job does not retain stale values. If a standard Coolify-generated job
+still omits `PGUSER` or creates a root-owned resource directory, record the
+Coolify version and the complete redacted job command and upgrade to the latest
+supported patch before reporting the issue upstream.
+
 ## Restore procedure and quarterly drill
 
 1. Declare an incident, stop application writes, record the desired recovery point, and preserve the failed database for forensics.
