@@ -310,18 +310,17 @@ describe("POST /chat/send", () => {
     expect(createMock).not.toHaveBeenCalled();
 
     const safety = res.body as {
-      type: string;
-      message: string;
-      falsePositive: { label: string };
-      regionSelector: { id: string }[];
+      messages: { role: string; content: string }[];
     };
-    expect(safety.type).toBe("crisis_support");
-    expect(safety.message).toContain("local emergency services");
-    expect(safety.message).toContain("not medical care or an emergency service");
-    expect(safety.falsePositive.label).toBe("This doesn’t apply");
-    expect(safety.regionSelector).toContainEqual(
-      expect.objectContaining({ id: "international" }),
-    );
+    expect(safety.messages).toHaveLength(2);
+    expect(safety.messages[0]).toMatchObject({
+      role: "user",
+      content: "I want to kill myself",
+    });
+    expect(safety.messages[1]).toMatchObject({
+      role: "assistant",
+    });
+    expect(safety.messages[1].content).toContain("immediate help is available");
 
     const quotaRows = await db
       .select()
