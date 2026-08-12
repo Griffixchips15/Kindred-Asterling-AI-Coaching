@@ -25,6 +25,9 @@ vi.mock("./resend", () => ({
   isEmailConfigured: vi.fn(() => true),
   sendEmail: vi.fn(async () => true),
 }));
+vi.mock("../middlewares/authMiddleware", () => ({
+  getClerkIdentity: vi.fn(async () => ({ email: "test@example.com", firstName: "Test", profileImageUrl: null, emailVerified: true })),
+}));
 
 import * as twilio from "./twilio";
 import * as resend from "./resend";

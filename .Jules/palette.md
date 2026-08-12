@@ -1,3 +1,3 @@
-## 2026-34-06 - Added missing aria-labels to icon-only buttons
-**Learning:** The sidebar elements shrink to icon-only buttons when collapsed. While they use Tooltips, they still require an `aria-label` attribute directly on the `<button>` to be accessible to screen readers, especially because the tooltip content is conditionally rendered or visually separated.
-**Action:** When working with responsive sidebars or tooltips, always ensure the underlying interactive element (like `<button>` or `<a>`) maintains an `aria-label` if the text content is conditionally hidden.
+## 2024-08-11 - Add proper ARIA roles and keyboard focus for Mood Selection
+**Learning:** In the evening check-in, mood selection buttons were just `<button>` tags mapping over values, meaning screen readers don't understand them as a group of mutually exclusive options (like a radio group) and they lacked keyboard focus visibility making them very hard to navigate for keyboard users.
+**Action:** Always wrap lists of mutually exclusive toggle buttons in a `role="radiogroup"`, apply `role="radio"` and `aria-checked` to the individual buttons, and ensure `focus-visible:ring-2` is on interactive elements so keyboard users can see where they are.
