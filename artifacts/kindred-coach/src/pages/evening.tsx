@@ -142,15 +142,21 @@ export default function Evening() {
                 render={({ field }) => (
                   <FormItem className="space-y-3">
                     <FormLabel className="text-base font-medium">Overall, how was your day?</FormLabel>
-                    <div className="flex gap-2 flex-wrap">
+                    <div
+                      className="flex gap-2 flex-wrap"
+                      role="radiogroup"
+                      aria-label="Overall mood"
+                    >
                       {MOODS.map((mood) => (
                         <button
                           key={mood}
                           type="button"
+                          role="radio"
+                          aria-checked={selectedMood === mood}
                           onClick={() => field.onChange(mood)}
                           data-testid={`mood-${mood.toLowerCase()}`}
                           className={cn(
-                            "px-4 py-2 rounded-full text-sm font-medium border transition-all",
+                            "px-4 py-2 rounded-full text-sm font-medium border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                             selectedMood === mood
                               ? "bg-secondary text-secondary-foreground border-secondary shadow-sm"
                               : "bg-background border-border hover:border-secondary/50 hover:bg-secondary/5"

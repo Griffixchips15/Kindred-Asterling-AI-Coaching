@@ -18,6 +18,14 @@ import {
   revokeTestClerkIdentity,
 } from "../middlewares/testClerkIdentityAdapter";
 
+vi.mock("./helcimClient", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./helcimClient")>();
+  return {
+    ...actual,
+    createHelcimCustomer: vi.fn(async () => 9999),
+  };
+});
+
 const suffix = Math.random().toString(36).slice(2, 10);
 const userId = `test-checkout-${suffix}`;
 const email = `${userId}@example.test`;
@@ -118,6 +126,7 @@ describe("POST /api/subscription/checkout", () => {
       "https://subscriptions.helcim.com/subscribe/test456";
     process.env.HELCIM_API_KEY = "test-key";
     process.env.HELCIM_WEBHOOK_SECRET = "dGVzdC1zZWNyZXQ=";
+    process.env.HELCIM_CUSTOMER_REFERENCE_SECRET = "test-reference-secret";
 
     const res = await api("POST", "/api/subscription/checkout", {
       token,
@@ -125,7 +134,7 @@ describe("POST /api/subscription/checkout", () => {
     });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
-      checkoutUrl: "https://subscriptions.helcim.com/subscribe/test123",
+      checkoutUrl: "https://subscriptions.helcim.com/subscribe/test123?customerCode=9999",
     });
   });
 
@@ -136,6 +145,7 @@ describe("POST /api/subscription/checkout", () => {
       "https://subscriptions.helcim.com/subscribe/test456";
     process.env.HELCIM_API_KEY = "test-key";
     process.env.HELCIM_WEBHOOK_SECRET = "dGVzdC1zZWNyZXQ=";
+    process.env.HELCIM_CUSTOMER_REFERENCE_SECRET = "test-reference-secret";
 
     const res = await api("POST", "/api/subscription/checkout", {
       token,
@@ -143,7 +153,7 @@ describe("POST /api/subscription/checkout", () => {
     });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
-      checkoutUrl: "https://subscriptions.helcim.com/subscribe/test456",
+      checkoutUrl: "https://subscriptions.helcim.com/subscribe/test456?customerCode=9999",
     });
   });
 });

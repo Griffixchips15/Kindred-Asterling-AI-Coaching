@@ -30,6 +30,14 @@ beforeEach(async () => {
   await db.delete(subscriptionsTable);
 });
 
+vi.mock("./helcimClient", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./helcimClient")>();
+  return {
+    ...actual,
+    isHelcimConfigured: vi.fn(() => true),
+  };
+});
+
 describe("resolveSubscription", () => {
   it("grants owner access by immutable user ID without any DB rows", async () => {
     process.env.SUBSCRIPTION_OWNER_IDS = ownerId;

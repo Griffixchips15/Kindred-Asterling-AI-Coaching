@@ -25,6 +25,7 @@ import { ReactNode, useCallback, useEffect, useState } from "react";
 import { useUser, useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { format, parseISO } from "date-fns";
 import { useTheme, THEME_OPTIONS, type ThemeName } from "@/hooks/use-theme";
+import { useGetCurrentAuthUser, getGetCurrentAuthUserQueryKey } from "@workspace/api-client-react";
 import type { AuthUser } from "@workspace/api-client-react";
 import {
   DropdownMenu,
@@ -251,19 +252,14 @@ function NavLinkItem({
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { signOut } = useClerkAuth();
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const { data } = useGetCurrentAuthUser({
+    query: { queryKey: getGetCurrentAuthUserQueryKey() },
+  });
+  const user = data?.user ?? null;
   const [collapsed, setCollapsed] = useSidebarCollapsed();
-
-  useEffect(() => {
-    fetch("/api/auth/user", { credentials: "include" })
-      .then((res) => res.json())
-      .then((data: { user?: AuthUser | null }) => setUser(data.user ?? null))
-      .catch(() => setUser(null));
-  }, []);
 
   const logout = useCallback(async () => {
     await signOut();
-    setUser(null);
   }, [signOut]);
   const visibleNavItems = navItems;
 
