@@ -67,8 +67,17 @@ export async function authMiddleware(
 
   try {
     const clerkUser = await getClerkIdentity(userId);
-    await syncClerkIdentity(clerkUser);
-    req.user = clerkUser;
+    const appUser = await syncClerkIdentity(clerkUser);
+    if (!appUser) throw new Error("Clerk identity sync returned no user");
+    // All application tables reference users.id, not Clerk's external user ID.
+    req.user = {
+      id: appUser.id,
+      email: appUser.email,
+      firstName: appUser.firstName,
+      lastName: appUser.lastName,
+      profileImageUrl: appUser.profileImageUrl,
+      emailVerified: appUser.emailVerifiedAt != null,
+    };
   } catch (err) {
     logger.warn({ err, userId }, "Failed to resolve Clerk identity");
   }
