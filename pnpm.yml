@@ -1,0 +1,20 @@
+version: 0.2
+
+env:
+  variables:
+    NODE_ENV: "test"
+
+phases:
+  install:
+    commands:
+      - node --version
+      - npm install --global pnpm@10
+
+  pre_build:
+    commands:
+      - pnpm install --frozen-lockfile
+
+  build:
+    commands:
+      - pnpm run typecheck
+      - pnpm --filter @workspace/api-server exec vitest run src/lib/ai/bedrockProvider.test.ts src/lib/validateConfig.test.ts
