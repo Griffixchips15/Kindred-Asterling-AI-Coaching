@@ -13,8 +13,13 @@ export function validateRuntimeConfig(): void {
   } else if (aiProvider === "openai") {
     requireValue("OPENAI_API_KEY");
     requireValue("OPENAI_MODEL");
+  } else if (aiProvider === "bedrock") {
+    requireValue("AWS_REGION");
+    requireValue("BEDROCK_MODEL_ID");
   } else if (!["disabled", "none", "off"].includes(aiProvider)) {
-    throw new Error("AI_PROVIDER must be one of: ollama, openai, disabled");
+    throw new Error(
+      "AI_PROVIDER must be one of: bedrock, ollama, openai, disabled",
+    );
   }
 
   if (process.env.NODE_ENV === "production") {
