@@ -12,10 +12,9 @@ import {
   type AuthUser,
 } from "@workspace/api-client-react";
 import { useGetCurrentAuthUser } from "@workspace/api-client-react";
-import { Send, Archive, Loader2, Mic, Square } from "lucide-react";
+import { Send, Archive, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { SpeakButton } from "@/components/speak-button";
-import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 
 const TEXTAREA_MAX_HEIGHT_PX = 160;
 
@@ -35,7 +34,8 @@ const ONBOARDING: OnboardingStep[] = [
   },
   {
     key: "birthday",
-    prompt: () => "Lovely to meet you. When's your birthday? (You can skip if you'd rather not say.)",
+    prompt: () =>
+      "Lovely to meet you. When's your birthday? (You can skip if you'd rather not say.)",
     placeholder: "YYYY-MM-DD",
     inputType: "date",
   },
@@ -63,9 +63,12 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
   // Only offer "read aloud" on Kindred's real, persisted replies — skip the
   // virtual onboarding bubble (negative id) which has no server message yet.
-  const canSpeak = !isUser && message.id > 0 && message.content.trim().length > 0;
+  const canSpeak =
+    !isUser && message.id > 0 && message.content.trim().length > 0;
   return (
-    <div className={`flex flex-col ${isUser ? "items-end" : "items-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+    <div
+      className={`flex flex-col ${isUser ? "items-end" : "items-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}
+    >
       <div
         className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
           isUser
@@ -74,7 +77,9 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         }`}
       >
         {message.content.split("\n").map((line, i) => (
-          <p key={i} className={i > 0 ? "mt-1" : ""}>{line}</p>
+          <p key={i} className={i > 0 ? "mt-1" : ""}>
+            {line}
+          </p>
         ))}
       </div>
       {canSpeak && (
@@ -89,9 +94,13 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 export default function Chat() {
   const qc = useQueryClient();
   const [, setLocation] = useLocation();
-  const { data: user, refetch: refetchUser } = useGetCurrentAuthUser({ query: { queryKey: getGetCurrentAuthUserQueryKey() } });
+  const { data: user, refetch: refetchUser } = useGetCurrentAuthUser({
+    query: { queryKey: getGetCurrentAuthUserQueryKey() },
+  });
   const authUser = user?.user ?? null;
-  const { data: conv, isLoading } = useGetActiveChat({ query: { queryKey: getGetActiveChatQueryKey() } });
+  const { data: conv, isLoading } = useGetActiveChat({
+    query: { queryKey: getGetActiveChatQueryKey() },
+  });
 
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -99,23 +108,6 @@ export default function Chat() {
   const [sendError, setSendError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  // MediaRecorder-based dictation (works on mobile browsers where the Web
-  // Speech API is unavailable). Transcribed text is appended to the draft.
-  const {
-    status: voiceStatus,
-    error: voiceError,
-    setError: setVoiceError,
-    supported: voiceSupported,
-    stop: stopDictation,
-    toggle: toggleDictation,
-  } = useVoiceRecorder((text) =>
-    setDraft((prev) => {
-      const joiner = prev && !prev.endsWith(" ") ? " " : "";
-      return prev + joiner + text;
-    }),
-  );
-  const listening = voiceStatus === "recording";
-
   const onboarded = !!authUser?.onboardedAt;
   const storedMessages: ChatMessage[] = conv?.messages ?? [];
   // When the user hasn't completed onboarding and no messages have been stored
@@ -136,7 +128,8 @@ export default function Chat() {
           } as ChatMessage,
         ]
       : [];
-  const messages: ChatMessage[] = virtualFirstMessage.length > 0 ? virtualFirstMessage : storedMessages;
+  const messages: ChatMessage[] =
+    virtualFirstMessage.length > 0 ? virtualFirstMessage : storedMessages;
 
   // Determine onboarding step from current profile state.
   const currentStep: OnboardingStep | null = useMemo(() => {
@@ -148,7 +141,10 @@ export default function Chat() {
   }, [onboarded, authUser]);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: "smooth",
+    });
   }, [messages.length, sending]);
 
   // Auto-grow the textarea as the user types, capped at TEXTAREA_MAX_HEIGHT_PX
@@ -163,7 +159,6 @@ export default function Chat() {
   async function handleSend() {
     const text = draft.trim();
     if (!text || sending) return;
-    if (listening) stopDictation();
     setDraft("");
     setSending(true);
     setSendError(null);
@@ -176,10 +171,16 @@ export default function Chat() {
         await updateProfile({ [currentStep.key]: value });
         await appendChatMessage({ role: "user", content: text });
         // Determine next step from the updated profile
-        const updatedUser: AuthUser = { ...(authUser as AuthUser), [currentStep.key]: value };
+        const updatedUser: AuthUser = {
+          ...(authUser as AuthUser),
+          [currentStep.key]: value,
+        };
         const nextStep = ONBOARDING.find((s) => !updatedUser[s.key]);
         if (nextStep) {
-          await appendChatMessage({ role: "assistant", content: nextStep.prompt(updatedUser) });
+          await appendChatMessage({
+            role: "assistant",
+            content: nextStep.prompt(updatedUser),
+          });
         } else {
           // Onboarding complete
           await updateProfile({ onboardedAt: new Date().toISOString() });
@@ -241,7 +242,9 @@ export default function Chat() {
             {onboarded ? "Chat with Kindred" : "Welcome"}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {onboarded ? "Your daily wellness companion" : "A few questions to get acquainted"}
+            {onboarded
+              ? "Your daily wellness companion"
+              : "A few questions to get acquainted"}
           </p>
         </div>
         {onboarded && messages.length > 0 && (
@@ -251,7 +254,11 @@ export default function Chat() {
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
             data-testid="archive-chat"
           >
-            {archiving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Archive className="w-3.5 h-3.5" />}
+            {archiving ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Archive className="w-3.5 h-3.5" />
+            )}
             Archive chat
           </button>
         )}
@@ -288,21 +295,6 @@ export default function Chat() {
             </button>
           </div>
         )}
-        {voiceError && (
-          <div
-            className="mb-2 rounded-md border border-amber-300/50 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between gap-3"
-            data-testid="chat-voice-error"
-          >
-            <span>{voiceError}</span>
-            <button
-              onClick={() => setVoiceError(null)}
-              className="font-medium opacity-70 hover:opacity-100"
-              aria-label="Dismiss"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -328,15 +320,17 @@ export default function Chat() {
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 // Enter sends; Shift+Enter inserts a newline. Match common chat UX.
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                if (
+                  e.key === "Enter" &&
+                  !e.shiftKey &&
+                  !e.nativeEvent.isComposing
+                ) {
                   e.preventDefault();
                   handleSend();
                 }
               }}
               placeholder={
-                listening
-                  ? "Listening… speak now."
-                  : currentStep?.placeholder ?? "Share what's on your mind..."
+                currentStep?.placeholder ?? "Share what's on your mind..."
               }
               aria-label="Message input"
               disabled={sending}
@@ -346,29 +340,6 @@ export default function Chat() {
               data-testid="chat-input"
             />
           )}
-          {voiceSupported && currentStep?.inputType !== "date" && (
-            <button
-              type="button"
-              onClick={toggleDictation}
-              disabled={sending || voiceStatus === "transcribing"}
-              aria-label={listening ? "Stop voice input" : "Start voice input"}
-              title={listening ? "Stop voice input" : "Start voice input"}
-              className={`flex items-center justify-center w-11 h-11 rounded-full transition-colors shrink-0 disabled:opacity-40 ${
-                listening
-                  ? "bg-destructive text-destructive-foreground animate-pulse"
-                  : "bg-muted text-foreground hover:bg-muted/70"
-              }`}
-              data-testid="chat-mic"
-            >
-              {voiceStatus === "transcribing" ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : listening ? (
-                <Square className="w-3.5 h-3.5 fill-current" />
-              ) : (
-                <Mic className="w-4 h-4" />
-              )}
-            </button>
-          )}
           <button
             type="submit"
             disabled={sending || !draft.trim()}
@@ -376,7 +347,11 @@ export default function Chat() {
             className="flex items-center justify-center w-11 h-11 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors shrink-0"
             data-testid="chat-send"
           >
-            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {sending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
           </button>
         </form>
       </div>

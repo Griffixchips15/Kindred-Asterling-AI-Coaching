@@ -9,6 +9,14 @@ import About from "@/pages/public/about";
 import Science from "@/pages/public/science";
 import Pricing from "@/pages/public/pricing";
 import PaymentSuccess from "@/pages/public/payment-success";
+import {
+  AIUseDisclosure,
+  CookieNotice,
+  HealthDisclaimer,
+  MarketingConsent,
+  PrivacyPolicy,
+  TermsAndConditions,
+} from "@/pages/public/legal";
 
 /**
  * Custom SSR-safe location hook for Wouter.
@@ -45,6 +53,18 @@ function getPageContent(path: string) {
       return <Pricing />;
     case "/payment-success":
       return <PaymentSuccess />;
+    case "/legal/privacy":
+      return <PrivacyPolicy />;
+    case "/legal/terms":
+      return <TermsAndConditions />;
+    case "/legal/health-disclaimer":
+      return <HealthDisclaimer />;
+    case "/legal/ai-disclosure":
+      return <AIUseDisclosure />;
+    case "/legal/cookies":
+      return <CookieNotice />;
+    case "/legal/marketing-consent":
+      return <MarketingConsent />;
     default:
       return null;
   }
@@ -62,7 +82,11 @@ export function render(url: string): string {
     <QueryClientProvider client={queryClient}>
       <ClerkProvider
         publishableKey={
-          import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "pk_test_placeholder"
+          // Public SSR still needs Clerk context for the pricing CTA. This is a
+          // syntactically valid, non-secret test key used only when no real
+          // frontend key is supplied to the build.
+          import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ||
+          "pk_test_Y2xlcmsuZGV2JA=="
         }
       >
         <Router hook={hook}>

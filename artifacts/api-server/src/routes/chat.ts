@@ -12,10 +12,13 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { chatLimiter } from "../middlewares/rateLimiter";
 import { chatTools, runChatTool } from "../lib/chatTools";
 import {
+  assembleKindredContext,
+  formatKindredContextForPrompt,
+} from "../lib/kindredContext";
+import {
   checkAndIncrementDailyQuota,
   refundDailyQuota,
 } from "../lib/dailyQuota";
-import { logger } from "../lib/logger";
 import {
   AIProviderError,
   getAIProvider,
@@ -23,31 +26,11 @@ import {
   type AIMessage,
   type AIProvider,
 } from "../lib/ai";
-
-const CRISIS_PATTERNS = [
-  /\bsuicid(e|al)\b/i,
-  /\bkill\s*myself\b/i,
-  /\bend\s*my\s*life\b/i,
-  /\bwant\s*to\s*die\b/i,
-  /\bself[- ]?harm\b/i,
-  /\bself[- ]?injur(y|ies)\b/i,
-  /\bcrisis\b/i,
-  /\b988\b/,
-];
-
-function detectCrisis(text: string): boolean {
-  return CRISIS_PATTERNS.some((p) => p.test(text));
-}
-
-function logCrisis(userId: string, content: string): void {
-  logger.warn(
-    { userId, contentPreview: content.slice(0, 200) },
-    "Potential crisis language detected in chat",
-  );
-}
-
-const CRISIS_RESPONSE =
-  "I'm sorry you're facing this. Kindred isn't a crisis service, but immediate help is available — call or text 988, or text HOME to 741741.";
+import {
+  crisisSupportResponse,
+  detectCrisis,
+  emitSafetySignalEvent,
+} from "../lib/crisisSafety";
 
 const router: IRouter = Router();
 
@@ -196,8 +179,12 @@ function sanitizeProfileText(text: string): string {
     .trim();
 }
 
-function buildSystemInstruction(user: User | null): string {
-  const name = user?.preferredName ?? user?.firstName ?? "friend";
+function buildSystemInstruction(
+  user: User | null,
+  clerkFirstName: string | null,
+  structuredContext: string,
+): string {
+  const name = user?.preferredName ?? clerkFirstName ?? "friend";
   const struggles = clip(sanitizeProfileText(user?.struggles ?? ""), 500);
   const strengths = clip(sanitizeProfileText(user?.strengths ?? ""), 500);
   const interests = clip(sanitizeProfileText(user?.interests ?? ""), 500);
@@ -225,6 +212,7 @@ function buildSystemInstruction(user: User | null): string {
     parts.push(
       `A quote that means something to them: "${quote}". You may reference it occasionally when it fits naturally — never force it.`,
     );
+  if (structuredContext) parts.push(structuredContext);
   return parts.join(" ");
 }
 
@@ -255,7 +243,11 @@ router.get(
       res.json(null);
       return;
     }
-    const full = await loadWithMessages(conv.id, userId, MESSAGE_RESPONSE_LIMIT);
+    const full = await loadWithMessages(
+      conv.id,
+      userId,
+      MESSAGE_RESPONSE_LIMIT,
+    );
     res.json(JSON.parse(JSON.stringify(full)));
   },
 );
@@ -282,7 +274,11 @@ router.post(
       role: parsed.data.role,
       content: clipped,
     });
-    const full = await loadWithMessages(conv.id, userId, MESSAGE_RESPONSE_LIMIT);
+    const full = await loadWithMessages(
+      conv.id,
+      userId,
+      MESSAGE_RESPONSE_LIMIT,
+    );
     res.json(JSON.parse(JSON.stringify(full)));
   },
 );
@@ -305,12 +301,17 @@ router.post(
     const userId = req.user!.id;
 
     if (detectCrisis(clipped)) {
-      logCrisis(userId, clipped);
-      res.json({
-        messages: [
-          { role: "user", content: clipped },
-          { role: "assistant", content: CRISIS_RESPONSE },
-        ],
+      emitSafetySignalEvent();
+      res.json(crisisSupportResponse());
+      return;
+    }
+
+    const provider = getAIProvider();
+    if (!provider) {
+      res.status(503).json({
+        error: "assistant_unavailable",
+        reason: "provider_not_configured",
+        message: "Kindred isn't available right now. Try again later.",
       });
       return;
     }
@@ -391,10 +392,13 @@ router.post(
     // scoped to THIS user, feed results back, and re-call until it produces a
     // text reply. Capped so a misbehaving turn can't loop forever / burn tokens.
     const MAX_TOOL_ITERATIONS = 4;
-    const system = buildSystemInstruction(userRow);
+    const kindredContext = await assembleKindredContext(userId, clipped);
+    const system = buildSystemInstruction(
+      userRow,
+      req.user!.firstName,
+      formatKindredContextForPrompt(kindredContext),
+    );
     try {
-      const provider = getAIProvider();
-      if (!provider) throw new AIProviderError("unavailable", "AI is disabled");
       const aiTools = chatTools.map((tool) => ({
         name: tool.name,
         description: tool.description,
@@ -492,7 +496,11 @@ router.post(
       content: clipMessage(assistantText),
     });
 
-    const full = await loadWithMessages(conv.id, userId, MESSAGE_RESPONSE_LIMIT);
+    const full = await loadWithMessages(
+      conv.id,
+      userId,
+      MESSAGE_RESPONSE_LIMIT,
+    );
     res.json(JSON.parse(JSON.stringify(full)));
   },
 );
@@ -507,16 +515,17 @@ router.post(
       .update(conversations)
       .set({ status: "archived", archivedAt: new Date() })
       .where(
-        and(
-          eq(conversations.id, conv.id),
-          eq(conversations.userId, userId),
-        ),
+        and(eq(conversations.id, conv.id), eq(conversations.userId, userId)),
       );
     const [created] = await db
       .insert(conversations)
       .values({ userId, title: "Coaching chat", status: "active" })
       .returning();
-    const full = await loadWithMessages(created.id, userId, MESSAGE_RESPONSE_LIMIT);
+    const full = await loadWithMessages(
+      created.id,
+      userId,
+      MESSAGE_RESPONSE_LIMIT,
+    );
     res.json(JSON.parse(JSON.stringify(full)));
   },
 );

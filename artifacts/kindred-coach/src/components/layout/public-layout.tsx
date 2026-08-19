@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import logoMark from "@/assets/brand/logo-mark.png";
+import { CONFIGURED_SOCIAL_LINKS } from "@/config/social-links";
 
 function signInToApp() {
   window.location.href = "/login";
@@ -13,6 +14,15 @@ const NAV_LINKS = [
   { label: "Science", href: "/science" },
   { label: "About", href: "/about" },
   { label: "Pricing", href: "/pricing" },
+];
+
+const LEGAL_LINKS = [
+  { label: "Privacy", href: "/legal/privacy" },
+  { label: "Terms", href: "/legal/terms" },
+  { label: "Health Disclaimer", href: "/legal/health-disclaimer" },
+  { label: "AI Disclosure", href: "/legal/ai-disclosure" },
+  { label: "Cookies", href: "/legal/cookies" },
+  { label: "Marketing Consent", href: "/legal/marketing-consent" },
 ];
 
 function PublicHeader() {
@@ -117,20 +127,62 @@ function PublicFooter() {
               </span>
             </div>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              An AI companion grounded in cognitive neuroscience — a transparent,
-              compassionate supplement to human care, never a replacement for it.
+              An AI companion grounded in cognitive neuroscience — a
+              transparent, compassionate supplement to human care, never a
+              replacement for it.
             </p>
           </div>
-          <div className="flex flex-col gap-2">
-            {NAV_LINKS.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                {l.label}
-              </Link>
-            ))}
+          <div className="grid grid-cols-2 gap-x-10 gap-y-8 sm:grid-cols-3">
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-foreground">
+                Explore
+              </p>
+              {NAV_LINKS.map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {l.label}
+                </Link>
+              ))}
+            </div>
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-foreground">
+                Legal
+              </p>
+              {LEGAL_LINKS.map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {l.label}
+                </Link>
+              ))}
+            </div>
+            {CONFIGURED_SOCIAL_LINKS.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-foreground">
+                  Follow
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {CONFIGURED_SOCIAL_LINKS.map((link) => (
+                    <a
+                      key={link.platform}
+                      href={link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={link.label}
+                      title={link.label}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                    >
+                      <link.icon className="h-4 w-4" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <p className="mt-10 text-xs text-muted-foreground/70">
@@ -144,7 +196,9 @@ function PublicFooter() {
 
 export function PublicLayout({ children }: { children: ReactNode }) {
   return (
-    <div className={cn("flex min-h-screen flex-col bg-background text-foreground")}>
+    <div
+      className={cn("flex min-h-screen flex-col bg-background text-foreground")}
+    >
       <PublicHeader />
       <main className="flex-1">{children}</main>
       <PublicFooter />

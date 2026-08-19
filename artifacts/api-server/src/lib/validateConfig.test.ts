@@ -58,3 +58,26 @@ describe("AI provider configuration", () => {
     expect(validateRuntimeConfig).toThrow(/OPENAI_API_KEY, OPENAI_MODEL/);
   });
 });
+
+describe("Google Calendar configuration", () => {
+  function calendarEnv(redirectUri: string): void {
+    baseEnv();
+    process.env.GOOGLE_CLIENT_ID = "client";
+    process.env.GOOGLE_CLIENT_SECRET = "secret";
+    process.env.GOOGLE_CALENDAR_REDIRECT_URI = redirectUri;
+    process.env.CALENDAR_OAUTH_STATE_SECRET = "state-secret";
+    process.env.CALENDAR_TOKEN_ENCRYPTION_KEY = "token-secret";
+  }
+
+  it("accepts the deployed callback route", () => {
+    calendarEnv("https://kindred.example/api/calendar/callback");
+    expect(validateRuntimeConfig).not.toThrow();
+  });
+
+  it("rejects relative or mismatched redirect URIs", () => {
+    calendarEnv("/api/calendar/callback");
+    expect(validateRuntimeConfig).toThrow(/absolute HTTPS URL/);
+    calendarEnv("https://kindred.example/calendar/callback");
+    expect(validateRuntimeConfig).toThrow(/absolute HTTPS URL/);
+  });
+});

@@ -1,7 +1,18 @@
-import { useCreateEveningReport, useListEveningReports, getListEveningReportsQueryKey, getGetTodaySummaryQueryKey } from "@workspace/api-client-react";
+import {
+  useCreateEveningReport,
+  useListEveningReports,
+  getListEveningReportsQueryKey,
+  getGetTodaySummaryQueryKey,
+} from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+} from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { VoiceInputButton } from "@/components/voice-input-button";
@@ -63,20 +74,31 @@ export default function Evening() {
       {
         onSuccess: () => {
           toast({ title: "Evening report saved", description: "Rest well." });
-          queryClient.invalidateQueries({ queryKey: getListEveningReportsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetTodaySummaryQueryKey() });
+          queryClient.invalidateQueries({
+            queryKey: getListEveningReportsQueryKey(),
+          });
+          queryClient.invalidateQueries({
+            queryKey: getGetTodaySummaryQueryKey(),
+          });
         },
-      }
+      },
     );
   };
 
-  if (isLoading) return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading...</div>;
+  if (isLoading)
+    return (
+      <div className="p-8 text-center text-muted-foreground animate-pulse">
+        Loading...
+      </div>
+    );
 
   if (hasReportedToday) {
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
         <header className="space-y-2 pt-4">
-          <h1 className="text-3xl font-serif text-foreground tracking-tight">Evening Report</h1>
+          <h1 className="text-3xl font-serif text-foreground tracking-tight">
+            Evening Report
+          </h1>
         </header>
         <Card className="border-none shadow-sm bg-secondary/5 text-center p-12">
           <CardContent className="space-y-4">
@@ -84,7 +106,9 @@ export default function Evening() {
               <CheckCircle2 className="w-8 h-8" />
             </div>
             <h3 className="text-xl font-medium">Great work today</h3>
-            <p className="text-muted-foreground">You've reflected on your day. Rest and recharge.</p>
+            <p className="text-muted-foreground">
+              You've reflected on your day. Rest and recharge.
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -101,7 +125,9 @@ export default function Evening() {
           <Sunset className="w-8 h-8 text-secondary" />
           Evening
         </h1>
-        <p className="text-muted-foreground text-lg">A moment to close the loop on your day.</p>
+        <p className="text-muted-foreground text-lg">
+          A moment to close the loop on your day.
+        </p>
       </header>
 
       <Form {...form}>
@@ -115,7 +141,9 @@ export default function Evening() {
                   <FormItem className="space-y-4">
                     <FormLabel className="text-base font-medium">
                       How effective was your medication today?
-                      <span className="ml-2 text-primary font-semibold">{field.value}/10</span>
+                      <span className="ml-2 text-primary font-semibold">
+                        {field.value}/10
+                      </span>
                     </FormLabel>
                     <FormControl>
                       <Slider
@@ -141,7 +169,9 @@ export default function Evening() {
                 name="overallMood"
                 render={({ field }) => (
                   <FormItem className="space-y-3">
-                    <FormLabel className="text-base font-medium">Overall, how was your day?</FormLabel>
+                    <FormLabel className="text-base font-medium">
+                      Overall, how was your day?
+                    </FormLabel>
                     <div
                       className="flex gap-2 flex-wrap"
                       role="radiogroup"
@@ -159,7 +189,7 @@ export default function Evening() {
                             "px-4 py-2 rounded-full text-sm font-medium border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                             selectedMood === mood
                               ? "bg-secondary text-secondary-foreground border-secondary shadow-sm"
-                              : "bg-background border-border hover:border-secondary/50 hover:bg-secondary/5"
+                              : "bg-background border-border hover:border-secondary/50 hover:bg-secondary/5",
                           )}
                         >
                           {mood}
@@ -181,7 +211,9 @@ export default function Evening() {
                         What went well?
                       </FormLabel>
                       <VoiceInputButton
-                        onTranscript={(text) => field.onChange(appendTranscript(field.value, text))}
+                        onTranscript={(text) =>
+                          field.onChange(appendTranscript(field.value, text))
+                        }
                       />
                     </div>
                     <FormControl>
@@ -202,9 +234,13 @@ export default function Evening() {
                 render={({ field }) => (
                   <FormItem>
                     <div className="flex items-center justify-between gap-2">
-                      <FormLabel className="text-base font-medium">What was hard?</FormLabel>
+                      <FormLabel className="text-base font-medium">
+                        What was hard?
+                      </FormLabel>
                       <VoiceInputButton
-                        onTranscript={(text) => field.onChange(appendTranscript(field.value, text))}
+                        onTranscript={(text) =>
+                          field.onChange(appendTranscript(field.value, text))
+                        }
                       />
                     </div>
                     <FormControl>
@@ -225,9 +261,13 @@ export default function Evening() {
                 render={({ field }) => (
                   <FormItem>
                     <div className="flex items-center justify-between gap-2">
-                      <FormLabel className="text-base font-medium">Intention for tomorrow</FormLabel>
+                      <FormLabel className="text-base font-medium">
+                        Intention for tomorrow
+                      </FormLabel>
                       <VoiceInputButton
-                        onTranscript={(text) => field.onChange(appendTranscript(field.value, text))}
+                        onTranscript={(text) =>
+                          field.onChange(appendTranscript(field.value, text))
+                        }
                       />
                     </div>
                     <FormControl>

@@ -28,6 +28,14 @@ import PaymentSuccess from "@/pages/public/payment-success";
 import Login from "@/pages/public/login";
 import Account from "@/pages/account";
 import { ThemeProvider } from "@/hooks/use-theme";
+import {
+  AIUseDisclosure,
+  CookieNotice,
+  HealthDisclaimer,
+  MarketingConsent,
+  PrivacyPolicy,
+  TermsAndConditions,
+} from "@/pages/public/legal";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,6 +68,12 @@ function PublicRoutes() {
         <Route path="/pricing" component={Pricing} />
         <Route path="/payment-success" component={PaymentSuccess} />
         <Route path="/login" component={Login} />
+        <Route path="/legal/privacy" component={PrivacyPolicy} />
+        <Route path="/legal/terms" component={TermsAndConditions} />
+        <Route path="/legal/health-disclaimer" component={HealthDisclaimer} />
+        <Route path="/legal/ai-disclosure" component={AIUseDisclosure} />
+        <Route path="/legal/cookies" component={CookieNotice} />
+        <Route path="/legal/marketing-consent" component={MarketingConsent} />
         <Route component={NotFound} />
       </Switch>
     </PublicLayout>
@@ -125,6 +139,18 @@ function App() {
                 <Route path="/pricing" component={PublicRoutes} />
                 <Route path="/payment-success" component={PublicRoutes} />
                 <Route path="/login" component={PublicRoutes} />
+                <Route path="/legal/privacy" component={PublicRoutes} />
+                <Route path="/legal/terms" component={PublicRoutes} />
+                <Route
+                  path="/legal/health-disclaimer"
+                  component={PublicRoutes}
+                />
+                <Route path="/legal/ai-disclosure" component={PublicRoutes} />
+                <Route path="/legal/cookies" component={PublicRoutes} />
+                <Route
+                  path="/legal/marketing-consent"
+                  component={PublicRoutes}
+                />
                 <Route path="/app" nest component={PrivateRoutes} />
                 <Route component={NotFound} />
               </Switch>

@@ -1,10 +1,12 @@
-import { useCreateBodyScan, useListBodyScans, getListBodyScansQueryKey } from "@workspace/api-client-react";
+import {
+  useCreateBodyScan,
+  useListBodyScans,
+  getListBodyScansQueryKey,
+} from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
-import { VoiceInputButton } from "@/components/voice-input-button";
-import { appendTranscript } from "@/lib/voice-api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -26,7 +28,9 @@ const MAX_FEELINGS = 20;
 export default function Scans() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: scans, isLoading } = useListBodyScans({ query: { queryKey: getListBodyScansQueryKey() } });
+  const { data: scans, isLoading } = useListBodyScans({
+    query: { queryKey: getListBodyScansQueryKey() },
+  });
   const createScan = useCreateBodyScan();
 
   const [selectedFeelings, setSelectedFeelings] = useState<string[]>([]);
@@ -36,7 +40,10 @@ export default function Scans() {
   const [notes, setNotes] = useState("");
 
   const trimmedQuery = query.trim();
-  const searchResults = useMemo(() => searchFeelings(trimmedQuery), [trimmedQuery]);
+  const searchResults = useMemo(
+    () => searchFeelings(trimmedQuery),
+    [trimmedQuery],
+  );
 
   const toggleFeeling = (feeling: string) => {
     setSelectedFeelings((prev) => {
@@ -71,15 +78,20 @@ export default function Scans() {
       },
       {
         onSuccess: () => {
-          toast({ title: "Body scan logged", description: "Check-in recorded." });
-          queryClient.invalidateQueries({ queryKey: getListBodyScansQueryKey() });
+          toast({
+            title: "Body scan logged",
+            description: "Check-in recorded.",
+          });
+          queryClient.invalidateQueries({
+            queryKey: getListBodyScansQueryKey(),
+          });
           setSelectedFeelings([]);
           setQuery("");
           setEnergyLevel(5);
           setPhysicalSensations("");
           setNotes("");
         },
-      }
+      },
     );
   };
 
@@ -95,12 +107,17 @@ export default function Scans() {
           "px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-150",
           active
             ? "bg-primary text-primary-foreground border-primary shadow-sm"
-            : "bg-background text-foreground border-border hover:border-primary/50 hover:bg-primary/5"
+            : "bg-background text-foreground border-border hover:border-primary/50 hover:bg-primary/5",
         )}
       >
         {label}
         {hint && (
-          <span className={cn("ml-1.5 text-xs", active ? "text-primary-foreground/70" : "text-muted-foreground")}>
+          <span
+            className={cn(
+              "ml-1.5 text-xs",
+              active ? "text-primary-foreground/70" : "text-muted-foreground",
+            )}
+          >
             {hint}
           </span>
         )}
@@ -115,13 +132,17 @@ export default function Scans() {
           <ScanLine className="w-8 h-8 text-primary" />
           Body Scan
         </h1>
-        <p className="text-muted-foreground text-lg">Pause and notice what's happening right now.</p>
+        <p className="text-muted-foreground text-lg">
+          Pause and notice what's happening right now.
+        </p>
       </header>
 
       <Card className="border-border shadow-sm">
         <CardContent className="p-6 space-y-7">
           <div className="space-y-3">
-            <Label className="text-base font-medium">What are you feeling right now?</Label>
+            <Label className="text-base font-medium">
+              What are you feeling right now?
+            </Label>
             <p className="text-sm text-muted-foreground">
               Search or browse the feelings wheel. Tag up to {MAX_FEELINGS}.
             </p>
@@ -169,7 +190,10 @@ export default function Scans() {
 
             {trimmedQuery ? (
               searchResults.length > 0 ? (
-                <div className="flex flex-wrap gap-2 pt-1" data-testid="search-results">
+                <div
+                  className="flex flex-wrap gap-2 pt-1"
+                  data-testid="search-results"
+                >
                   {searchResults.map((f) => (
                     <FeelingPill
                       key={f.label}
@@ -192,7 +216,9 @@ export default function Scans() {
                       data-testid={`core-${core.name.toLowerCase()}`}
                     >
                       <span className="flex items-center gap-2.5">
-                        <span className={cn("h-2.5 w-2.5 rounded-full", core.dot)} />
+                        <span
+                          className={cn("h-2.5 w-2.5 rounded-full", core.dot)}
+                        />
                         {core.name}
                       </span>
                     </AccordionTrigger>
@@ -200,7 +226,10 @@ export default function Scans() {
                       <div className="space-y-3 pt-1">
                         <FeelingPill label={core.name} />
                         {core.groups.map((g) => (
-                          <div key={g.secondary} className="flex flex-wrap gap-2">
+                          <div
+                            key={g.secondary}
+                            className="flex flex-wrap gap-2"
+                          >
                             <FeelingPill label={g.secondary} />
                             {g.tertiary.map((t) => (
                               <FeelingPill key={t} label={t} />
@@ -216,7 +245,9 @@ export default function Scans() {
           </div>
 
           <div className="space-y-4">
-            <Label className="text-base font-medium">Energy Level: {energyLevel} / 10</Label>
+            <Label className="text-base font-medium">
+              Energy Level: {energyLevel} / 10
+            </Label>
             <Slider
               value={[energyLevel]}
               onValueChange={([v]) => setEnergyLevel(v)}
@@ -233,12 +264,9 @@ export default function Scans() {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label className="text-base font-medium">Physical sensations (optional)</Label>
-              <VoiceInputButton
-                onTranscript={(text) => setPhysicalSensations((prev) => appendTranscript(prev, text))}
-              />
-            </div>
+            <Label className="text-base font-medium">
+              Physical sensations (optional)
+            </Label>
             <Textarea
               placeholder="E.g., tight chest, restless legs, heavy eyelids..."
               className="resize-none bg-background min-h-[80px]"
@@ -249,12 +277,9 @@ export default function Scans() {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label className="text-base font-medium">Any additional notes? (optional)</Label>
-              <VoiceInputButton
-                onTranscript={(text) => setNotes((prev) => appendTranscript(prev, text))}
-              />
-            </div>
+            <Label className="text-base font-medium">
+              Any additional notes? (optional)
+            </Label>
             <Textarea
               placeholder="What triggered this check-in? Anything you want to remember?"
               className="resize-none bg-background min-h-[80px]"
@@ -283,7 +308,11 @@ export default function Scans() {
           </h2>
           <div className="space-y-3">
             {scans.slice(0, 5).map((scan) => (
-              <Card key={scan.id} className="border-border shadow-none" data-testid={`card-scan-${scan.id}`}>
+              <Card
+                key={scan.id}
+                className="border-border shadow-none"
+                data-testid={`card-scan-${scan.id}`}
+              >
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">

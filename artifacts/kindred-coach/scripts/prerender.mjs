@@ -117,6 +117,39 @@ const ROUTES = [
     ogDescription: "Your payment was received.",
     robots: "noindex, nofollow",
   },
+  ...[
+    ["privacy", "Privacy Policy", "How Kindred handles personal information."],
+    ["terms", "Terms and Conditions", "Terms for using the Kindred service."],
+    [
+      "health-disclaimer",
+      "Health Information Disclaimer",
+      "Important boundaries for Kindred's wellness and coaching features.",
+    ],
+    [
+      "ai-disclosure",
+      "AI Use Disclosure",
+      "How Kindred uses AI and relevant user context.",
+    ],
+    [
+      "cookies",
+      "Cookie and Analytics Notice",
+      "Essential browser technologies used by Kindred.",
+    ],
+    [
+      "marketing-consent",
+      "Marketing Consent Language",
+      "Draft consent language for Kindred communications.",
+    ],
+  ].map(([slug, label, description]) => ({
+    path: `/legal/${slug}`,
+    outputFile: `legal/${slug}/index.html`,
+    title: `${label} | ${SITE_NAME}`,
+    description,
+    ogTitle: `${label} | ${SITE_NAME}`,
+    ogDescription: description,
+    // Draft templates require founder/legal review before search indexing.
+    robots: "noindex, follow",
+  })),
 ];
 
 // ---------------------------------------------------------------------------
@@ -187,7 +220,9 @@ function serializeJsonLd(schema) {
 }
 
 function buildHead(route, origin) {
-  const canonical = origin ? `${origin}${route.path === "/" ? "" : route.path}` : "";
+  const canonical = origin
+    ? `${origin}${route.path === "/" ? "" : route.path}`
+    : "";
   const ogImage = origin ? `${origin}/opengraph.jpg` : "/opengraph.jpg";
 
   const lines = [

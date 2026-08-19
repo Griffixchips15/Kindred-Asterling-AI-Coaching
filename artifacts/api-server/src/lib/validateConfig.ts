@@ -55,6 +55,26 @@ export function validateRuntimeConfig(): void {
   ];
   if (calendarValues.some((name) => process.env[name]?.trim())) {
     calendarValues.forEach(requireValue);
+    const redirect = process.env.GOOGLE_CALENDAR_REDIRECT_URI?.trim();
+    if (redirect) {
+      try {
+        const url = new URL(redirect);
+        const isLocal = ["localhost", "127.0.0.1"].includes(url.hostname);
+        if (
+          url.protocol !== "https:" &&
+          !(isLocal && url.protocol === "http:")
+        ) {
+          throw new Error("invalid protocol");
+        }
+        if (url.pathname !== "/api/calendar/callback") {
+          throw new Error("invalid path");
+        }
+      } catch {
+        throw new Error(
+          "GOOGLE_CALENDAR_REDIRECT_URI must be an absolute HTTPS URL ending in /api/calendar/callback (HTTP is allowed only for localhost)",
+        );
+      }
+    }
   }
 
   if (missing.length > 0) {
