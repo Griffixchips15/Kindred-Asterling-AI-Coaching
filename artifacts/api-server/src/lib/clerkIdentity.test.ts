@@ -102,6 +102,8 @@ describe("explicit Clerk identity mapping", () => {
     expect(auth).toContain('import { getAuth } from "@clerk/express"');
     expect(auth).toContain("const auth = getAuth(req)");
     expect(auth).toContain("const { userId } = auth");
+    expect(auth).toContain('typeof debug.reason === "string"');
+    expect(auth).not.toContain("...auth.debug()");
     expect(auth).not.toContain("WithAuthProp");
   });
 });
