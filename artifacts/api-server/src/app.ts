@@ -13,6 +13,18 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Clerk must authenticate the untouched incoming request before any middleware
+// that may transform it. Tests use an isolated identity adapter instead.
+const isTest = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
+if (!isTest) {
+  app.use(
+    clerkMiddleware({
+      secretKey: process.env.CLERK_SECRET_KEY!,
+      publishableKey: process.env.CLERK_PUBLISHABLE_KEY!,
+    }),
+  );
+}
+
 const clerkOrigins = [
   "https://clerk.kindred-asterling-ai-coaching.com",
   "https://accounts.kindred-asterling-ai-coaching.com",
@@ -31,8 +43,14 @@ const allowedOrigins = new Set(
     .map((origin) => origin.replace(/\/$/, "")),
 );
 
-const trustedProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS ?? "1", 10);
-app.set("trust proxy", Number.isFinite(trustedProxyHops) ? trustedProxyHops : 1);
+const trustedProxyHops = Number.parseInt(
+  process.env.TRUST_PROXY_HOPS ?? "1",
+  10,
+);
+app.set(
+  "trust proxy",
+  Number.isFinite(trustedProxyHops) ? trustedProxyHops : 1,
+);
 
 // Security headers — Helmet sets CSP, X-Frame-Options, HSTS, etc.
 app.use(
@@ -105,14 +123,9 @@ app.use(
 app.use(express.urlencoded({ extended: true, limit: "32kb" }));
 
 // Tests use a deliberately small Clerk identity stand-in, never production session code.
-const isTest = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
 if (isTest) {
   app.use(testClerkIdentityAdapter);
 } else {
-  app.use(clerkMiddleware({
-    secretKey: process.env.CLERK_SECRET_KEY!,
-    publishableKey: process.env.CLERK_PUBLISHABLE_KEY!,
-  }));
   app.use(authMiddleware);
 }
 

@@ -94,10 +94,14 @@ describe("explicit Clerk identity mapping", () => {
     );
 
     expect(app).toContain('import { clerkMiddleware } from "@clerk/express"');
-    expect(app).toContain("app.use(clerkMiddleware({");
+    expect(app).toContain("clerkMiddleware({");
+    expect(app.indexOf("clerkMiddleware({")).toBeLessThan(
+      app.indexOf("app.use(\n  helmet({"),
+    );
     expect(app).not.toContain("expressWithAuth");
     expect(auth).toContain('import { getAuth } from "@clerk/express"');
-    expect(auth).toContain("const { userId } = getAuth(req)");
+    expect(auth).toContain("const auth = getAuth(req)");
+    expect(auth).toContain("const { userId } = auth");
     expect(auth).not.toContain("WithAuthProp");
   });
 });

@@ -62,8 +62,21 @@ export async function authMiddleware(
   req.isAuthenticated = function (this: Request) {
     return this.user != null;
   } as Request["isAuthenticated"];
-  const { userId } = getAuth(req);
-  if (!userId) return next();
+  const auth = getAuth(req);
+  const { userId } = auth;
+  if (!userId) {
+    if (req.path.startsWith("/api") && req.path !== "/api/healthz") {
+      logger.warn(
+        {
+          path: req.path,
+          isAuthenticated: auth.isAuthenticated,
+          tokenType: auth.tokenType,
+        },
+        "Clerk did not resolve a user session",
+      );
+    }
+    return next();
+  }
 
   try {
     const clerkUser = await getClerkIdentity(userId);
