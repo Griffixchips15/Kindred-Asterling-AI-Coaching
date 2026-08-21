@@ -7,7 +7,15 @@ import {
 } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ClerkProvider, useAuth, useUser } from "@clerk/clerk-react";
+import {
+  ClerkProvider,
+  RedirectToTasks,
+  TaskChooseOrganization,
+  TaskResetPassword,
+  TaskSetupMFA,
+  useAuth,
+  useSession,
+} from "@clerk/clerk-react";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -102,20 +110,26 @@ function PublicRoutes() {
 }
 
 function PrivateRoutes() {
-  const { isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded: isSessionLoaded, session } = useSession();
+  const sessionStatus = session?.status;
   const tokenBridgeReady = useContext(AuthTokenReadyContext);
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    if (isLoaded && !isSignedIn) {
+    if (isLoaded && sessionStatus !== "pending" && !isSignedIn) {
       setLocation("/login");
     }
-  }, [isLoaded, isSignedIn, setLocation]);
+  }, [isLoaded, isSignedIn, sessionStatus, setLocation]);
+
+  if (sessionStatus === "pending") return <RedirectToTasks />;
 
   // React Query starts requests as soon as its consumers mount. Keep protected
   // pages unmounted until the shared API client can attach Clerk's bearer token;
   // public pages remain independent from Clerk startup latency.
-  if (!isLoaded || !isSignedIn || !tokenBridgeReady) return null;
+  if (!isLoaded || !isSessionLoaded || !isSignedIn || !tokenBridgeReady) {
+    return null;
+  }
 
   return (
     <AppLayout>
@@ -139,6 +153,38 @@ function PrivateRoutes() {
   );
 }
 
+function SessionTaskShell({ children }: { children: ReactNode }) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background p-6">
+      {children}
+    </main>
+  );
+}
+
+function ChooseOrganizationTask() {
+  return (
+    <SessionTaskShell>
+      <TaskChooseOrganization redirectUrlComplete="/app" />
+    </SessionTaskShell>
+  );
+}
+
+function ResetPasswordTask() {
+  return (
+    <SessionTaskShell>
+      <TaskResetPassword redirectUrlComplete="/app" />
+    </SessionTaskShell>
+  );
+}
+
+function SetupMfaTask() {
+  return (
+    <SessionTaskShell>
+      <TaskSetupMFA redirectUrlComplete="/app" />
+    </SessionTaskShell>
+  );
+}
+
 function App() {
   if (!clerkPubKey) {
     return (
@@ -151,7 +197,14 @@ function App() {
   }
 
   return (
-    <ClerkProvider publishableKey={clerkPubKey}>
+    <ClerkProvider
+      publishableKey={clerkPubKey}
+      taskUrls={{
+        "choose-organization": "/app/session-tasks/choose-organization",
+        "reset-password": "/app/session-tasks/reset-password",
+        "setup-mfa": "/app/session-tasks/setup-mfa",
+      }}
+    >
       <AuthTokenBridge>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
@@ -175,6 +228,18 @@ function App() {
                   <Route
                     path="/legal/marketing-consent"
                     component={PublicRoutes}
+                  />
+                  <Route
+                    path="/app/session-tasks/choose-organization"
+                    component={ChooseOrganizationTask}
+                  />
+                  <Route
+                    path="/app/session-tasks/reset-password"
+                    component={ResetPasswordTask}
+                  />
+                  <Route
+                    path="/app/session-tasks/setup-mfa"
+                    component={SetupMfaTask}
                   />
                   <Route path="/app" nest component={PrivateRoutes} />
                   <Route component={NotFound} />
