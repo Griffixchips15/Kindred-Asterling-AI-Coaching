@@ -67,11 +67,14 @@ export async function authMiddleware(
   if (!userId) {
     if (req.path.startsWith("/api") && req.path !== "/api/healthz") {
       const debug = auth.debug() as { reason?: unknown; status?: unknown };
+      const pendingAuth = getAuth(req, { treatPendingAsSignedOut: false });
       logger.warn(
         {
           path: req.path,
           isAuthenticated: auth.isAuthenticated,
           tokenType: auth.tokenType,
+          sessionStatus: auth.sessionStatus,
+          pendingSessionHasUser: Boolean(pendingAuth.userId),
           authStatus:
             typeof debug.status === "string" ? debug.status : undefined,
           authReason:
