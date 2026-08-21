@@ -66,11 +66,16 @@ export async function authMiddleware(
   const { userId } = auth;
   if (!userId) {
     if (req.path.startsWith("/api") && req.path !== "/api/healthz") {
+      const debug = auth.debug() as { reason?: unknown; status?: unknown };
       logger.warn(
         {
           path: req.path,
           isAuthenticated: auth.isAuthenticated,
           tokenType: auth.tokenType,
+          authStatus:
+            typeof debug.status === "string" ? debug.status : undefined,
+          authReason:
+            typeof debug.reason === "string" ? debug.reason : undefined,
         },
         "Clerk did not resolve a user session",
       );
