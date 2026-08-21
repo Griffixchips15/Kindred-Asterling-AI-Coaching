@@ -301,7 +301,7 @@ describe("GET /chat/active", () => {
 });
 
 describe("POST /chat/send", () => {
-  it("returns the fixed crisis response without calling Ollama or spending quota", async () => {
+  it("returns the fixed crisis response without calling the AI provider or spending quota", async () => {
     const res = await api("POST", "/chat/send", {
       token: tokenA,
       body: { content: "I want to kill myself" },
@@ -310,17 +310,20 @@ describe("POST /chat/send", () => {
     expect(createMock).not.toHaveBeenCalled();
 
     const safety = res.body as {
-      messages: { role: string; content: string }[];
+      type: string;
+      message: string;
+      falsePositive: { label: string };
+      regionSelector: { id: string }[];
     };
-    expect(safety.messages).toHaveLength(2);
-    expect(safety.messages[0]).toMatchObject({
-      role: "user",
-      content: "I want to kill myself",
-    });
-    expect(safety.messages[1]).toMatchObject({
-      role: "assistant",
-    });
-    expect(safety.messages[1].content).toContain("immediate help is available");
+    expect(safety.type).toBe("crisis_support");
+    expect(safety.message).toContain("local emergency services");
+    expect(safety.message).toContain(
+      "not medical care or an emergency service",
+    );
+    expect(safety.falsePositive.label).toBe("This doesn’t apply");
+    expect(safety.regionSelector).toContainEqual(
+      expect.objectContaining({ id: "international" }),
+    );
 
     const quotaRows = await db
       .select()

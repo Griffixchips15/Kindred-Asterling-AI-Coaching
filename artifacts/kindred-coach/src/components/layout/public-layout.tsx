@@ -63,13 +63,13 @@ function PublicHeader() {
             Sign In
           </button>
           <Button asChild size="sm" className="ml-2">
-            <Link href="/pricing">Get Started</Link>
+            <Link href="/pricing">Explore membership</Link>
           </Button>
         </nav>
 
         <div className="flex items-center gap-2 md:hidden">
           <Button asChild size="sm">
-            <Link href="/pricing">Get Started</Link>
+            <Link href="/pricing">Membership</Link>
           </Button>
           <button
             onClick={() => setOpen((v) => !v)}
@@ -197,7 +197,9 @@ function PublicFooter() {
 export function PublicLayout({ children }: { children: ReactNode }) {
   return (
     <div
-      className={cn("flex min-h-screen flex-col bg-background text-foreground")}
+      className={cn(
+        "public-site flex min-h-screen flex-col bg-background text-foreground",
+      )}
     >
       <PublicHeader />
       <main className="flex-1">{children}</main>

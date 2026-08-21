@@ -15,6 +15,7 @@ import { useGetCurrentAuthUser } from "@workspace/api-client-react";
 import { Send, Archive, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { SpeakButton } from "@/components/speak-button";
+import { QueryErrorState } from "@/components/query-error-state";
 
 const TEXTAREA_MAX_HEIGHT_PX = 160;
 
@@ -94,11 +95,20 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 export default function Chat() {
   const qc = useQueryClient();
   const [, setLocation] = useLocation();
-  const { data: user, refetch: refetchUser } = useGetCurrentAuthUser({
+  const {
+    data: user,
+    isError: userError,
+    refetch: refetchUser,
+  } = useGetCurrentAuthUser({
     query: { queryKey: getGetCurrentAuthUserQueryKey() },
   });
   const authUser = user?.user ?? null;
-  const { data: conv, isLoading } = useGetActiveChat({
+  const {
+    data: conv,
+    isLoading,
+    isError: chatError,
+    refetch: refetchChat,
+  } = useGetActiveChat({
     query: { queryKey: getGetActiveChatQueryKey() },
   });
 
@@ -200,8 +210,18 @@ export default function Chat() {
           // saves the user turn before calling Ollama, so refetch so the
           // user's message still shows, then surface a transient banner
           // so they can retry without losing what they typed.
+          const reason =
+            err && typeof err === "object" && "data" in err
+              ? (err as { data?: unknown }).data
+              : null;
+          const unavailableReason =
+            reason && typeof reason === "object" && "reason" in reason
+              ? (reason as { reason?: unknown }).reason
+              : null;
           setSendError(
-            "Kindred couldn't put a reply together. Try sending that again in a moment.",
+            unavailableReason === "provider_not_configured"
+              ? "Kindred's AI provider has not been configured yet. An administrator needs to finish the server setup."
+              : "Kindred couldn't put a reply together. Try sending that again in a moment.",
           );
           setDraft(text);
           await qc.invalidateQueries({ queryKey: getGetActiveChatQueryKey() });
@@ -231,6 +251,18 @@ export default function Chat() {
       <div className="flex h-full items-center justify-center">
         <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
       </div>
+    );
+  }
+
+  if (userError || chatError) {
+    return (
+      <QueryErrorState
+        title="Chat unavailable"
+        message="Kindred could not load this conversation. Your existing messages are still saved."
+        onRetry={() => {
+          void Promise.all([refetchUser(), refetchChat()]);
+        }}
+      />
     );
   }
 

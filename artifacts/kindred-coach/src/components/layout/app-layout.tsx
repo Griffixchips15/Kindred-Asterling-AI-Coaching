@@ -22,11 +22,14 @@ import {
 import { cn } from "@/lib/utils";
 import logoMark from "@/assets/brand/logo-mark.png";
 import { ReactNode, useCallback, useEffect, useState } from "react";
-import { useUser, useAuth as useClerkAuth } from "@clerk/clerk-react";
+import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { format, parseISO } from "date-fns";
 import { useTheme, THEME_OPTIONS, type ThemeName } from "@/hooks/use-theme";
-import { useGetCurrentAuthUser, getGetCurrentAuthUserQueryKey } from "@workspace/api-client-react";
-import type { AuthUser } from "@workspace/api-client-react";
+import {
+  getGetCurrentAuthUserQueryKey,
+  type AuthUser,
+  useGetCurrentAuthUser,
+} from "@workspace/api-client-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +43,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useQueryClient } from "@tanstack/react-query";
 
 const SIDEBAR_STORAGE_KEY = "kindred:sidebar-collapsed";
 
@@ -66,12 +70,15 @@ function ThemePicker({ collapsed }: { collapsed: boolean }) {
     <button
       className={cn(
         "flex items-center rounded-lg transition-colors text-sm font-medium w-full text-sidebar-foreground hover:bg-sidebar-accent",
-        collapsed ? "justify-center p-2" : "gap-3 px-3 py-2.5"
+        collapsed ? "justify-center p-2" : "gap-3 px-3 py-2.5",
       )}
       data-testid="theme-picker-trigger"
       aria-label="Change theme"
     >
-      <Palette className="w-5 h-5 text-muted-foreground shrink-0" strokeWidth={2} />
+      <Palette
+        className="w-5 h-5 text-muted-foreground shrink-0"
+        strokeWidth={2}
+      />
       {!collapsed && (
         <>
           <span className="flex-1 text-left">Theme</span>
@@ -154,7 +161,10 @@ function ProfilePanel({
 }) {
   if (!user) return null;
   const name = user.preferredName || user.firstName || user.email || "You";
-  const initials = (name.match(/\b\w/g) ?? []).slice(0, 2).join("").toUpperCase();
+  const initials = (name.match(/\b\w/g) ?? [])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
   if (collapsed) {
     return (
@@ -172,7 +182,10 @@ function ProfilePanel({
   }
 
   const fields: { label: string; value: string | null | undefined }[] = [
-    { label: "Birthday", value: user.birthday ? safeFormatDate(user.birthday) : null },
+    {
+      label: "Birthday",
+      value: user.birthday ? safeFormatDate(user.birthday) : null,
+    },
     { label: "Working on", value: user.struggles },
     { label: "Strengths", value: user.strengths },
     { label: "Interests", value: user.interests },
@@ -185,14 +198,25 @@ function ProfilePanel({
         </div>
         <div className="min-w-0">
           <p className="text-sm font-medium truncate">{name}</p>
-          {user.email && <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>}
+          {user.email && (
+            <p className="text-[11px] text-muted-foreground truncate">
+              {user.email}
+            </p>
+          )}
         </div>
       </div>
       <div className="space-y-1.5 mt-3">
         {fields.map((f) => (
           <div key={f.label} className="text-[11px]">
-            <span className="text-muted-foreground/80 uppercase tracking-wide">{f.label}</span>
-            <p className={cn("text-foreground/90 leading-snug", !f.value && "text-muted-foreground/50 italic")}>
+            <span className="text-muted-foreground/80 uppercase tracking-wide">
+              {f.label}
+            </span>
+            <p
+              className={cn(
+                "text-foreground/90 leading-snug",
+                !f.value && "text-muted-foreground/50 italic",
+              )}
+            >
               {f.value || "—"}
             </p>
           </div>
@@ -229,12 +253,17 @@ function NavLinkItem({
       className={cn(
         "flex items-center rounded-lg transition-colors text-sm font-medium",
         collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
-        isActive ? "bg-primary/10 text-primary" : "text-sidebar-foreground hover:bg-sidebar-accent"
+        isActive
+          ? "bg-primary/10 text-primary"
+          : "text-sidebar-foreground hover:bg-sidebar-accent",
       )}
       data-testid={`nav-${label.toLowerCase()}`}
     >
       <Icon
-        className={cn("w-5 h-5 shrink-0", isActive ? "text-primary" : "text-muted-foreground")}
+        className={cn(
+          "w-5 h-5 shrink-0",
+          isActive ? "text-primary" : "text-muted-foreground",
+        )}
         strokeWidth={isActive ? 2.5 : 2}
       />
       {!collapsed && <span>{label}</span>}
@@ -252,15 +281,17 @@ function NavLinkItem({
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { signOut } = useClerkAuth();
-  const { data } = useGetCurrentAuthUser({
+  const queryClient = useQueryClient();
+  const { data: authData } = useGetCurrentAuthUser({
     query: { queryKey: getGetCurrentAuthUserQueryKey() },
   });
-  const user = data?.user ?? null;
+  const user = authData?.user ?? null;
   const [collapsed, setCollapsed] = useSidebarCollapsed();
 
   const logout = useCallback(async () => {
+    queryClient.clear();
     await signOut();
-  }, [signOut]);
+  }, [queryClient, signOut]);
   const visibleNavItems = navItems;
 
   return (
@@ -268,14 +299,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <aside
         className={cn(
           "flex flex-col border-r bg-sidebar border-border transition-[width] duration-200 ease-in-out",
-          collapsed ? "w-16" : "w-64"
+          collapsed ? "w-16" : "w-64",
         )}
       >
         {/* Header with brand + collapse toggle */}
         <div
           className={cn(
             "flex items-center justify-between",
-            collapsed ? "p-3 flex-col gap-2" : "p-6"
+            collapsed ? "p-3 flex-col gap-2" : "p-6",
           )}
         >
           {!collapsed ? (
@@ -289,7 +320,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 <h1 className="text-lg font-serif text-primary tracking-tight font-medium leading-tight truncate">
                   Kindred Asterling
                 </h1>
-                <p className="text-xs text-muted-foreground mt-0.5 tracking-wide">AI Coaching</p>
+                <p className="text-xs text-muted-foreground mt-0.5 tracking-wide">
+                  AI Coaching
+                </p>
               </div>
             </div>
           ) : (
@@ -320,7 +353,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </Tooltip>
         </div>
 
-        <nav className={cn("flex-1 space-y-1.5 mt-2", collapsed ? "px-2" : "px-4")}>
+        <nav
+          className={cn("flex-1 space-y-1.5 mt-2", collapsed ? "px-2" : "px-4")}
+        >
           {visibleNavItems.map((item) => (
             <NavLinkItem
               key={item.href}
@@ -333,7 +368,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
-        <div className={cn("border-t border-border space-y-1", collapsed ? "p-2" : "p-4")}>
+        <div
+          className={cn(
+            "border-t border-border space-y-1",
+            collapsed ? "p-2" : "p-4",
+          )}
+        >
           <ProfilePanel user={user} collapsed={collapsed} />
           <ThemePicker collapsed={collapsed} />
           {collapsed ? (
@@ -345,7 +385,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   data-testid="logout"
                   aria-label="Log out"
                 >
-                  <LogOut className="w-5 h-5 text-muted-foreground" strokeWidth={2} />
+                  <LogOut
+                    className="w-5 h-5 text-muted-foreground"
+                    strokeWidth={2}
+                  />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right">Log out</TooltipContent>
@@ -356,7 +399,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium w-full text-sidebar-foreground hover:bg-sidebar-accent"
               data-testid="logout"
             >
-              <LogOut className="w-5 h-5 text-muted-foreground" strokeWidth={2} />
+              <LogOut
+                className="w-5 h-5 text-muted-foreground"
+                strokeWidth={2}
+              />
               Log out
             </button>
           )}
@@ -365,7 +411,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto relative">
-        <div className="max-w-2xl mx-auto p-4 md:p-8 min-h-full">{children}</div>
+        <div className="max-w-2xl mx-auto p-4 md:p-8 min-h-full">
+          {children}
+        </div>
       </main>
     </div>
   );

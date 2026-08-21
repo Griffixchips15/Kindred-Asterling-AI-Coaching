@@ -13,7 +13,10 @@ import {
 const router: IRouter = Router();
 
 router.get("/calendar/status", requireAuth, async (req, res): Promise<void> => {
-  res.json({ configured: isCalendarConfigured(), connected: await hasCalendarConnection(req.user!.id) });
+  res.json({
+    configured: isCalendarConfigured(),
+    connected: await hasCalendarConnection(req.user!.id),
+  });
 });
 
 router.get("/calendar/connect", requireAuth, (req, res): void => {
@@ -21,7 +24,17 @@ router.get("/calendar/connect", requireAuth, (req, res): void => {
     res.status(503).json({ error: "calendar_not_configured" });
     return;
   }
-  res.redirect(googleAuthorizationUrl(createOAuthState(req.user!.id)));
+  const authorizationUrl = googleAuthorizationUrl(
+    createOAuthState(req.user!.id),
+  );
+  // Frontend API requests authenticate with a Clerk bearer token. A normal
+  // anchor navigation cannot attach that token, so authenticated clients ask
+  // for the OAuth URL as JSON and then navigate the browser themselves.
+  if (req.accepts(["json", "html"]) === "json") {
+    res.json({ authorizationUrl });
+    return;
+  }
+  res.redirect(authorizationUrl);
 });
 
 router.get("/calendar/callback", async (req, res): Promise<void> => {
@@ -38,22 +51,26 @@ router.get("/calendar/callback", async (req, res): Promise<void> => {
   }
 });
 
-router.get("/calendar/upcoming", requireAuth, async (req, res): Promise<void> => {
-  if (!isCalendarConfigured()) {
-    res.status(503).json({ error: "calendar_not_configured" });
-    return;
-  }
-  if (!(await hasCalendarConnection(req.user!.id))) {
-    res.status(409).json({ error: "calendar_not_connected" });
-    return;
-  }
-  try {
-    const events = await fetchUpcomingEvents(req.user!.id, 3);
-    res.json(events);
-  } catch (err) {
-    req.log.error({ err }, "Failed to fetch Google Calendar events");
-    res.status(502).json({ error: "Unable to load calendar events" });
-  }
-});
+router.get(
+  "/calendar/upcoming",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    if (!isCalendarConfigured()) {
+      res.status(503).json({ error: "calendar_not_configured" });
+      return;
+    }
+    if (!(await hasCalendarConnection(req.user!.id))) {
+      res.status(409).json({ error: "calendar_not_connected" });
+      return;
+    }
+    try {
+      const events = await fetchUpcomingEvents(req.user!.id, 3);
+      res.json(events);
+    } catch (err) {
+      req.log.error({ err }, "Failed to fetch Google Calendar events");
+      res.status(502).json({ error: "Unable to load calendar events" });
+    }
+  },
+);
 
 export default router;

@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { useGetUpcomingCalendarEvents } from "@workspace/api-client-react";
+import { useAuth } from "@clerk/clerk-react";
+import {
+  getGetUpcomingCalendarEventsQueryKey,
+  useGetUpcomingCalendarEvents,
+} from "@workspace/api-client-react";
 import { CalendarDays, Clock, AlertCircle } from "lucide-react";
 
 type RawEvent = { date: string; time: string; title: string };
@@ -39,22 +43,86 @@ function dateSubtitle(d: Date): string {
 }
 
 export default function CalendarPage() {
+  const { getToken } = useAuth();
   const [calendarConfigured, setCalendarConfigured] = useState(false);
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [statusLoaded, setStatusLoaded] = useState(false);
+  const [statusError, setStatusError] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
+
   useEffect(() => {
-    fetch("/api/calendar/status", { credentials: "include" })
-      .then((response) => response.ok ? response.json() : null)
-      .then((status: { configured?: boolean; connected?: boolean } | null) => {
-        setCalendarConfigured(Boolean(status?.configured));
-        setCalendarConnected(Boolean(status?.connected));
-        setStatusLoaded(true);
-      })
-      .catch(() => setStatusLoaded(true));
-  }, []);
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const token = await getToken();
+        const response = await fetch("/api/calendar/status", {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!response.ok)
+          throw new Error(`Calendar status failed (${response.status})`);
+        const status = (await response.json()) as {
+          configured?: boolean;
+          connected?: boolean;
+        };
+        if (!cancelled) {
+          setCalendarConfigured(Boolean(status.configured));
+          setCalendarConnected(Boolean(status.connected));
+          setStatusError(false);
+        }
+      } catch {
+        if (!cancelled) setStatusError(true);
+      } finally {
+        if (!cancelled) setStatusLoaded(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken]);
 
   const { data, isLoading, isError, refetch, isFetching } =
-    useGetUpcomingCalendarEvents();
+    useGetUpcomingCalendarEvents({
+      query: {
+        queryKey: getGetUpcomingCalendarEventsQueryKey(),
+        enabled: statusLoaded && calendarConfigured && calendarConnected,
+      },
+    });
+
+  async function connectCalendar() {
+    setConnecting(true);
+    setConnectError(null);
+    try {
+      const token = await getToken();
+      const response = await fetch("/api/calendar/connect", {
+        headers: {
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const body = (await response.json().catch(() => null)) as {
+        authorizationUrl?: string;
+        error?: string;
+      } | null;
+      if (!response.ok || !body?.authorizationUrl) {
+        throw new Error(
+          body?.error === "calendar_not_configured"
+            ? "Google Calendar has not been configured by the site administrator."
+            : "Unable to start Google Calendar connection.",
+        );
+      }
+      window.location.assign(body.authorizationUrl);
+    } catch (error) {
+      setConnectError(
+        error instanceof Error
+          ? error.message
+          : "Unable to start Google Calendar connection.",
+      );
+      setConnecting(false);
+    }
+  }
 
   const grouped = useMemo(() => {
     const today = startOfDay(new Date());
@@ -105,7 +173,59 @@ export default function CalendarPage() {
         </button>
       </header>
 
-      {isLoading ? (
+      {!statusLoaded ? (
+        <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+          Checking your calendar connection…
+        </div>
+      ) : statusError ? (
+        <div className="rounded-lg border border-border bg-card p-6 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-foreground">
+              Calendar status unavailable
+            </p>
+            <p className="text-muted-foreground mt-1">
+              Refresh the page after confirming you are signed in.
+            </p>
+          </div>
+        </div>
+      ) : !calendarConfigured ? (
+        <div className="rounded-lg border border-border bg-card p-6 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-foreground">
+              Google Calendar setup required
+            </p>
+            <p className="text-muted-foreground mt-1">
+              The site administrator still needs to add the Google OAuth
+              credentials.
+            </p>
+          </div>
+        </div>
+      ) : !calendarConnected ? (
+        <div className="rounded-lg border border-border bg-card p-6 flex items-start gap-3">
+          <CalendarDays className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-foreground">
+              Connect your Google Calendar
+            </p>
+            <p className="text-muted-foreground mt-1">
+              Kindred requests read-only access to your upcoming events.
+            </p>
+            <button
+              type="button"
+              onClick={connectCalendar}
+              disabled={connecting}
+              className="inline-flex mt-4 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {connecting ? "Connecting…" : "Connect Google Calendar"}
+            </button>
+            {connectError && (
+              <p className="mt-3 text-xs text-destructive">{connectError}</p>
+            )}
+          </div>
+        </div>
+      ) : isLoading ? (
         <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
           Loading your calendar…
         </div>
@@ -113,29 +233,18 @@ export default function CalendarPage() {
         <div className="rounded-lg border border-border bg-card p-6 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
           <div className="text-sm">
-            <p className="font-medium text-foreground">Connect your Google Calendar</p>
+            <p className="font-medium text-foreground">
+              Connect your Google Calendar
+            </p>
             <p className="text-muted-foreground mt-1">
               Kindred can use your upcoming events to make planning suggestions.
             </p>
-            {statusLoaded && calendarConfigured && !calendarConnected ? (
-              <a
-                href="/api/calendar/connect"
-                className="inline-flex mt-4 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-              >
-                Connect Google Calendar
-              </a>
-            ) : calendarConnected ? (
-              <button
-                onClick={() => refetch()}
-                className="mt-4 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted"
-              >
-                Try again
-              </button>
-            ) : (
-              <p className="text-xs text-muted-foreground mt-3">
-                Calendar setup is not complete yet. Please try again later.
-              </p>
-            )}
+            <button
+              onClick={() => refetch()}
+              className="mt-4 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted"
+            >
+              Try again
+            </button>
           </div>
         </div>
       ) : grouped.days.length === 0 ? (

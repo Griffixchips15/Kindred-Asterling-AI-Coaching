@@ -21,19 +21,27 @@ const SEED_AFFIRMATIONS = [
   "Your presence matters more than your productivity.",
 ];
 
-let seedChecked = false;
+let seedPromise: Promise<void> | null = null;
 
 async function ensureSeeded(): Promise<void> {
-  if (seedChecked) return;
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(affirmationsTable);
-  if ((count ?? 0) === 0) {
-    await db
-      .insert(affirmationsTable)
-      .values(SEED_AFFIRMATIONS.map((text) => ({ text })));
+  if (!seedPromise) {
+    seedPromise = (async () => {
+      const rows = await db
+        .select({ text: affirmationsTable.text })
+        .from(affirmationsTable);
+      const existing = new Set(rows.map(({ text }) => text));
+      const missing = SEED_AFFIRMATIONS.filter((text) => !existing.has(text));
+      if (missing.length > 0) {
+        await db
+          .insert(affirmationsTable)
+          .values(missing.map((text) => ({ text })));
+      }
+    })().catch((error) => {
+      seedPromise = null;
+      throw error;
+    });
   }
-  seedChecked = true;
+  await seedPromise;
 }
 
 const router: IRouter = Router();
@@ -48,36 +56,44 @@ router.get("/affirmations", requireAuth, async (_req, res): Promise<void> => {
   res.json(JSON.parse(JSON.stringify(rows)));
 });
 
-router.get("/affirmations/today", requireAuth, async (_req, res): Promise<void> => {
-  await ensureSeeded();
-  const rows = await db
-    .select()
-    .from(affirmationsTable)
-    .where(sql`${affirmationsTable.isActive} = true`)
-    .orderBy(affirmationsTable.id);
-  if (rows.length === 0) {
-    res.status(404).json({ error: "No affirmations available" });
-    return;
-  }
-  const start = new Date(new Date().getFullYear(), 0, 0).getTime();
-  const dayOfYear = Math.floor((Date.now() - start) / (1000 * 60 * 60 * 24));
-  const chosen = rows[dayOfYear % rows.length];
-  res.json(JSON.parse(JSON.stringify(chosen)));
-});
+router.get(
+  "/affirmations/today",
+  requireAuth,
+  async (_req, res): Promise<void> => {
+    await ensureSeeded();
+    const rows = await db
+      .select()
+      .from(affirmationsTable)
+      .where(sql`${affirmationsTable.isActive} = true`)
+      .orderBy(affirmationsTable.id);
+    if (rows.length === 0) {
+      res.status(404).json({ error: "No affirmations available" });
+      return;
+    }
+    const start = new Date(new Date().getFullYear(), 0, 0).getTime();
+    const dayOfYear = Math.floor((Date.now() - start) / (1000 * 60 * 60 * 24));
+    const chosen = rows[dayOfYear % rows.length];
+    res.json(JSON.parse(JSON.stringify(chosen)));
+  },
+);
 
-router.get("/affirmations/random", requireAuth, async (_req, res): Promise<void> => {
-  await ensureSeeded();
-  const [row] = await db
-    .select()
-    .from(affirmationsTable)
-    .where(sql`${affirmationsTable.isActive} = true`)
-    .orderBy(sql`random()`)
-    .limit(1);
-  if (!row) {
-    res.status(404).json({ error: "No affirmations available" });
-    return;
-  }
-  res.json(JSON.parse(JSON.stringify(row)));
-});
+router.get(
+  "/affirmations/random",
+  requireAuth,
+  async (_req, res): Promise<void> => {
+    await ensureSeeded();
+    const [row] = await db
+      .select()
+      .from(affirmationsTable)
+      .where(sql`${affirmationsTable.isActive} = true`)
+      .orderBy(sql`random()`)
+      .limit(1);
+    if (!row) {
+      res.status(404).json({ error: "No affirmations available" });
+      return;
+    }
+    res.json(JSON.parse(JSON.stringify(row)));
+  },
+);
 
 export default router;

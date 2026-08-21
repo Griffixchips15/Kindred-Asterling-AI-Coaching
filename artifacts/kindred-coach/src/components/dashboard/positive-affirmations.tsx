@@ -10,7 +10,7 @@ import { Sparkles, ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 const ROTATION_MS = 7000;
 
 export function PositiveAffirmations() {
-  const { data, isLoading, isError } = useListAffirmations({
+  const { data, isLoading, isError, refetch } = useListAffirmations({
     query: { queryKey: getListAffirmationsQueryKey() },
   });
 
@@ -69,9 +69,20 @@ export function PositiveAffirmations() {
               {isLoading ? (
                 <Skeleton className="h-6 w-3/4" />
               ) : isError || !current ? (
-                <p className="font-serif text-lg leading-relaxed text-muted-foreground">
-                  Be gentle with yourself today.
-                </p>
+                <div>
+                  <p className="font-serif text-lg leading-relaxed text-muted-foreground">
+                    Be gentle with yourself today.
+                  </p>
+                  {isError && (
+                    <button
+                      type="button"
+                      onClick={() => void refetch()}
+                      className="mt-2 text-xs font-medium text-primary hover:underline"
+                    >
+                      Reload affirmations
+                    </button>
+                  )}
+                </div>
               ) : (
                 <p
                   key={fadeKey}
@@ -92,7 +103,9 @@ export function PositiveAffirmations() {
                 <span
                   key={i}
                   className={`block h-1 rounded-full transition-all duration-300 ${
-                    i === index ? "w-6 bg-primary" : "w-1.5 bg-muted-foreground/30"
+                    i === index
+                      ? "w-6 bg-primary"
+                      : "w-1.5 bg-muted-foreground/30"
                   }`}
                 />
               ))}

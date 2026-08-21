@@ -1,4 +1,10 @@
-import { useEffect } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ClerkProvider, useAuth, useUser } from "@clerk/clerk-react";
@@ -40,7 +46,7 @@ import {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: false,
+      retry: 1,
       refetchOnWindowFocus: false,
     },
   },
@@ -50,12 +56,27 @@ const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 // Wires Clerk's session JWT into the API client so every /api request carries
 // `Authorization: Bearer <token>` so the API can authenticate the user.
-function AuthTokenBridge() {
-  const { getToken } = useAuth();
+const AuthTokenReadyContext = createContext(false);
+
+function AuthTokenBridge({ children }: { children: ReactNode }) {
+  const { getToken, isLoaded } = useAuth();
+  const [tokenBridgeReady, setTokenBridgeReady] = useState(false);
+
   useEffect(() => {
     setAuthTokenGetter(() => getToken());
+    setTokenBridgeReady(true);
+
+    return () => {
+      setAuthTokenGetter(null);
+      setTokenBridgeReady(false);
+    };
   }, [getToken]);
-  return null;
+
+  return (
+    <AuthTokenReadyContext.Provider value={isLoaded && tokenBridgeReady}>
+      {children}
+    </AuthTokenReadyContext.Provider>
+  );
 }
 
 function PublicRoutes() {
@@ -82,6 +103,7 @@ function PublicRoutes() {
 
 function PrivateRoutes() {
   const { isLoaded, isSignedIn } = useUser();
+  const tokenBridgeReady = useContext(AuthTokenReadyContext);
   const [, setLocation] = useLocation();
 
   useEffect(() => {
@@ -90,7 +112,10 @@ function PrivateRoutes() {
     }
   }, [isLoaded, isSignedIn, setLocation]);
 
-  if (!isLoaded || !isSignedIn) return null;
+  // React Query starts requests as soon as its consumers mount. Keep protected
+  // pages unmounted until the shared API client can attach Clerk's bearer token;
+  // public pages remain independent from Clerk startup latency.
+  if (!isLoaded || !isSignedIn || !tokenBridgeReady) return null;
 
   return (
     <AppLayout>
@@ -127,38 +152,39 @@ function App() {
 
   return (
     <ClerkProvider publishableKey={clerkPubKey}>
-      <AuthTokenBridge />
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <TooltipProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Switch>
-                <Route path="/" component={PublicRoutes} />
-                <Route path="/about" component={PublicRoutes} />
-                <Route path="/science" component={PublicRoutes} />
-                <Route path="/pricing" component={PublicRoutes} />
-                <Route path="/payment-success" component={PublicRoutes} />
-                <Route path="/login" component={PublicRoutes} />
-                <Route path="/legal/privacy" component={PublicRoutes} />
-                <Route path="/legal/terms" component={PublicRoutes} />
-                <Route
-                  path="/legal/health-disclaimer"
-                  component={PublicRoutes}
-                />
-                <Route path="/legal/ai-disclosure" component={PublicRoutes} />
-                <Route path="/legal/cookies" component={PublicRoutes} />
-                <Route
-                  path="/legal/marketing-consent"
-                  component={PublicRoutes}
-                />
-                <Route path="/app" nest component={PrivateRoutes} />
-                <Route component={NotFound} />
-              </Switch>
-            </WouterRouter>
-            <Toaster />
-          </TooltipProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
+      <AuthTokenBridge>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider>
+            <TooltipProvider>
+              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                <Switch>
+                  <Route path="/" component={PublicRoutes} />
+                  <Route path="/about" component={PublicRoutes} />
+                  <Route path="/science" component={PublicRoutes} />
+                  <Route path="/pricing" component={PublicRoutes} />
+                  <Route path="/payment-success" component={PublicRoutes} />
+                  <Route path="/login" component={PublicRoutes} />
+                  <Route path="/legal/privacy" component={PublicRoutes} />
+                  <Route path="/legal/terms" component={PublicRoutes} />
+                  <Route
+                    path="/legal/health-disclaimer"
+                    component={PublicRoutes}
+                  />
+                  <Route path="/legal/ai-disclosure" component={PublicRoutes} />
+                  <Route path="/legal/cookies" component={PublicRoutes} />
+                  <Route
+                    path="/legal/marketing-consent"
+                    component={PublicRoutes}
+                  />
+                  <Route path="/app" nest component={PrivateRoutes} />
+                  <Route component={NotFound} />
+                </Switch>
+              </WouterRouter>
+              <Toaster />
+            </TooltipProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </AuthTokenBridge>
     </ClerkProvider>
   );
 }

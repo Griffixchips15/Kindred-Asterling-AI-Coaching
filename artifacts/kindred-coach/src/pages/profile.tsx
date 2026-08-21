@@ -11,6 +11,7 @@ import { useUser } from "@clerk/clerk-react";
 import { User, Save, Quote, Sparkles, AlertCircle, CalendarDays, CheckCircle2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
+import { QueryErrorState } from "@/components/query-error-state";
 
 type FormState = {
   preferredName: string;
@@ -44,7 +45,7 @@ function safeFormatDate(s: string | null | undefined): string | null {
 export default function Profile() {
   const qc = useQueryClient();
   const { user: clerkUser } = useUser();
-  const { data } = useGetCurrentAuthUser({
+  const { data, isLoading, isError, refetch } = useGetCurrentAuthUser({
     query: { queryKey: getGetCurrentAuthUserQueryKey() },
   });
   const { data: todayAff } = useGetTodayAffirmation({
@@ -86,8 +87,17 @@ export default function Profile() {
     });
   }, [user]);
 
-  if (!user) {
+  if (isLoading) {
     return <p className="text-sm text-muted-foreground">Loading profile…</p>;
+  }
+  if (isError || !user) {
+    return (
+      <QueryErrorState
+        title="Profile unavailable"
+        message="Kindred could not load your profile. Check your connection and try again."
+        onRetry={() => void refetch()}
+      />
+    );
   }
 
   const displayName =
@@ -96,7 +106,10 @@ export default function Profile() {
     user.firstName ||
     user.email ||
     "You";
-  const initials = (displayName.match(/\b\w/g) ?? []).slice(0, 2).join("").toUpperCase();
+  const initials = (displayName.match(/\b\w/g) ?? [])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
   function setField<K extends keyof FormState>(k: K, v: FormState[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -143,9 +156,12 @@ export default function Profile() {
   return (
     <div className="space-y-6 pb-12">
       <header>
-        <h1 className="text-2xl font-serif text-primary tracking-tight">Profile</h1>
+        <h1 className="text-2xl font-serif text-primary tracking-tight">
+          Profile
+        </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Keep this up to date — Kindred uses what you share here to make your coaching chats feel more like you.
+          Keep this up to date — Kindred uses what you share here to make your
+          coaching chats feel more like you.
         </p>
       </header>
 
@@ -166,7 +182,9 @@ export default function Profile() {
           <div className="min-w-0">
             <p className="text-lg font-medium truncate">{displayName}</p>
             {user.email && (
-              <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+              <p className="text-sm text-muted-foreground truncate">
+                {user.email}
+              </p>
             )}
             {safeFormatDate(user.birthday) && (
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -214,7 +232,9 @@ export default function Profile() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">Preferred name</label>
+            <label className="block text-xs text-muted-foreground mb-1">
+              Preferred name
+            </label>
             <input
               value={form.preferredName}
               onChange={(e) => setField("preferredName", e.target.value)}
@@ -224,7 +244,9 @@ export default function Profile() {
             />
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">Birthday</label>
+            <label className="block text-xs text-muted-foreground mb-1">
+              Birthday
+            </label>
             <input
               type="date"
               value={form.birthday}
@@ -236,7 +258,9 @@ export default function Profile() {
         </div>
 
         <div>
-          <label className="block text-xs text-muted-foreground mb-1">About you (bio)</label>
+          <label className="block text-xs text-muted-foreground mb-1">
+            About you (bio)
+          </label>
           <textarea
             value={form.bio}
             onChange={(e) => setField("bio", e.target.value)}
@@ -248,7 +272,9 @@ export default function Profile() {
         </div>
 
         <div>
-          <label className="block text-xs text-muted-foreground mb-1">Motivational quote</label>
+          <label className="block text-xs text-muted-foreground mb-1">
+            Motivational quote
+          </label>
           <input
             value={form.motivationalQuote}
             onChange={(e) => setField("motivationalQuote", e.target.value)}
@@ -257,7 +283,8 @@ export default function Profile() {
             data-testid="profile-quote"
           />
           <p className="text-[11px] text-muted-foreground/80 mt-1">
-            Shown at the top of your profile and referenced occasionally in chat.
+            Shown at the top of your profile and referenced occasionally in
+            chat.
           </p>
         </div>
       </section>
@@ -328,12 +355,15 @@ export default function Profile() {
         <div>
           <h2 className="text-sm font-medium">What Kindred should know</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            These shape how the AI talks with you. Update them anytime your situation changes.
+            These shape how the AI talks with you. Update them anytime your
+            situation changes.
           </p>
         </div>
 
         <div>
-          <label className="block text-xs text-muted-foreground mb-1">What you're working through</label>
+          <label className="block text-xs text-muted-foreground mb-1">
+            What you're working through
+          </label>
           <textarea
             value={form.struggles}
             onChange={(e) => setField("struggles", e.target.value)}
@@ -345,7 +375,9 @@ export default function Profile() {
         </div>
 
         <div>
-          <label className="block text-xs text-muted-foreground mb-1">Your strengths</label>
+          <label className="block text-xs text-muted-foreground mb-1">
+            Your strengths
+          </label>
           <textarea
             value={form.strengths}
             onChange={(e) => setField("strengths", e.target.value)}
@@ -357,7 +389,9 @@ export default function Profile() {
         </div>
 
         <div>
-          <label className="block text-xs text-muted-foreground mb-1">Interests</label>
+          <label className="block text-xs text-muted-foreground mb-1">
+            Interests
+          </label>
           <textarea
             value={form.interests}
             onChange={(e) => setField("interests", e.target.value)}

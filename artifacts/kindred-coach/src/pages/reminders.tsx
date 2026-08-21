@@ -7,8 +7,17 @@ import {
   getGetReminderSettingsQueryKey,
   updateReminderSettings,
 } from "@workspace/api-client-react";
-import { Bell, Save, Sunrise, Sunset, Pill, Smartphone, Mail } from "lucide-react";
+import {
+  Bell,
+  Save,
+  Sunrise,
+  Sunset,
+  Pill,
+  Smartphone,
+  Mail,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { QueryErrorState } from "@/components/query-error-state";
 
 type FormState = {
   phone: string;
@@ -78,10 +87,20 @@ function Toggle({
 
 export default function Reminders() {
   const qc = useQueryClient();
-  const { data: authData } = useGetCurrentAuthUser({
+  const {
+    data: authData,
+    isLoading: userLoading,
+    isError: userError,
+    refetch: refetchUser,
+  } = useGetCurrentAuthUser({
     query: { queryKey: getGetCurrentAuthUserQueryKey() },
   });
-  const { data: settings } = useGetReminderSettings({
+  const {
+    data: settings,
+    isLoading: settingsLoading,
+    isError: settingsError,
+    refetch: refetchSettings,
+  } = useGetReminderSettings({
     query: { queryKey: getGetReminderSettingsQueryKey() },
   });
 
@@ -110,8 +129,19 @@ export default function Reminders() {
     setLoaded(true);
   }, [user, settings, loaded]);
 
-  if (!user || !settings) {
+  if (userLoading || settingsLoading) {
     return <p className="text-sm text-muted-foreground">Loading reminders…</p>;
+  }
+  if (userError || settingsError || !user || !settings) {
+    return (
+      <QueryErrorState
+        title="Reminders unavailable"
+        message="Kindred could not load your reminder settings. Your existing settings have not been changed."
+        onRetry={() => {
+          void Promise.all([refetchUser(), refetchSettings()]);
+        }}
+      />
+    );
   }
 
   function setField<K extends keyof FormState>(k: K, v: FormState[K]) {
@@ -173,7 +203,9 @@ export default function Reminders() {
   return (
     <div className="space-y-6 pb-12">
       <header>
-        <h1 className="text-2xl font-serif text-primary tracking-tight">Reminders</h1>
+        <h1 className="text-2xl font-serif text-primary tracking-tight">
+          Reminders
+        </h1>
         <p className="text-sm text-muted-foreground mt-1">
           Let Kindred nudge you at the right moments — by text, email, or both.
         </p>
@@ -184,8 +216,8 @@ export default function Reminders() {
         <div>
           <h2 className="text-sm font-medium">How should Kindred reach you?</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Pick one or both. Reminders go out at the times you set below, in your
-            local time.
+            Pick one or both. Reminders go out at the times you set below, in
+            your local time.
           </p>
         </div>
 
@@ -229,7 +261,10 @@ export default function Reminders() {
 
         <div>
           <label className="block text-xs text-muted-foreground mb-1">
-            Phone number {form.smsEnabled && <span className="text-primary">(needed for texts)</span>}
+            Phone number{" "}
+            {form.smsEnabled && (
+              <span className="text-primary">(needed for texts)</span>
+            )}
           </label>
           <input
             type="tel"
@@ -247,7 +282,9 @@ export default function Reminders() {
         </div>
 
         <div>
-          <label className="block text-xs text-muted-foreground mb-1">Your timezone</label>
+          <label className="block text-xs text-muted-foreground mb-1">
+            Your timezone
+          </label>
           <input
             value={form.timezone}
             onChange={(e) => setField("timezone", e.target.value)}
@@ -264,7 +301,9 @@ export default function Reminders() {
       {/* What to be reminded about */}
       <section className="rounded-lg border border-border bg-card p-5 space-y-5">
         <div>
-          <h2 className="text-sm font-medium">What should Kindred remind you about?</h2>
+          <h2 className="text-sm font-medium">
+            What should Kindred remind you about?
+          </h2>
         </div>
 
         {/* Morning */}
@@ -273,7 +312,9 @@ export default function Reminders() {
             <Sunrise className="w-4 h-4 text-muted-foreground mt-0.5" />
             <div>
               <p className="text-sm">Morning check-in</p>
-              <p className="text-[11px] text-muted-foreground">Start the day with a mental-load check-in.</p>
+              <p className="text-[11px] text-muted-foreground">
+                Start the day with a mental-load check-in.
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -320,7 +361,9 @@ export default function Reminders() {
             <Sunset className="w-4 h-4 text-muted-foreground mt-0.5" />
             <div>
               <p className="text-sm">Evening reflection</p>
-              <p className="text-[11px] text-muted-foreground">Wind down and reflect before bed.</p>
+              <p className="text-[11px] text-muted-foreground">
+                Wind down and reflect before bed.
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -346,7 +389,10 @@ export default function Reminders() {
       {/* Save bar */}
       <div className="sticky bottom-0 flex items-center justify-between gap-3 rounded-lg border border-border bg-card/95 backdrop-blur p-3">
         <p
-          className={cn("text-xs", error ? "text-destructive" : "text-muted-foreground")}
+          className={cn(
+            "text-xs",
+            error ? "text-destructive" : "text-muted-foreground",
+          )}
           data-testid="reminders-save-status"
         >
           {error
@@ -365,7 +411,11 @@ export default function Reminders() {
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           data-testid="reminders-save"
         >
-          {saving ? <Bell className="w-4 h-4 animate-pulse" /> : <Save className="w-4 h-4" />}
+          {saving ? (
+            <Bell className="w-4 h-4 animate-pulse" />
+          ) : (
+            <Save className="w-4 h-4" />
+          )}
           {saving ? "Saving…" : "Save reminders"}
         </button>
       </div>

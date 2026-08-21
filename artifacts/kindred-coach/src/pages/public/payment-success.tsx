@@ -3,12 +3,14 @@ import { Link } from "wouter";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useAuth } from "@clerk/clerk-react";
 
 // Helcim redirects here after a successful payment. Entitlement is granted
 // asynchronously (Helcim webhook → cached subscription row), so we give the user
 // a clear success state plus a "check access" action that re-verifies before
 // sending them into the app.
 export default function PaymentSuccess() {
+  const { getToken } = useAuth();
   const [checking, setChecking] = useState(false);
   const [notReady, setNotReady] = useState(false);
   const appHref = `${import.meta.env.BASE_URL.replace(/\/+$/, "")}/app`;
@@ -17,8 +19,9 @@ export default function PaymentSuccess() {
     setChecking(true);
     setNotReady(false);
     try {
+      const token = await getToken();
       const res = await fetch("/api/subscription/status", {
-        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       const data = (await res.json()) as { active?: boolean };
       if (data?.active) {

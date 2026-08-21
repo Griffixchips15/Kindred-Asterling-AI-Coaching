@@ -7,9 +7,17 @@ import {
   FaWhatsapp,
   FaXTwitter,
 } from "react-icons/fa6";
+import { FaGoogle, FaPatreon } from "react-icons/fa";
 
 export type SocialPlatform =
-  "whatsapp" | "instagram" | "threads" | "facebook" | "x" | "linkedin";
+  | "whatsapp"
+  | "instagram"
+  | "threads"
+  | "facebook"
+  | "x"
+  | "linkedin"
+  | "google"
+  | "patreon";
 
 export interface SocialLink {
   platform: SocialPlatform;
@@ -19,7 +27,7 @@ export interface SocialLink {
 }
 
 function validSocialUrl(
-  value: string | undefined,
+  value: string | null | undefined,
   hosts: string[],
 ): string | null {
   if (!value) return null;
@@ -45,44 +53,49 @@ export const SOCIAL_LINKS: SocialLink[] = [
   {
     platform: "whatsapp",
     label: "WhatsApp",
-    href: validSocialUrl(import.meta.env.VITE_SOCIAL_WHATSAPP_URL, [
-      "wa.me",
-      "whatsapp.com",
-    ]),
+    href: validSocialUrl(
+      import.meta.env.VITE_SOCIAL_WHATSAPP_URL || "https://wa.me/15875946872",
+      ["wa.me", "whatsapp.com"],
+    ),
     icon: FaWhatsapp,
   },
   {
     platform: "instagram",
     label: "Instagram",
-    href: validSocialUrl(import.meta.env.VITE_SOCIAL_INSTAGRAM_URL, [
-      "instagram.com",
-    ]),
+    href: validSocialUrl(
+      import.meta.env.VITE_SOCIAL_INSTAGRAM_URL ||
+        "https://www.instagram.com/griffixchips26/",
+      ["instagram.com"],
+    ),
     icon: FaInstagram,
   },
   {
     platform: "threads",
     label: "Threads",
-    href: validSocialUrl(import.meta.env.VITE_SOCIAL_THREADS_URL, [
-      "threads.net",
-    ]),
+    href: validSocialUrl(
+      import.meta.env.VITE_SOCIAL_THREADS_URL ||
+        "https://www.threads.net/@griffixchips26",
+      ["threads.net"],
+    ),
     icon: FaThreads,
   },
   {
     platform: "facebook",
     label: "Facebook",
-    href: validSocialUrl(import.meta.env.VITE_SOCIAL_FACEBOOK_URL, [
-      "facebook.com",
-      "fb.com",
-    ]),
+    href: validSocialUrl(
+      import.meta.env.VITE_SOCIAL_FACEBOOK_URL ||
+        "https://www.facebook.com/profile.php?id=61590773082313",
+      ["facebook.com", "fb.com"],
+    ),
     icon: FaFacebookF,
   },
   {
     platform: "x",
     label: "X",
-    href: validSocialUrl(import.meta.env.VITE_SOCIAL_X_URL, [
-      "x.com",
-      "twitter.com",
-    ]),
+    href: validSocialUrl(
+      import.meta.env.VITE_SOCIAL_X_URL || "https://x.com/Griffixchips",
+      ["x.com", "twitter.com"],
+    ),
     icon: FaXTwitter,
   },
   {
@@ -92,6 +105,26 @@ export const SOCIAL_LINKS: SocialLink[] = [
       "linkedin.com",
     ]),
     icon: FaLinkedinIn,
+  },
+  {
+    platform: "google",
+    label: "Google Business",
+    href: validSocialUrl(
+      import.meta.env.VITE_SOCIAL_GOOGLE_BUSINESS_URL ||
+        "https://share.google/N2VLKwW45pnL3eZ3A",
+      ["share.google", "google.com"],
+    ),
+    icon: FaGoogle,
+  },
+  {
+    platform: "patreon",
+    label: "Patreon",
+    href: validSocialUrl(
+      import.meta.env.VITE_SOCIAL_PATREON_URL ||
+        "https://patreon.com/kindred_ai",
+      ["patreon.com"],
+    ),
+    icon: FaPatreon,
   },
 ];
 
