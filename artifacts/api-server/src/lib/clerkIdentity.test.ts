@@ -85,4 +85,19 @@ describe("explicit Clerk identity mapping", () => {
     expect(auth).toContain("await syncClerkIdentity(clerkUser)");
     expect(webhook).toContain("await syncClerkIdentity({");
   });
+
+  it("uses Clerk's supported Express middleware for production sessions", () => {
+    const app = readFileSync(new URL("../app.ts", import.meta.url), "utf8");
+    const auth = readFileSync(
+      new URL("../middlewares/authMiddleware.ts", import.meta.url),
+      "utf8",
+    );
+
+    expect(app).toContain('import { clerkMiddleware } from "@clerk/express"');
+    expect(app).toContain("app.use(clerkMiddleware({");
+    expect(app).not.toContain("expressWithAuth");
+    expect(auth).toContain('import { getAuth } from "@clerk/express"');
+    expect(auth).toContain("const { userId } = getAuth(req)");
+    expect(auth).not.toContain("WithAuthProp");
+  });
 });
