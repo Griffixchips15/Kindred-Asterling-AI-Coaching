@@ -1,5 +1,5 @@
 import { createClerkClient } from "@clerk/backend";
-import type { WithAuthProp } from "@clerk/clerk-sdk-node";
+import { getAuth } from "@clerk/express";
 import type { NextFunction, Request, Response } from "express";
 import { logger } from "../lib/logger";
 import { syncClerkIdentity } from "../lib/clerkIdentity";
@@ -62,7 +62,7 @@ export async function authMiddleware(
   req.isAuthenticated = function (this: Request) {
     return this.user != null;
   } as Request["isAuthenticated"];
-  const userId = (req as WithAuthProp<Request>).auth?.userId;
+  const { userId } = getAuth(req);
   if (!userId) return next();
 
   try {
