@@ -1,4 +1,10 @@
-import { Check, ShieldCheck, Lock, HeartHandshake } from "lucide-react";
+import {
+  Check,
+  ShieldCheck,
+  Lock,
+  HeartHandshake,
+  Sparkles,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -32,30 +38,36 @@ const TRUST = [
 export default function Pricing() {
   return (
     <div>
-      <section className="relative overflow-hidden">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-70"
-          style={{
-            background:
-              "radial-gradient(60% 50% at 50% 0%, hsl(var(--primary) / 0.16), transparent 70%)",
-          }}
-        />
-        <div className="relative mx-auto max-w-3xl px-5 pb-10 pt-20 text-center md:px-8 md:pt-24">
-          <h1 className="font-serif text-4xl font-medium leading-tight tracking-tight text-foreground md:text-5xl">
+      <section className="relative isolate overflow-hidden bg-primary text-primary-foreground">
+        <div className="pointer-events-none absolute -right-32 -top-40 h-[30rem] w-[30rem] rounded-full bg-secondary/25 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-48 left-1/4 h-80 w-80 rounded-full bg-background/10 blur-3xl" />
+        <div className="relative mx-auto max-w-4xl px-5 py-20 text-center md:px-8 md:py-28">
+          <p className="flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-secondary">
+            <Sparkles className="h-4 w-4" /> One clear choice
+          </p>
+          <h1 className="mt-5 font-serif text-5xl font-medium leading-[1.04] tracking-[-0.04em] text-balance md:text-6xl">
             Simple, honest pricing.
           </h1>
-          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-primary-foreground/75 md:text-lg">
             Choose the plan that fits. You'll sign in first, then complete a
             secure checkout — access unlocks automatically once payment clears.
           </p>
         </div>
       </section>
 
-      <section className="mx-auto max-w-4xl px-5 pb-10 md:px-8">
-        <div className="grid gap-6 md:grid-cols-2">
+      <section className="mx-auto max-w-5xl px-5 py-16 md:px-8 md:py-24">
+        <div className="mb-10 max-w-2xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+            Membership options
+          </p>
+          <h2 className="mt-3 font-serif text-3xl font-medium tracking-tight md:text-4xl">
+            Choose the pace that feels right.
+          </h2>
+        </div>
+        <div className="grid gap-5 md:grid-cols-2">
           {/* Yearly */}
-          <Card className="flex h-full flex-col">
-            <CardHeader>
+          <Card className="flex h-full flex-col rounded-2xl border-border/80 bg-card/80 shadow-sm">
+            <CardHeader className="p-7 pb-5">
               <CardTitle className="font-serif text-2xl">Yearly</CardTitle>
               <CardDescription>For the ongoing work.</CardDescription>
               <div className="mt-2 flex items-baseline gap-1">
@@ -65,7 +77,7 @@ export default function Pricing() {
                 <span className="text-muted-foreground">/ year</span>
               </div>
             </CardHeader>
-            <CardContent className="flex flex-1 flex-col">
+            <CardContent className="flex flex-1 flex-col px-7 pb-7">
               <ul className="flex-1 space-y-3">
                 {YEARLY_FEATURES.map((f) => (
                   <li key={f} className="flex gap-3 text-sm text-foreground">
@@ -85,11 +97,11 @@ export default function Pricing() {
           </Card>
 
           {/* Lifetime */}
-          <Card className="relative flex h-full flex-col ring-1 ring-primary/40">
-            <div className="absolute right-5 top-5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+          <Card className="relative flex h-full flex-col overflow-hidden rounded-2xl border-primary/30 bg-card shadow-md ring-1 ring-primary/20">
+            <div className="absolute right-5 top-5 rounded-full bg-secondary/35 px-3 py-1 text-xs font-semibold text-primary">
               Best value
             </div>
-            <CardHeader>
+            <CardHeader className="p-7 pb-5">
               <CardTitle className="font-serif text-2xl">Lifetime</CardTitle>
               <CardDescription>One payment. Forever.</CardDescription>
               <div className="mt-2 flex items-baseline gap-1">
@@ -99,7 +111,7 @@ export default function Pricing() {
                 <span className="text-muted-foreground">once</span>
               </div>
             </CardHeader>
-            <CardContent className="flex flex-1 flex-col">
+            <CardContent className="flex flex-1 flex-col px-7 pb-7">
               <ul className="flex-1 space-y-3">
                 {LIFETIME_FEATURES.map((f) => (
                   <li key={f} className="flex gap-3 text-sm text-foreground">
@@ -119,30 +131,37 @@ export default function Pricing() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-4xl px-5 pb-24 md:px-8">
-        <div className="grid gap-4 rounded-xl border border-border/60 bg-card/40 p-6 sm:grid-cols-3">
-          {TRUST.map((t) => (
-            <div key={t.label} className="flex items-start gap-3">
-              <t.icon className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-              <span className="text-sm leading-snug text-muted-foreground">
-                {t.label}
-              </span>
-            </div>
-          ))}
-        </div>
+      <section className="bg-muted/55">
+        <div className="mx-auto max-w-5xl px-5 py-16 md:px-8 md:py-20">
+          <div className="grid gap-5 sm:grid-cols-3">
+            {TRUST.map((t) => (
+              <div
+                key={t.label}
+                className="flex items-start gap-3 rounded-2xl border border-border bg-card p-5"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary/25 text-primary">
+                  <t.icon className="h-4 w-4" />
+                </span>
+                <span className="text-sm leading-snug text-muted-foreground">
+                  {t.label}
+                </span>
+              </div>
+            ))}
+          </div>
 
-        <div className="mt-8 text-center">
-          <p className="text-muted-foreground text-sm">
-            Already have a subscription?{" "}
-            <a
-              href="https://kindred-asterling-ai.helcim.app/login"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-primary underline underline-offset-2 hover:text-primary/80"
-            >
-              Manage your billing
-            </a>
-          </p>
+          <div className="mt-8 text-center">
+            <p className="text-muted-foreground text-sm">
+              Already have a subscription?{" "}
+              <a
+                href="https://kindred-asterling-ai.helcim.app/login"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary underline underline-offset-2 hover:text-primary/80"
+              >
+                Manage your billing
+              </a>
+            </p>
+          </div>
         </div>
       </section>
     </div>

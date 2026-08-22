@@ -1,4 +1,4 @@
-import { ExternalLink } from "lucide-react";
+import { Brain, ExternalLink, HeartHandshake, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 const PILLARS = [
@@ -76,33 +76,37 @@ const BIBLIOGRAPHY = [
 export default function Science() {
   return (
     <div>
-      <section className="relative overflow-hidden">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-70"
-          style={{
-            background:
-              "radial-gradient(60% 50% at 50% 0%, hsl(var(--primary) / 0.16), transparent 70%)",
-          }}
-        />
-        <div className="relative mx-auto max-w-3xl px-5 pb-12 pt-20 text-center md:px-8 md:pt-24">
-          <h1 className="font-serif text-4xl font-medium leading-tight tracking-tight text-foreground md:text-5xl">
+      <section className="relative isolate overflow-hidden bg-primary text-primary-foreground">
+        <div className="pointer-events-none absolute -right-32 -top-40 h-[30rem] w-[30rem] rounded-full bg-secondary/25 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-48 left-1/4 h-80 w-80 rounded-full bg-background/10 blur-3xl" />
+        <div className="relative mx-auto max-w-4xl px-5 py-20 text-center md:px-8 md:py-28">
+          <p className="flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-secondary">
+            <Sparkles className="h-4 w-4" /> Research & responsibility
+          </p>
+          <h1 className="mt-5 font-serif text-5xl font-medium leading-[1.04] tracking-[-0.04em] text-balance md:text-6xl">
             Kindred is anchored in peer-reviewed science.
           </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
-            We approach the mind with intellectual respect, drawing from cognitive
-            neuroscience, addiction science, and behavioral health.
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-primary-foreground/75 md:text-lg">
+            We approach the mind with intellectual respect, drawing from
+            cognitive neuroscience, addiction science, and behavioral health.
           </p>
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-5 py-12 md:px-8">
-        <h2 className="mb-8 text-center font-serif text-2xl font-medium tracking-tight text-foreground md:text-3xl">
+      <section className="mx-auto max-w-6xl px-5 py-16 md:px-8 md:py-24">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+          The thinking behind Kindred
+        </p>
+        <h2 className="mb-10 mt-3 font-serif text-3xl font-medium tracking-tight text-foreground md:text-4xl">
           Research pillars
         </h2>
         <div className="grid gap-5 md:grid-cols-2">
           {PILLARS.map((p) => (
-            <Card key={p.name} className="h-full">
-              <CardContent className="flex h-full flex-col pt-6">
+            <Card
+              key={p.name}
+              className="h-full rounded-2xl border-border/80 bg-card/80 shadow-sm"
+            >
+              <CardContent className="flex h-full flex-col p-7">
                 <p className="text-xs font-semibold uppercase tracking-wide text-primary">
                   {p.name}
                 </p>
@@ -127,35 +131,40 @@ export default function Science() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-3xl px-5 py-12 md:px-8">
-        <Card>
-          <CardContent className="px-6 py-10 md:px-10">
-            <h2 className="font-serif text-2xl font-medium tracking-tight text-foreground">
-              Evidence-Based Techniques
-            </h2>
-            <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-              Recovery as a process of reorganizing habits through social support
-              and self-directed growth. Evidence-based therapeutic techniques —
-              including DBT and CBT — are woven into the coaching framework to
-              build distress tolerance and emotional regulation.
-            </p>
-          </CardContent>
-        </Card>
+      <section className="bg-muted/55">
+        <div className="mx-auto grid max-w-6xl gap-5 px-5 py-16 md:px-8 md:py-20 lg:grid-cols-2">
+          <Card className="rounded-2xl bg-card">
+            <CardContent className="p-7 md:p-9">
+              <Brain className="h-6 w-6 text-primary" />
+              <h2 className="font-serif text-2xl font-medium tracking-tight text-foreground">
+                Evidence-Based Techniques
+              </h2>
+              <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+                Recovery as a process of reorganizing habits through social
+                support and self-directed growth. Evidence-based therapeutic
+                techniques — including DBT and CBT — are woven into the coaching
+                framework to build distress tolerance and emotional regulation.
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="rounded-2xl bg-card">
+            <CardContent className="p-7 md:p-9">
+              <HeartHandshake className="h-6 w-6 text-primary" />
+              <h2 className="mt-5 font-serif text-2xl font-medium tracking-tight text-foreground">
+                The ethical landscape
+              </h2>
+              <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+                AI can identify patterns and personalize support, but lacks
+                emotional nuance. Human connection remains essential. Kindred is
+                designed with this boundary clearly in mind.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </section>
 
-      <section className="mx-auto max-w-3xl px-5 pb-16 md:px-8">
-        <h2 className="font-serif text-2xl font-medium tracking-tight text-foreground">
-          The ethical landscape
-        </h2>
-        <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-          AI can identify patterns and personalize support, but lacks emotional
-          nuance. Human connection remains essential. Kindred is designed with
-          this boundary clearly in mind.
-        </p>
-      </section>
-
-      <section className="mx-auto max-w-3xl px-5 py-8 md:px-8">
-        <div className="rounded-xl border border-border/60 bg-card/40 p-6">
+      <section className="mx-auto max-w-3xl px-5 pt-16 md:px-8 md:pt-20">
+        <div className="rounded-2xl border border-border bg-card/80 p-7">
           <h2 className="font-serif text-xl font-medium tracking-tight text-foreground">
             Who writes and reviews this
           </h2>
@@ -171,7 +180,7 @@ export default function Science() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-3xl px-5 pb-24 md:px-8">
+      <section className="mx-auto max-w-3xl px-5 pb-24 pt-12 md:px-8">
         <h2 className="font-serif text-xl font-medium tracking-tight text-foreground">
           Sources
         </h2>
@@ -181,8 +190,13 @@ export default function Science() {
         </p>
         <ol className="mt-6 space-y-4">
           {BIBLIOGRAPHY.map((b, i) => (
-            <li key={i} className="flex gap-3 text-sm leading-relaxed text-muted-foreground">
-              <span className="shrink-0 font-medium text-foreground">{i + 1}.</span>
+            <li
+              key={i}
+              className="flex gap-3 text-sm leading-relaxed text-muted-foreground"
+            >
+              <span className="shrink-0 font-medium text-foreground">
+                {i + 1}.
+              </span>
               <span>
                 {b.citation}{" "}
                 <a
