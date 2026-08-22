@@ -63,7 +63,7 @@ export async function createHelcimCustomer(user: {
   const response = await fetch(`${API_ROOT}/customers`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey()}`,
+      "api-token": apiKey(),
       "Content-Type": "application/json",
       Accept: "application/json",
     },

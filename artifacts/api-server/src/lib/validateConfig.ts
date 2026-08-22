@@ -36,6 +36,7 @@ export function validateRuntimeConfig(): void {
     for (const name of [
       "HELCIM_API_KEY",
       "HELCIM_WEBHOOK_SECRET",
+      "HELCIM_CUSTOMER_REFERENCE_SECRET",
       "HELCIM_YEARLY_PLAN_ID",
       "HELCIM_YEARLY_CHECKOUT_URL",
       "HELCIM_LIFETIME_CHECKOUT_URL",
