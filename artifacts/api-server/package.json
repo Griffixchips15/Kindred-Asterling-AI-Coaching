@@ -16,6 +16,7 @@
     "@clerk/backend": "^3.16.0",
     "@clerk/express": "^2.1.51",
     "@clerk/shared": "^4.27.0",
+    "@sentry/node": "^10.70.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "bcryptjs": "^3.0.2",

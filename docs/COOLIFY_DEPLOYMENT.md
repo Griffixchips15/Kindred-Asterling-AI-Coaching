@@ -14,8 +14,10 @@ PostgreSQL and Ollama services.
    `/root/.ollama` so models survive replacement.
 3. Create an application from this Git repository. Select **Dockerfile** with
    path `/Dockerfile`, port `8080`, and the production branch.
-4. Add `VITE_CLERK_PUBLISHABLE_KEY` as a **build argument**. It is public and is
-   compiled into browser assets. A change requires a rebuild.
+4. Add `VITE_CLERK_PUBLISHABLE_KEY` and `VITE_SENTRY_DSN` as **build
+   arguments**. They are public and compiled into browser assets. Also set
+   `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_RELEASE` (normally the Git SHA), and
+   `VITE_SENTRY_TRACES_SAMPLE_RATE`. A change requires a rebuild.
 5. Add the non-`VITE_*` values from `.env.example` as runtime environment
    variables. Mark keys, webhook signing secrets, database URLs, and encryption
    values as secrets. The Clerk publishable key is needed twice: the Vite build
@@ -35,6 +37,20 @@ PostgreSQL and Ollama services.
 
    Schema initialization and migration are deliberately not part of container
    startup, so a restart cannot unexpectedly mutate production data.
+
+### Sentry
+
+Create separate Sentry projects for the browser and Node API. Configure the
+browser project's DSN through the `VITE_SENTRY_*` build arguments and the API
+project's DSN through the runtime-only `SENTRY_DSN`. Use the same Git SHA for
+`VITE_SENTRY_RELEASE` and `SENTRY_RELEASE` so events map to one deployment.
+
+Leave either DSN blank to disable that SDK without affecting app startup. The
+default trace sample rate is 10%; tune it for traffic and budget. Configure
+source-map upload in Sentry's deployment integration rather than exposing an
+organization auth token to the application image build.
+Session Replay is intentionally not enabled because coaching screens can contain
+sensitive journal and health information.
 
 The image installs exactly once with `pnpm install --frozen-lockfile`, builds only
 the web client and API, and packages the API's production dependency closure.

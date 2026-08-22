@@ -10,6 +10,7 @@ import { testClerkIdentityAdapter } from "./middlewares/testClerkIdentityAdapter
 import { generalLimiter, writeLimiter } from "./middlewares/rateLimiter";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import * as Sentry from "@sentry/node";
 
 const app: Express = express();
 
@@ -61,7 +62,13 @@ app.use(
         scriptSrc: ["'self'", clerkOrigins[0], "'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'", "https://*.clerk.com", ...clerkOrigins],
+        connectSrc: [
+          "'self'",
+          "https://*.clerk.com",
+          "https://*.ingest.sentry.io",
+          "https://*.ingest.us.sentry.io",
+          ...clerkOrigins,
+        ],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         objectSrc: ["'none'"],
         frameAncestors: ["'none'"],
@@ -152,5 +159,9 @@ if (process.env.NODE_ENV === "production") {
     res.sendFile(path.join(publicDir, "index.html"));
   });
 }
+
+// This must be registered after every controller and static route so Sentry can
+// observe errors passed through Express without changing normal responses.
+Sentry.setupExpressErrorHandler(app);
 
 export default app;
