@@ -32,6 +32,11 @@ describe("Helcim subscription webhook contracts", () => {
         }),
       }),
     );
+    const request = fetchMock.mock.calls[0]?.[1];
+    expect(JSON.parse(String(request?.body))).toEqual({
+      customerCode: signedCustomerReference("internal-user-123"),
+      contactName: "user@example.test",
+    });
     expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty(
       "Authorization",
     );

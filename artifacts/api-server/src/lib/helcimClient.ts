@@ -70,7 +70,6 @@ export async function createHelcimCustomer(user: {
     body: JSON.stringify({
       customerCode,
       contactName: user.email ?? `Kindred user ${user.id}`,
-      ...(user.email ? { email: user.email } : {}),
     }),
   });
   if (!response.ok)
