@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useUser } from "@clerk/clerk-react";
-import { useCreateCheckout } from "@workspace/api-client-react";
+import { useAuth } from "@clerk/clerk-react";
+import { createCheckout } from "@workspace/api-client-react";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -20,31 +20,42 @@ export function CheckoutButton({
   variant = "default",
   className,
 }: CheckoutButtonProps) {
-  const { isSignedIn } = useUser();
-  const { mutate, isPending } = useCreateCheckout();
+  const { getToken, isLoaded, isSignedIn } = useAuth();
+  const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleClick = () => {
+  const handleClick = async () => {
     setError(null);
+    if (!isLoaded) return;
     if (!isSignedIn) {
       window.location.href = "/login?returnTo=/pricing";
       return;
     }
-    mutate(
-      { data: { planType } },
-      {
-        onSuccess: (data) => {
-          if (data?.checkoutUrl) {
-            window.location.href = data.checkoutUrl;
-          } else {
-            setError("Unable to start checkout. Please try again.");
-          }
-        },
-        onError: () => {
-          setError("Checkout isn't ready just yet — please try again shortly.");
-        },
-      },
-    );
+
+    setIsPending(true);
+    try {
+      // Public routes do not wait for the app-wide token bridge. Fetch and pass
+      // the token here so a signed-in buyer can never race that bridge and send
+      // an anonymous checkout request.
+      const token = await getToken();
+      if (!token) {
+        setError("Your sign-in session isn't ready. Please sign in again.");
+        return;
+      }
+      const data = await createCheckout(
+        { planType },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!data?.checkoutUrl) {
+        setError("Unable to start checkout. Please try again.");
+        return;
+      }
+      window.location.assign(data.checkoutUrl);
+    } catch {
+      setError("Checkout isn't ready just yet — please try again shortly.");
+    } finally {
+      setIsPending(false);
+    }
   };
 
   return (
@@ -52,8 +63,8 @@ export function CheckoutButton({
       <Button
         variant={variant}
         size="lg"
-        onClick={handleClick}
-        disabled={isPending}
+        onClick={() => void handleClick()}
+        disabled={!isLoaded || isPending}
         className="w-full"
         data-testid={`checkout-${planType}`}
       >
