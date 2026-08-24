@@ -75,20 +75,26 @@ router.get("/dashboard/streaks", requireAuth, async (req, res): Promise<void> =>
   cutoff.setDate(cutoff.getDate() - STREAK_LOOKBACK_DAYS);
   const cutoffStr = cutoff.toISOString().split("T")[0];
 
-  const streaks = await Promise.all(
-    habits.map(async (habit) => {
-      const entries = await db
-        .select()
-        .from(habitEntriesTable)
-        .where(
-          and(
-            eq(habitEntriesTable.habitId, habit.id),
-            eq(habitEntriesTable.completed, true),
-            gte(habitEntriesTable.date, cutoffStr)
-          )
-        )
-        .orderBy(desc(habitEntriesTable.date))
-        .limit(STREAK_LOOKBACK_DAYS);
+  const allEntries = await db
+    .select()
+    .from(habitEntriesTable)
+    .where(
+      and(
+        eq(habitEntriesTable.userId, userId),
+        eq(habitEntriesTable.completed, true),
+        gte(habitEntriesTable.date, cutoffStr)
+      )
+    )
+    .orderBy(desc(habitEntriesTable.date));
+
+  const entriesByHabit = allEntries.reduce((acc, entry) => {
+    if (!acc[entry.habitId]) acc[entry.habitId] = [];
+    acc[entry.habitId].push(entry);
+    return acc;
+  }, {} as Record<number, typeof allEntries>);
+
+  const streaks = habits.map((habit) => {
+      const entries = (entriesByHabit[habit.id] || []).slice(0, STREAK_LOOKBACK_DAYS);
 
       let currentStreak = 0;
       let longestStreak = 0;
@@ -117,46 +123,78 @@ router.get("/dashboard/streaks", requireAuth, async (req, res): Promise<void> =>
         completedCount: entries.length,
         targetDays: habit.targetDays,
       };
-    })
-  );
+    });
 
   res.json(streaks);
 });
 
 router.get("/dashboard/mood-trend", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
-  const results = [];
-  const today = new Date();
 
+  const today = new Date();
+  const days: string[] = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    const ds = d.toISOString().split("T")[0];
+    days.push(d.toISOString().split("T")[0]);
+  }
 
-    const [morningLog] = await db
+  const startDate = days[0];
+  const endDate = days[days.length - 1];
+
+  const [morningLogs, bodyScans, eveningReports] = await Promise.all([
+    db
       .select()
       .from(morningLogsTable)
-      .where(and(eq(morningLogsTable.userId, userId), eq(morningLogsTable.date, ds)))
-      .limit(1);
-
-    const [{ count: scansCount }] = await db
-      .select({ count: sql<number>`count(*)::int` })
+      .where(
+        and(
+          eq(morningLogsTable.userId, userId),
+          gte(morningLogsTable.date, startDate),
+          sql`${morningLogsTable.date} <= ${endDate}`
+        )
+      ),
+    db
+      .select({
+        date: sql<string>`DATE(${bodyScansTable.scannedAt})::text`,
+        count: sql<number>`count(*)::int`,
+      })
       .from(bodyScansTable)
-      .where(and(eq(bodyScansTable.userId, userId), sql`DATE(scanned_at) = ${ds}::date`));
-
-    const [eveningReport] = await db
+      .where(
+        and(
+          eq(bodyScansTable.userId, userId),
+          sql`DATE(${bodyScansTable.scannedAt}) >= ${startDate}::date`,
+          sql`DATE(${bodyScansTable.scannedAt}) <= ${endDate}::date`
+        )
+      )
+      .groupBy(sql`DATE(${bodyScansTable.scannedAt})`),
+    db
       .select()
       .from(eveningReportsTable)
-      .where(and(eq(eveningReportsTable.userId, userId), eq(eveningReportsTable.date, ds)))
-      .limit(1);
+      .where(
+        and(
+          eq(eveningReportsTable.userId, userId),
+          gte(eveningReportsTable.date, startDate),
+          sql`${eveningReportsTable.date} <= ${endDate}`
+        )
+      ),
+  ]);
 
-    results.push({
+  const morningLogMap = new Map(morningLogs.map((log) => [log.date, log]));
+  const bodyScanMap = new Map(bodyScans.map((scan) => [scan.date, scan.count]));
+  const eveningReportMap = new Map(eveningReports.map((report) => [report.date, report]));
+
+  const results = days.map((ds) => {
+    const morningLog = morningLogMap.get(ds);
+    const scansCount = bodyScanMap.get(ds);
+    const eveningReport = eveningReportMap.get(ds);
+
+    return {
       date: ds,
       mentalLoadLevel: morningLog?.mentalLoadLevel ?? null,
       bodyScansCount: scansCount ?? 0,
       medicationEffectiveness: eveningReport?.medicationEffectiveness ?? null,
-    });
-  }
+    };
+  });
 
   res.json(results);
 });
