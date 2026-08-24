@@ -12,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-runtime": "3.883.0",
+    "@aws-sdk/client-bedrock-runtime": "3.1116.0",
     "@clerk/backend": "^3.16.0",
     "@clerk/express": "^2.1.51",
     "@clerk/shared": "^4.27.0",
