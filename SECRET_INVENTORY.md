@@ -1,182 +1,170 @@
-# Secret Inventory — Kindred AI Server AI Coaching
+# Secret Inventory — Kindred Asterling AI Coaching
 
-> **Purpose:** Single source of truth for where every secret lives, who owns it, and how it reaches each environment.
-> **Last updated:** 2025-07-17
+> **Purpose:** Define every credential and sensitive runtime value used by the
+> application, where it is stored, and when it is required.
+>
+> **Last reviewed:** 2026-08-24
 
----
+This document records **names and storage locations only**. Never add secret
+values to this file, `.env.example`, an image, a build argument, or a `VITE_*`
+variable. The inventory describes the repository's current configuration
+contract; it does not attest that an external vault item is populated or valid.
 
-## Ownership Model
+## Storage and delivery model
 
-| Owner               | Responsibility                                                                       |
-| ------------------- | ------------------------------------------------------------------------------------ |
-| **1Password**       | Passwords, recovery codes, API keys, account ownership, local secret injection       |
-| **Stripe Projects** | Provider account provisioning, provider billing                                      |
-| **Coolify**         | Self-hosted (Coolify): hosting, PostgreSQL, production runtime environment variables |
-| **Git**             | Source code, non-secret configuration, `.env.example`, `.env.1password`              |
+| System                                    | Responsibility                                                                                |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------- |
+| **1Password — `Kindred AI Server` vault** | Source of truth for developer credentials, recovery material, and references used by `op run` |
+| **Coolify secret/environment store**      | Production runtime injection; sensitive values must be marked secret                          |
+| **Git**                                   | Source code, this inventory, `.env.example`, and unresolved `op://` references only           |
+| **Local `.env`**                          | Optional resolved developer values; ignored by Git and never shared                           |
 
----
+Production secrets are copied or synchronized from the appropriate production
+1Password item into Coolify. Local development should use unresolved references
+in `.env.1password` with:
 
-## Vault: `Kindred AI Server`
+```sh
+op run --env-file=.env.1password -- pnpm --filter @workspace/api-server run dev
+```
 
-### Items (created via CLI)
-
-| 1Password Item | Tags | Populated? |
-|---|---|---|
-| Kindred - Database Development | `environment/development` `service/coolify` | **Needs dev URL** |
-| Kindred - Database Production | `environment/production` `service/coolify` | ✅ In 1Password |
-| Kindred - Session Secret | `environment/development` | ✅ In 1Password |
-| Kindred - ElevenLabs Development | `environment/development` `service/elevenlabs` | ✅ In 1Password |
-| Kindred - ElevenLabs Production | `environment/production` `service/elevenlabs` | **Needs API key** |
-| Kindred - Stripe Test | `environment/development` `service/stripe` | **Needs test keys** |
-| Kindred - Stripe Production | `environment/production` `service/stripe` | ✅ Key + webhook populated, **needs price IDs** |
-| Kindred - Twilio Development | `environment/development` `service/twilio` | **Needs credentials** |
-| Kindred - Twilio Production | `environment/production` `service/twilio` | **Needs credentials** |
-| Kindred - Resend Development | `environment/development` `service/resend` | ✅ In 1Password |
-| Kindred - Resend Production | `environment/production` `service/resend` | ✅ Same key, **needs from email** |
-| Kindred - App Config | `environment/development` | ✅ Pre-filled |
-| Kindred - Owner Recovery Codes | | **Needs codes** |
-| Kindred - Cloudflare | `service/cloudflare` | ✅ In 1Password |
-| Kindred - GitLab | `service/gitlab` | ✅ In 1Password |
-| Kindred - Twilio Recovery | `service/twilio` | ✅ In 1Password |
-
----
-
-## Secret-by-Secret Inventory
+## Secret-by-secret inventory
 
 ### Database
 
-| Variable       | 1Password Item                 | 1Password Field | Dev Source                    | Production Source                    |
-| -------------- | ------------------------------ | --------------- | ----------------------------- | ------------------------------------ |
-| `DATABASE_URL` | Kindred - Database Development | `credential`    | `.env.1password` via `op run` | Coolify env var (set from 1Password) |
+| Variable                 | Sensitivity / requirement                                                                          | Development source                              | Production source                                                          |
+| ------------------------ | -------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------- |
+| `DATABASE_URL`           | **Secret; required.** Restricted application-role connection URL                                   | `Kindred - Database Development` / `credential` | Coolify secret from `Kindred - Database Production` / `credential`         |
+| `MIGRATION_DATABASE_URL` | **Secret; migration only.** Schema-owner connection URL; remove before starting the app            | Dedicated development migrator credential       | Coolify migration-job secret from dedicated production migrator credential |
+| `PG_SSL_CA`              | Sensitive configuration when it contains a private/internal CA; optional for public-CA connections | Local trusted CA file/value                     | Coolify secret or mounted secret file                                      |
 
-### Authentication (Clerk)
+Application and migration roles must remain separate. See
+[`docs/postgresql-operations.md`](docs/postgresql-operations.md) for the required
+least-privilege model.
 
-Clerk owns identity, email verification, sessions, and account security. Configure `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`, and `CLERK_WEBHOOK_SECRET` in the deployment secret store; the legacy `SESSION_SECRET` is retired.
+### Authentication — Clerk
 
+| Variable                     | Sensitivity / requirement                            | Development source                               | Production source                                                   |
+| ---------------------------- | ---------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------- |
+| `CLERK_SECRET_KEY`           | **Secret; required in production**                   | `Kindred - Clerk Development` / `secret key`     | Coolify secret from `Kindred - Clerk Production` / `secret key`     |
+| `CLERK_WEBHOOK_SECRET`       | **Secret; required in production**                   | `Kindred - Clerk Development` / `webhook secret` | Coolify secret from `Kindred - Clerk Production` / `webhook secret` |
+| `CLERK_PUBLISHABLE_KEY`      | Public server configuration; required in production  | Clerk development instance                       | Coolify environment value from Clerk production instance            |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Public build-time value; required by the browser app | Clerk development instance                       | Coolify build argument from Clerk production instance               |
 
-| Variable | 1Password Item | 1Password Field | Dev Source | Production Source |
-|---|---|---|---|---|
-| `ANTHROPIC_API_KEY` | Kindred - Anthropic Development | `api key` | `.env.1password` via `op run` | Coolify env var |
-| `AI_INTEGRATIONS_ANTHROPIC_API_KEY` | Kindred - Anthropic Development | `api key` | `.env.1password` via `op run` | Coolify env var |
-| `AI_INTEGRATIONS_ANTHROPIC_BASE_URL` | Kindred - Anthropic Development | `base url` | `.env.1password` via `op run` | Coolify env var |
+Clerk owns identity, verification, and sessions. The retired `SESSION_SECRET`
+must not be reintroduced.
 
+### AI providers
 
-| Variable | 1Password Item | 1Password Field | Dev Source | Production Source |
-|---|---|---|---|---|
-| `GEMINI_API_KEY` | Kindred - Gemini Development | `api key` | `.env.1password` via `op run` | Coolify env var |
-| `AI_INTEGRATIONS_GEMINI_API_KEY` | Kindred - Gemini Development | `api key` | `.env.1password` via `op run` | Coolify env var |
-| `AI_INTEGRATIONS_GEMINI_BASE_URL` | Kindred - Gemini Development | `base url` | `.env.1password` via `op run` | Coolify env var |
+| Variable                | Sensitivity / requirement                                                                            | Development source                                  | Production source                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------- |
+| `OPENAI_API_KEY`        | **Secret; required only when `AI_PROVIDER=openai`**                                                  | `Kindred - OpenAI Development` / `api key`          | Coolify secret from `Kindred - OpenAI Production` / `api key` |
+| `AWS_ACCESS_KEY_ID`     | **Secret-adjacent identifier; optional.** Use only when workload identity is unavailable for Bedrock | Dedicated least-privilege development IAM principal | Coolify secret from dedicated production IAM principal        |
+| `AWS_SECRET_ACCESS_KEY` | **Secret; optional.** Paired with the access-key ID                                                  | Same IAM item as above / `secret access key`        | Coolify secret from production IAM item                       |
+| `AWS_SESSION_TOKEN`     | **Secret; optional and temporary**                                                                   | Temporary AWS credentials                           | Coolify secret only when temporary credentials are used       |
 
-### Payments: Stripe
+Ollama needs no credential. Prefer an IAM role/workload identity over static AWS
+keys. Provider selection, model names, base URLs, regions, and timeouts are
+non-secret configuration listed below.
 
-| Variable                   | 1Password Item        | 1Password Field     | Dev Source                    | Production Source                                  |
-| -------------------------- | --------------------- | ------------------- | ----------------------------- | -------------------------------------------------- |
-| `STRIPE_SECRET_KEY`        | Kindred - Stripe Test | `secret key`        | `.env.1password` via `op run` | Coolify env var (from Kindred - Stripe Production) |
-| `STRIPE_YEARLY_PRICE_ID`   | Kindred - Stripe Test | `yearly price id`   | `.env.1password` via `op run` | Coolify env var (from Kindred - Stripe Production) |
-| `STRIPE_LIFETIME_PRICE_ID` | Kindred - Stripe Test | `lifetime price id` | `.env.1password` via `op run` | Coolify env var (from Kindred - Stripe Production) |
-| `STRIPE_WEBHOOK_SECRET`    | Kindred - Stripe Test | `webhook secret`    | `.env.1password` via `op run` | Coolify env var (from Kindred - Stripe Production) |
+### Payments — Helcim
 
-### Messaging: SMS (Twilio)
+| Variable                           | Sensitivity / requirement                                                      | Development source                                           | Production source                                                           |
+| ---------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `HELCIM_API_KEY`                   | **Secret; required when payments are enabled**                                 | `Kindred - Helcim Development` / `api key`                   | Coolify secret from `Kindred - Helcim Production` / `api key`               |
+| `HELCIM_WEBHOOK_SECRET`            | **Secret; required when payments are enabled**                                 | Development Helcim webhook signing secret                    | Coolify secret from production webhook signing secret                       |
+| `HELCIM_CUSTOMER_REFERENCE_SECRET` | **Secret; required when payments are enabled.** Application-generated HMAC key | `Kindred - Helcim Development` / `customer reference secret` | Coolify secret from the production Helcim item; use a distinct random value |
 
-| Variable              | 1Password Item               | 1Password Field | Dev Source                    | Production Source |
-| --------------------- | ---------------------------- | --------------- | ----------------------------- | ----------------- |
-| `TWILIO_ACCOUNT_SID`  | Kindred - Twilio Development | `account sid`   | `.env.1password` via `op run` | Coolify env var   |
-| `TWILIO_AUTH_TOKEN`   | Kindred - Twilio Development | `auth token`    | `.env.1password` via `op run` | Coolify env var   |
-| `TWILIO_PHONE_NUMBER` | Kindred - Twilio Development | `phone number`  | `.env.1password` via `op run` | Coolify env var   |
+Helcim plan/product IDs, hosted checkout URLs, portal URL, invoice prefix, and
+the temporary `HELCIM_EMAIL_MIGRATION_FALLBACK` flag are non-secret.
 
-### Messaging: Email (Resend)
+### Email, SMS, and voice
 
-| Variable            | 1Password Item               | 1Password Field | Dev Source                    | Production Source |
-| ------------------- | ---------------------------- | --------------- | ----------------------------- | ----------------- |
-| `RESEND_API_KEY`    | Kindred - Resend Development | `api key`       | `.env.1password` via `op run` | Coolify env var   |
-| `RESEND_FROM_EMAIL` | Kindred - Resend Development | `from email`    | `.env.1password` via `op run` | Coolify env var   |
+| Variable              | Sensitivity / requirement                                                  | Development source                             | Production source                                                 |
+| --------------------- | -------------------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------- |
+| `RESEND_API_KEY`      | **Secret; required in production**                                         | `Kindred - Resend Development` / `api key`     | Coolify secret from `Kindred - Resend Production` / `api key`     |
+| `RESEND_FROM_EMAIL`   | Non-secret; required in production                                         | Development Resend item / `from email`         | Coolify environment value using a verified sender                 |
+| `TWILIO_ACCOUNT_SID`  | **Secret-adjacent identifier; optional as part of the complete SMS group** | `Kindred - Twilio Development` / `account sid` | Coolify secret from `Kindred - Twilio Production`                 |
+| `TWILIO_AUTH_TOKEN`   | **Secret; optional as part of the complete SMS group**                     | Development Twilio item / `auth token`         | Coolify secret from production Twilio item                        |
+| `TWILIO_PHONE_NUMBER` | Sensitive configuration; optional as part of the complete SMS group        | Development Twilio item / `phone number`       | Coolify secret from production Twilio item                        |
+| `ELEVENLABS_API_KEY`  | **Secret; optional**                                                       | `Kindred - ElevenLabs Development` / `api key` | Coolify secret from `Kindred - ElevenLabs Production` / `api key` |
 
-### Voice: ElevenLabs
+Configure all three Twilio variables together or leave all three unset.
 
-| Variable             | 1Password Item                   | 1Password Field | Dev Source                    | Production Source |
-| -------------------- | -------------------------------- | --------------- | ----------------------------- | ----------------- |
-| `ELEVENLABS_API_KEY` | Kindred - ElevenLabs Development | `api key`       | `.env.1password` via `op run` | Coolify env var   |
+### Google Calendar
 
-### Application / Runtime (non-secret, but environment-specific)
+| Variable                        | Sensitivity / requirement                                                                      | Development source                                    | Production source                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------- |
+| `GOOGLE_CLIENT_ID`              | Public identifier; optional as part of the complete Calendar group                             | `Kindred - Google Calendar Development` / `client id` | Coolify environment value from production OAuth client         |
+| `GOOGLE_CLIENT_SECRET`          | **Secret; optional as part of the complete Calendar group**                                    | Development Calendar item / `client secret`           | Coolify secret from production OAuth client                    |
+| `CALENDAR_OAUTH_STATE_SECRET`   | **Secret; optional as part of the complete Calendar group.** Application-generated signing key | Development Calendar item / `state secret`            | Coolify secret; distinct random production value               |
+| `CALENDAR_TOKEN_ENCRYPTION_KEY` | **Secret; optional as part of the complete Calendar group.** Encrypts stored refresh tokens    | Development Calendar item / `token encryption key`    | Coolify secret; distinct random production value               |
+| `GOOGLE_CALENDAR_REDIRECT_URI`  | Public configuration; optional as part of the complete Calendar group                          | Local callback URL                                    | Coolify environment value matching the production OAuth client |
 
-| Variable                     | Source                     | Dev Value                     | Production Value                            |
-| ---------------------------- | -------------------------- | ----------------------------- | ------------------------------------------- |
-| `PORT`                       | Coolify / `.env.1password` | `8080`                        | Coolify default                             |
-| `NODE_ENV`                   | `.env.1password` / Coolify | `development`                 | `production`                                |
-| `APP_PUBLIC_URL`             | `.env.1password` / Coolify | `http://localhost:8080`       | `https://kindred-asterling-ai-coaching.com` |
-| `LOG_LEVEL`                  | `.env.1password` / Coolify | `debug`                       | `info`                                      |
-| `CALENDAR_OWNER_USER_ID`     | Kindred - App Config       | `50312031`                    | `50312031`                                  |
-| `SUBSCRIPTION_BYPASS_EMAILS` | Kindred - App Config       | `asterling.digital@pm.me,...` | (same or production-only)                   |
+Configure the entire Calendar group or none of it. Rotating
+`CALENDAR_TOKEN_ENCRYPTION_KEY` requires a token migration or reconnecting all
+affected calendars; do not replace it without a migration plan.
 
-### Additional: Cloudflare
+### Observability
 
-| Variable        | 1Password Item       | 1Password Field | Source  |
-| --------------- | -------------------- | --------------- | ------- |
-| `CLOUDFARE_API` | Kindred - Cloudflare | `api token`     | Coolify |
+| Variable          | Sensitivity / requirement                             | Development source         | Production source                |
+| ----------------- | ----------------------------------------------------- | -------------------------- | -------------------------------- |
+| `SENTRY_DSN`      | Treat as sensitive configuration; optional server DSN | Development Sentry project | Coolify secret/environment value |
+| `VITE_SENTRY_DSN` | Public browser DSN by design                          | Development Sentry project | Coolify build argument           |
 
-### Additional: GitLab
+Sentry environment, release, enabled, and trace-sampling variables are
+non-secret. A DSN is not an account credential, but controlling its disclosure
+reduces event-injection abuse.
 
-| Variable                   | 1Password Item   | 1Password Field | Source  |
-| -------------------------- | ---------------- | --------------- | ------- |
-| `GIT_URL` (token embedded) | Kindred - GitLab | `access token`  | Coolify |
+## Non-secret runtime inventory
 
-### Additional: Twilio Recovery
+These values belong in `.env.example` and Coolify as ordinary environment
+configuration. Values beginning with `VITE_` are embedded in browser JavaScript
+at build time and must always be safe to disclose.
 
-| Variable             | 1Password Item            | 1Password Field | Source  |
-| -------------------- | ------------------------- | --------------- | ------- |
-| `Twilio_recoveryKey` | Kindred - Twilio Recovery | `recovery key`  | Coolify |
+| Area                | Variables                                                                                                                                                                                                                                |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime             | `NODE_ENV`, `PORT`, `APP_PUBLIC_URL`, `LOG_LEVEL`, `TRUST_PROXY_HOPS`                                                                                                                                                                    |
+| AI                  | `AI_PROVIDER`, `AI_REQUEST_TIMEOUT_MS`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `AWS_REGION`, `BEDROCK_MODEL_ID`                                                                                           |
+| Payments            | `HELCIM_PAYMENTS_ENABLED`, `HELCIM_YEARLY_PLAN_ID`, `HELCIM_LIFETIME_PRODUCT_ID`, `HELCIM_YEARLY_CHECKOUT_URL`, `HELCIM_LIFETIME_CHECKOUT_URL`, `HELCIM_LIFETIME_INVOICE_PREFIX`, `HELCIM_PORTAL_URL`, `HELCIM_EMAIL_MIGRATION_FALLBACK` |
+| Subscription policy | `SUBSCRIPTION_OWNER_IDS`, `SUBSCRIPTION_OWNER_EMAILS`, `DAILY_CHAT_LIMIT`                                                                                                                                                                |
+| Sentry              | `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE`, `SENTRY_TRACES_SAMPLE_RATE`, `VITE_SENTRY_ENABLED`, `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_RELEASE`, `VITE_SENTRY_TRACES_SAMPLE_RATE`                                                           |
+| Social links        | `VITE_SOCIAL_WHATSAPP_URL`, `VITE_SOCIAL_INSTAGRAM_URL`, `VITE_SOCIAL_THREADS_URL`, `VITE_SOCIAL_FACEBOOK_URL`, `VITE_SOCIAL_X_URL`, `VITE_SOCIAL_LINKEDIN_URL`, `VITE_SOCIAL_GOOGLE_BUSINESS_URL`, `VITE_SOCIAL_PATREON_URL`            |
 
-### Legacy: Square (deprecated — do not use for new code)
+`REPLIT_DOMAINS` is a legacy platform-provided compatibility value and must not
+be manually configured for Coolify.
 
-| Variable                       | Status    | Notes             |
-| ------------------------------ | --------- | ----------------- |
-| `SQUARE_ACCESS_TOKEN`          | Dead code | Remove when ready |
-| `SQUARE_WEBHOOK_SIGNATURE_KEY` | Dead code | Remove when ready |
-| `SQUARE_ENVIRONMENT`           | Dead code | Remove when ready |
-| `SQUARE_STORE_URL`             | Dead code | Remove when ready |
-| `SQUARE_LOCATION_ID`           | Dead code | Remove when ready |
-| `SQUARE_YEARLY_VARIATION_ID`   | Dead code | Remove when ready |
-| `SQUARE_LIFETIME_VARIATION_ID` | Dead code | Remove when ready |
+## External account and recovery material
 
----
+Keep provider passwords, MFA recovery codes, 1Password recovery material,
+Cloudflare tokens, source-control access tokens, and Twilio recovery keys in
+dedicated 1Password items. They are administrative credentials, not application
+environment variables, and must not be copied into Coolify unless a deployment
+job explicitly requires them.
 
-## Items Still Needing Manual Input
+## Rotation procedure
 
-Run `op edit "Kindred - <item name>"` to fill these:
+1. Create the replacement in the provider or generate a cryptographically random
+   application secret.
+2. Save it in the correct 1Password development or production item.
+3. Update the corresponding Coolify secret for production.
+4. Deploy and verify the affected integration and application health checks.
+5. Revoke the old provider credential after verification.
+6. Record the rotation date and owner in the vault item; never record the value
+   in Git, tickets, logs, or chat.
 
-| Item | Field(s) to fill | Where to find the value |
-|---|---|---|
-| Kindred - Database Development | `credential` | Local PostgreSQL or separate dev DB |
-| Kindred - Anthropic Development | `api key` | https://console.anthropic.com/settings/keys |
-| Kindred - Anthropic Production | `api key` | Same or separate prod key |
-| Kindred - ElevenLabs Production | `api key` | https://elevenlabs.io/app/settings/api-keys |
-| Kindred - Stripe Test | `secret key`, `yearly price id`, `lifetime price id`, `webhook secret` | https://dashboard.stripe.com/test/apikeys |
-| Kindred - Stripe Production | `yearly price id`, `lifetime price id` | https://dashboard.stripe.com/prices |
-| Kindred - Twilio Development | `account sid`, `auth token`, `phone numb
-## Secret-by-Secret Inventory
+Webhook rotations may require a short overlap where the provider supports it.
+Encryption-key rotations require a data migration and must not follow the normal
+single-value procedure.
 
-### Database
+## Repository files
 
-| Variable       | 1Password Item                 | 1Password Field | Dev Source                    | Production Source                    |
-| -------------- | ------------------------------ | --------------- | ---er` | https://console.twilio.com |
-| Kindred - Twilio Production | `account sid`, `auth token`, `phone number` | Same account, prod credentials |
-| Kindred - Resend Production | `from email` | Your verified domain email |
-| Kindred - Owner Recovery Codes | `recovery codes` | 1Password recovery kit, backup codes |
+| File                                   | Purpose                                             | Committed?          |
+| -------------------------------------- | --------------------------------------------------- | ------------------- |
+| `.env.example`                         | Variable names and safe example configuration       | Yes                 |
+| `.env.1password`                       | Unresolved `op://` references for local development | Yes                 |
+| `.env`                                 | Resolved local values                               | **No; Git-ignored** |
+| Other `.env.*` files containing values | Environment-specific resolved values                | **No; Git-ignored** |
 
-## Rotation Procedure
-
-1. Update the value in the 1Password item.
-2. Update Coolify environment variables (for production secrets).
-3. Deploy.
-4. Verify the application starts and functions correctly.
-5. Revoke or archive the old value if applicable.
-
-## Files in This Repository
-
-| File               | Purpose                                    | Committed?          |
-| ------------------ | ------------------------------------------ | ------------------- |
-| `.env.example`     | Variable names only — onboarding reference | Yes                 |
-| `.env.1password`   | `op://` references — local dev injection   | Yes                 |
-| `.env`             | Resolved secrets — local only              | **No** (gitignored) |
-| `.env.*`           | Any other env file with real values        | **No** (gitignored) |
-| `.projects/vault/` | Stripe Projects output                     | **No** (gitignored) |
+When adding or removing a runtime credential, update the configuration validator,
+`.env.example`, `.env.1password` when local injection is supported, deployment
+documentation, and this inventory in the same change.
