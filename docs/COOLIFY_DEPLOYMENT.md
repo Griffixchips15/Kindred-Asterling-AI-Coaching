@@ -40,17 +40,52 @@ PostgreSQL and Ollama services.
 
 ### Sentry
 
-Create separate Sentry projects for the browser and Node API. Configure the
-browser project's DSN through the `VITE_SENTRY_*` build arguments and the API
-project's DSN through the runtime-only `SENTRY_DSN`. Use the same Git SHA for
-`VITE_SENTRY_RELEASE` and `SENTRY_RELEASE` so events map to one deployment.
+Create separate Sentry projects for the browser and Node API. The browser has
+the production project's public DSN as a fallback; `VITE_SENTRY_DSN` can
+override it for another deployment. Configure the API project's DSN through the
+runtime-only `SENTRY_DSN`. Use the same Git SHA for `VITE_SENTRY_RELEASE` and
+`SENTRY_RELEASE` so events map to one deployment.
 
-Leave either DSN blank to disable that SDK without affecting app startup. The
+Leave the API DSN blank to disable its SDK without affecting app startup. Set
+`VITE_SENTRY_ENABLED=false` at build time to disable browser reporting. The
 default trace sample rate is 10%; tune it for traffic and budget. Configure
 source-map upload in Sentry's deployment integration rather than exposing an
 organization auth token to the application image build.
 Session Replay is intentionally not enabled because coaching screens can contain
 sensitive journal and health information.
+
+Browser `console.log`, `console.warn`, and `console.error` calls are forwarded as
+Sentry logs. Prefer the structured logger for new instrumentation so fields can
+be searched without parsing prose:
+
+```ts
+import * as Sentry from "@sentry/react";
+
+// Good: a stable message plus low-cardinality, non-sensitive attributes.
+Sentry.logger.info("Dashboard section opened", {
+  section: "habits",
+  source: "navigation",
+});
+
+// Good: interpolate values with Sentry's template helper to preserve grouping.
+Sentry.logger.warn(Sentry.logger.fmt`API request retried after ${delayMs}ms`, {
+  route: "/api/habits",
+  attempt,
+});
+
+// Unexpected exceptions remain errors rather than being converted to strings.
+Sentry.captureException(error, {
+  tags: { operation: "load-habits" },
+});
+```
+
+Do not log journal or chat text, health or medication details, names, email
+addresses, Clerk identifiers, cookies, authorization headers, or request/response
+bodies. Use stable route templates rather than full URLs, and use `debug`/`info`
+for expected lifecycle events, `warn` for recoverable degradation, and `error`
+or `captureException` only for unexpected failures. Console forwarding exists
+for compatibility; avoid logging the same event through both `console` and
+`Sentry.logger`, which would create duplicates.
 
 The image installs exactly once with `pnpm install --frozen-lockfile`, builds only
 the web client and API, and packages the API's production dependency closure.
