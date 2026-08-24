@@ -182,57 +182,76 @@ async function getHabitsWithStreaks(userId: string): Promise<unknown> {
   // older entries is pure waste. Compute the cutoff date once and reuse it
   // across all per-habit queries so the DB work is bounded regardless of
   // how much history the user has accumulated.
+  if (habits.length === 0) {
+    return [];
+  }
+
   const today = new Date();
   const cutoff = new Date(today);
   cutoff.setDate(cutoff.getDate() - HABIT_ENTRY_LOOKBACK_DAYS);
   const cutoffStr = cutoff.toISOString().split("T")[0];
 
-  return Promise.all(
-    habits.map(async (habit) => {
-      const entries = await db
-        .select()
-        .from(habitEntriesTable)
-        .where(
-          and(
-            eq(habitEntriesTable.userId, userId),
-            eq(habitEntriesTable.habitId, habit.id),
-            eq(habitEntriesTable.completed, true),
-            gte(habitEntriesTable.date, cutoffStr),
-          ),
-        )
-        .orderBy(desc(habitEntriesTable.date))
-        .limit(HABIT_ENTRY_LOOKBACK_DAYS);
+  const habitIds = habits.map((h) => h.id);
 
-      // Mirror the streak math used by the dashboard so the AI and the UI
-      // always agree on the numbers.
-      let currentStreak = 0;
-      let longestStreak = 0;
-      let tempStreak = 0;
-      const completedDates = entries.map((e) => e.date);
-      for (let i = 0; i < HABIT_ENTRY_LOOKBACK_DAYS; i++) {
-        const d = new Date(today);
-        d.setDate(d.getDate() - i);
-        const ds = d.toISOString().split("T")[0];
-        if (completedDates.includes(ds)) {
-          if (i === 0 || currentStreak > 0) currentStreak++;
-          tempStreak++;
-          if (tempStreak > longestStreak) longestStreak = tempStreak;
-        } else {
-          if (i > 0 && currentStreak > 0) break;
-          tempStreak = 0;
-        }
+  const allEntries = await db
+    .select()
+    .from(habitEntriesTable)
+    .where(
+      and(
+        eq(habitEntriesTable.userId, userId),
+        inArray(habitEntriesTable.habitId, habitIds),
+        eq(habitEntriesTable.completed, true),
+        gte(habitEntriesTable.date, cutoffStr),
+      ),
+    )
+    .orderBy(desc(habitEntriesTable.date));
+
+  const entriesByHabit = new Map<number, typeof allEntries>();
+  for (const entry of allEntries) {
+    let entries = entriesByHabit.get(entry.habitId);
+    if (!entries) {
+      entries = [];
+      entriesByHabit.set(entry.habitId, entries);
+    }
+    entries.push(entry);
+  }
+
+  return habits.map((habit) => {
+    // Limit to HABIT_ENTRY_LOOKBACK_DAYS just like the original logic
+    const entries = (entriesByHabit.get(habit.id) || []).slice(
+      0,
+      HABIT_ENTRY_LOOKBACK_DAYS,
+    );
+
+    // Mirror the streak math used by the dashboard so the AI and the UI
+    // always agree on the numbers.
+    let currentStreak = 0;
+    let longestStreak = 0;
+    let tempStreak = 0;
+    const completedDates = entries.map((e) => e.date);
+    for (let i = 0; i < HABIT_ENTRY_LOOKBACK_DAYS; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const ds = d.toISOString().split("T")[0];
+      if (completedDates.includes(ds)) {
+        if (i === 0 || currentStreak > 0) currentStreak++;
+        tempStreak++;
+        if (tempStreak > longestStreak) longestStreak = tempStreak;
+      } else {
+        if (i > 0 && currentStreak > 0) break;
+        tempStreak = 0;
       }
+    }
 
-      return {
-        name: clipStr(habit.name, TOOL_FIELD_SHORT),
-        description: clipStr(habit.description, TOOL_FIELD_LONG),
-        targetDays: habit.targetDays,
-        currentStreak,
-        longestStreak,
-        completedCount: entries.length,
-      };
-    }),
-  );
+    return {
+      name: clipStr(habit.name, TOOL_FIELD_SHORT),
+      description: clipStr(habit.description, TOOL_FIELD_LONG),
+      targetDays: habit.targetDays,
+      currentStreak,
+      longestStreak,
+      completedCount: entries.length,
+    };
+  });
 }
 
 // Cap medications read for chat use so query + serialization work is bounded
