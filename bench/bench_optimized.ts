@@ -1,9 +1,10 @@
 import { db, habitsTable, habitEntriesTable, usersTable } from "@workspace/db";
 import { runChatTool } from "../artifacts/api-server/src/lib/chatTools";
 import { eq } from "drizzle-orm";
+import { randomBytes } from "crypto";
 
 async function runBench() {
-  const userId = "bench-user-" + Math.random().toString(36).substring(7);
+  const userId = `bench-user-${randomBytes(8).toString("hex")}`;
 
   await db.insert(usersTable).values({ id: userId });
 
