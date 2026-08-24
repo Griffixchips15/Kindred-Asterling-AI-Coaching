@@ -6,6 +6,34 @@ PM2, Replit workflows, or a host-side Node process. Coolify builds the Dockerfil
 runs one non-root application container, and connects it to separately managed
 PostgreSQL and Ollama services.
 
+## GitLab application setup (the new-resource screen)
+
+For the Coolify screen shown when adding a **Private GitLab App** repository:
+
+1. Select `Kindred_Asterling/kindred-ai`, then click **Load repository**. Loading
+   the repository lets Coolify validate the branch and discover the root
+   `Dockerfile`.
+2. Set **Branch** to `main`, **Build pack** to `Dockerfile`, and **Base
+   directory** to `/`. The slash means the Git repository root; it is not a path
+   on the Coolify server.
+3. Click **Continue**. On the application configuration page, set the Dockerfile
+   location to `/Dockerfile`, the exposed/redirect port to `8080`, and add the
+   application's public HTTPS domain.
+4. In **Environment Variables**, add the values described below. Any `VITE_*`
+   value used by the browser must have **Build Variable** enabled. Runtime-only
+   secrets such as `DATABASE_URL`, `CLERK_SECRET_KEY`, and webhook secrets must
+   not be exposed as build variables.
+5. Save, deploy, and watch the build logs. A successful deployment should pass
+   `GET /api/healthz`; verify `GET /api/healthz/db` separately after the database
+   has been initialized.
+
+Do not select the GitLab CI build pack or add a `.gitlab-ci.yml` merely to deploy
+through Coolify. The GitLab App grants Coolify repository access and enables
+deployments/webhooks, while the repository's root `Dockerfile` remains the build
+definition. If `main` does not appear after **Load repository**, confirm that the
+GitLab App has access to this project, refresh the repository list, and verify
+that `main` has been pushed to GitLab.
+
 ## 1. Resources and build
 
 1. Create a Coolify **PostgreSQL** resource and retain its internal connection
