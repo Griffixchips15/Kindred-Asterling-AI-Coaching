@@ -140,7 +140,17 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true, limit: "32kb" }));
 
+// Tests use a deliberately small Clerk identity stand-in, never production session code.
+if (isTest) {
+  app.use(testClerkIdentityAdapter);
+} else {
+  app.use(authMiddleware);
+}
+
+app.use(generalLimiter);
+
 // TEMPORARY DEBUG: capture Clerk's exact token rejection reason.
+// Placed after generalLimiter to satisfy CodeQL's rate-limiting rule.
 app.use(async (req, _res, next) => {
   if (req.path.startsWith("/api") && req.path !== "/api/healthz") {
     try {
@@ -162,15 +172,6 @@ app.use(async (req, _res, next) => {
   }
   next();
 });
-
-// Tests use a deliberately small Clerk identity stand-in, never production session code.
-if (isTest) {
-  app.use(testClerkIdentityAdapter);
-} else {
-  app.use(authMiddleware);
-}
-
-app.use(generalLimiter);
 app.use((req, res, next) => {
   const writeMethods = ["POST", "PUT", "PATCH", "DELETE"];
   if (writeMethods.includes(req.method)) {
