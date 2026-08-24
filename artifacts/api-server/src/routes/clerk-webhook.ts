@@ -6,6 +6,13 @@ import {
   syncClerkIdentity,
 } from "../lib/clerkIdentity";
 
+const isTest = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
+const secret = process.env.CLERK_WEBHOOK_SECRET;
+
+if (!secret && !isTest) {
+  throw new Error("CLERK_WEBHOOK_SECRET is required but not configured");
+}
+
 const router: IRouter = Router();
 
 interface ClerkWebhookPayload {
@@ -35,7 +42,6 @@ router.post("/clerk/webhook", async (req: Request, res: Response) => {
     return;
   }
 
-  const secret = process.env.CLERK_WEBHOOK_SECRET;
   if (!secret) {
     res.status(503).json({ error: "Webhook secret not configured" });
     return;
