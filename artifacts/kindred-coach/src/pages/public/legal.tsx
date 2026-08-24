@@ -27,7 +27,7 @@ function LegalPage({ title, summary, sections }: LegalPageProps) {
     <article className="mx-auto max-w-3xl px-5 py-16 md:px-8 md:py-20">
       <header className="border-b border-border pb-8">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-          Draft template — not legal advice
+          Working draft — not legal advice
         </p>
         <h1 className="mt-3 font-serif text-4xl font-medium tracking-tight text-foreground md:text-5xl">
           {title}
@@ -36,7 +36,7 @@ function LegalPage({ title, summary, sections }: LegalPageProps) {
           {summary}
         </p>
         <p className="mt-4 text-xs text-muted-foreground">
-          Last repository review: August 19, 2026
+          Last repository review: August 24, 2026
         </p>
       </header>
       <div className="mt-10 space-y-10">
@@ -67,15 +67,39 @@ export function PrivacyPolicy() {
   return (
     <LegalPage
       title="Privacy Policy"
-      summary="This draft reflects the data flows visible in the Kindred repository. It must be reconciled with the deployed infrastructure, contracts, business practices, and applicable law before publication."
+      summary="This working draft for Kindred Asterling AI reflects the data flows visible in the repository. It must be reconciled with the deployed infrastructure, contracts, business practices, and applicable law before publication."
       sections={[
         {
           heading: "Who is responsible",
           content: (
-            <Confirmation>
-              Insert the full legal entity name, business address, privacy
-              officer, and privacy-contact email.
-            </Confirmation>
+            <>
+              <p>
+                Kindred Asterling AI is operated as an Alberta sole
+                proprietorship based in Edmonton, Alberta, Canada. Privacy
+                questions may be sent to{" "}
+                <a
+                  className="text-primary underline"
+                  href="mailto:kindredaicoach@gmail.com"
+                >
+                  kindredaicoach@gmail.com
+                </a>
+                . Customer-support requests may be sent to{" "}
+                <a
+                  className="text-primary underline"
+                  href="mailto:kindred_support@kindred-asterling-ai-coaching.com"
+                >
+                  kindred_support@kindred-asterling-ai-coaching.com
+                </a>
+                .
+              </p>
+              <Confirmation>
+                An Alberta trade name is not a separate legal person. Confirm
+                the proprietor's contracting identity and privacy-officer
+                designation. Before publication, provide a business mailbox or
+                registered service address instead of publishing a private
+                residential address.
+              </Confirmation>
+            </>
           ),
         },
         {
@@ -83,7 +107,7 @@ export function PrivacyPolicy() {
           content: list([
             "Account and identity information, including identity-provider identifiers, email, verification state, name, and profile details you choose to provide.",
             "Wellness and coaching information, including morning and evening reflections, body scans, habits, medication schedules and logs, goals, chat messages, and generated coaching replies.",
-            "Optional integration data, including an encrypted Google Calendar refresh token and summarized upcoming-event information, plus reminder preferences, phone number, and time zone when those features are enabled.",
+            "Optional integration data, including an encrypted Google Calendar refresh token and read-only upcoming-event information, plus reminder preferences, phone number, and time zone when those features are enabled.",
             "Subscription and transaction references needed to confirm access. Kindred's code delegates checkout and billing management to Helcim rather than storing full payment-card details.",
             "Operational information such as request logs, quota usage, security events, and delivery records. The current safety-event code is designed to emit a non-identifying control event rather than message content.",
           ]),
@@ -102,18 +126,55 @@ export function PrivacyPolicy() {
           content: (
             <>
               <p>
-                The repository contains integrations for Clerk (identity),
-                Helcim (payments), Google Calendar, Twilio (SMS), Resend
-                (email), ElevenLabs (voice features), configured AI inference
-                providers, and an unspecified hosting/database provider. Data
-                should be sent to a provider only when its feature is enabled
-                and needed.
+                Hosting is provided by Contabo GmbH, Welfenstrasse 22, 81541
+                Munich, Germany. Production AI inference is provided through AWS
+                Bedrock. The repository also supports Clerk (identity), Helcim
+                (payments), Google Calendar (optional read-only access), Sentry
+                (error and performance monitoring when enabled), Twilio (SMS),
+                Resend (email), and ElevenLabs (voice features). Data should be
+                sent to a provider only when its feature is enabled and needed.
               </p>
               <Confirmation>
-                Confirm the production provider list, hosting and storage
-                regions, cross-border processing, AI-provider retention/training
-                terms, subprocessors, and contractual safeguards. Remove
-                providers not used in production.
+                Confirm the Contabo server location, database provider and
+                storage location, AWS Bedrock model and processing region, which
+                optional providers are enabled, provider retention and training
+                terms, subprocessors, cross-border transfers, and contractual
+                safeguards. Remove providers not used in production.
+              </Confirmation>
+            </>
+          ),
+        },
+        {
+          heading: "Google Calendar data",
+          content: (
+            <>
+              <p>
+                If a user connects Google Calendar, Kindred requests read-only
+                access to upcoming events. It stores an encrypted refresh token
+                so the connection can continue, displays upcoming event
+                information to the user, and may supply only a title-free
+                schedule-density signal to the coaching AI.
+              </p>
+              <p>
+                Kindred's use and transfer of information received from Google
+                APIs will comply with the{" "}
+                <a
+                  className="text-primary underline"
+                  href="https://developers.google.com/terms/api-services-user-data-policy"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Google API Services User Data Policy
+                </a>
+                , including its Limited Use requirements. Google Calendar data
+                is not sold, used for advertising, or used to train a
+                general-purpose AI model.
+              </p>
+              <Confirmation>
+                Match the app's requested OAuth scope to the least-privilege
+                scope configured in Google Cloud, and implement and verify a
+                calendar disconnect and token-revocation flow before promising
+                users they can revoke access inside Kindred.
               </Confirmation>
             </>
           ),
@@ -131,16 +192,17 @@ export function PrivacyPolicy() {
                 requests.
               </p>
               <p>
-                Current internal documentation proposes retaining account data
-                for the account lifetime and reminder-delivery records for up to
-                90 days, with prompt token revocation on calendar disconnect.
-                Those periods are proposals until business and legal review
+                Current internal proposals retain account and wellness data for
+                the account lifetime, reminder-delivery records for 90 days,
+                backups for 35 days, administrative audit records for one year,
+                and billing records for up to seven years when legally required.
+                These periods are proposals until business and legal review
                 confirms them.
               </p>
               <Confirmation>
-                Set final retention periods, request-verification steps,
-                response timelines, youth-consent approach, and any exceptions
-                required by law.
+                Approve or replace each proposed retention period and set the
+                request-verification steps, response timelines, deletion and
+                legal-hold exceptions, and any other rules required by law.
               </Confirmation>
             </>
           ),
@@ -188,7 +250,7 @@ export function TermsAndConditions() {
   return (
     <LegalPage
       title="Terms and Conditions"
-      summary="These draft terms describe the current Kindred service but do not become binding until the business identity, commercial terms, and governing law are confirmed and reviewed by counsel."
+      summary="These working terms describe the adult-only Kindred Asterling AI service but do not become binding until the proprietor identity, commercial terms, and governing law are confirmed and reviewed by counsel."
       sections={[
         {
           heading: "Agreement and eligibility",
@@ -197,12 +259,14 @@ export function TermsAndConditions() {
               <p>
                 By creating an account or using Kindred, a user would agree to
                 these terms and the Privacy Policy. Users must provide accurate
-                account information and protect their sign-in credentials.
+                account information and protect their sign-in credentials. The
+                service is intended only for people who are at least 18 years
+                old; minors are not permitted to create or use an account.
               </p>
               <Confirmation>
-                Set the legal entity, effective date, minimum age,
-                parental-consent rules, supported locations, and process for
-                accepting updated terms.
+                Confirm the proprietor's contracting identity, effective date,
+                supported launch locations, age-gate implementation, and the
+                process for accepting updated terms.
               </Confirmation>
             </>
           ),
@@ -223,15 +287,30 @@ export function TermsAndConditions() {
           content: (
             <>
               <p>
-                The interface currently advertises yearly and lifetime access
-                and delegates checkout to Helcim. Prices, taxes, renewal,
-                cancellation, refunds, failed payments, and the precise meaning
-                of “lifetime” must be disclosed before purchase.
+                The interface currently advertises a $49.99 yearly plan and a
+                $79.99 one-time “Lifetime Access” plan and delegates checkout to
+                Helcim. The currency, applicable taxes, yearly renewal terms,
+                failed-payment treatment, and any trial terms must be disclosed
+                before purchase.
+              </p>
+              <p>
+                The proposed policy permits cancellation requests within 30 days
+                of purchase. Cancellation and refund eligibility are different
+                matters, and no refund entitlement is promised here until the
+                final refund rules are approved. Mandatory consumer rights
+                continue to apply.
+              </p>
+              <p>
+                For this draft, “Lifetime Access” means access for up to 100
+                years from purchase, subject to these terms; it does not promise
+                that the service will operate indefinitely.
               </p>
               <Confirmation>
-                Approve prices, trial rules, refund/cancellation policy, renewal
-                notices, consumer-law disclosures, and what “lifetime” means if
-                the service changes or closes.
+                Confirm the currency, taxes, whether the yearly plan
+                automatically renews, renewal notices, trial rules, refund
+                eligibility and method, service-closure remedy, and applicable
+                consumer-law disclosures. Reconcile the 100-year definition with
+                public claims such as “forever” and “all future features.”
               </Confirmation>
             </>
           ),
@@ -283,9 +362,27 @@ export function TermsAndConditions() {
               </p>
               <Confirmation>
                 Counsel must draft enforceable warranty disclaimers, liability
-                limits, indemnity language, dispute process, governing law,
-                venue, severability, assignment, and notices for the actual
-                business jurisdiction.
+                limits, indemnity language, severability, assignment, and
+                notices for the actual business jurisdiction.
+              </Confirmation>
+            </>
+          ),
+        },
+        {
+          heading: "Governing law and disputes",
+          content: (
+            <>
+              <p>
+                These terms are intended to be governed by the laws of Alberta
+                and the applicable federal laws of Canada. Subject to mandatory
+                consumer rights, disputes would be brought before the courts of
+                Alberta.
+              </p>
+              <Confirmation>
+                Approve the proposed process of first sending a written
+                complaint to the support address and allowing 30 days for an
+                informal resolution. Counsel must confirm the governing-law,
+                venue, and dispute terms for every supported launch location.
               </Confirmation>
             </>
           ),
@@ -346,12 +443,21 @@ export function HealthDisclaimer() {
           ),
         },
         {
+          heading: "Adults only",
+          content: (
+            <p>
+              Kindred Asterling AI is intended only for people who are at least
+              18 years old. It is not designed for or offered to minors.
+            </p>
+          ),
+        },
+        {
           heading: "Required review",
           content: (
             <Confirmation>
-              Confirm clinical-risk review, supported jurisdictions, emergency
-              wording, medication feature boundaries, accessibility, and whether
-              any regulated-health or youth-specific obligations apply.
+              Confirm clinical-risk review, supported launch locations,
+              emergency wording, medication feature boundaries, accessibility,
+              and any regulated-health obligations for this adult-only service.
             </Confirmation>
           ),
         },
@@ -403,15 +509,16 @@ export function AIUseDisclosure() {
           content: (
             <>
               <p>
-                The current server supports locally operated Ollama or a
-                configured OpenAI-compatible service. Other AI integration
-                packages exist in the workspace but should not be described as
-                production processors unless actually enabled.
+                Production AI inference is provided through AWS Bedrock. The
+                server also supports locally operated Ollama and a configured
+                OpenAI-compatible service, but those alternatives should not be
+                described as production processors unless actually enabled.
               </p>
               <Confirmation>
-                Name the production model provider, model, processing location,
-                retention, abuse monitoring, training policy, human-review
-                access, and opt-out/consent choices.
+                Confirm the AWS Bedrock model and processing region, retention,
+                abuse monitoring, training policy, human-review access, and
+                opt-out or consent choices. Confirm whether any alternative AI
+                provider is enabled in production.
               </Confirmation>
             </>
           ),
@@ -443,7 +550,7 @@ export function CookieNotice() {
   return (
     <LegalPage
       title="Cookie and Analytics Notice"
-      summary="The current repository uses essential authentication and preference storage. No third-party analytics or advertising tracker is evident in the application source reviewed for this draft."
+      summary="The current repository uses essential authentication and preference storage and supports Sentry diagnostics when configured. No advertising tracker is evident in the application source reviewed for this draft."
       sections={[
         {
           heading: "Essential technologies",
@@ -454,15 +561,24 @@ export function CookieNotice() {
           ]),
         },
         {
-          heading: "Analytics and advertising",
+          heading: "Diagnostics and advertising",
           content: (
-            <p>
-              No Google Analytics, Meta Pixel, advertising network, or similar
-              analytics package was found in the reviewed repository. This
-              notice must be updated before any such technology is enabled.
-              Social links in the footer are ordinary outbound links; the site
-              does not embed social feeds or pixels.
-            </p>
+            <>
+              <p>
+                Sentry may process technical error, performance, log, and
+                error-triggered session-replay information when configured. The
+                reviewed configuration is intended to avoid direct user
+                information and request-body capture, but production behavior,
+                retention, and any browser storage must be verified.
+              </p>
+              <p>
+                No Google Analytics, Meta Pixel, advertising network, or similar
+                advertising tracker was found in the reviewed repository. This
+                notice must be updated before any such technology is enabled.
+                Social links in the footer are ordinary outbound links; the site
+                does not embed social feeds or pixels.
+              </p>
+            </>
           ),
         },
         {
@@ -480,9 +596,9 @@ export function CookieNotice() {
           content: (
             <Confirmation>
               Inspect production response headers and browser storage, identify
-              cookie names/providers/lifetimes, confirm hosting and Clerk
-              behavior, and determine whether a consent manager is required in
-              each supported jurisdiction.
+              cookie names, providers, and lifetimes, confirm Sentry, Clerk, and
+              hosting behavior, and determine whether a consent manager is
+              required in each supported launch location.
             </Confirmation>
           ),
         },
@@ -501,10 +617,10 @@ export function MarketingConsent() {
           heading: "Suggested unchecked checkbox",
           content: (
             <div className="rounded-lg border border-border bg-card p-4 text-foreground">
-              “Yes, I would like to receive occasional Kindred Asterling product
-              news, pilot updates, and offers by email. I can unsubscribe at any
-              time. Messages will identify the sender and include contact and
-              unsubscribe information.”
+              “Yes, I would like to receive occasional Kindred Asterling AI
+              product news, pilot updates, and offers by email. I can
+              unsubscribe at any time. Messages will identify the sender and
+              include contact and unsubscribe information.”
             </div>
           ),
         },
@@ -558,10 +674,13 @@ export function MarketingConsent() {
           heading: "Required confirmation",
           content: (
             <Confirmation>
-              Insert the legal sender name, current mailing address, contact
-              method, unsubscribe destination, message categories, consent
-              owner, proof-retention period, and treatment of existing implied
-              consents.
+              Proposed sender: Kindred Asterling AI. Proposed contact and
+              unsubscribe destination:
+              kindred_support@kindred-asterling-ai-coaching.com. Confirm whether
+              marketing email is enabled, provide a public business mailing
+              address, approve the sender name and unsubscribe method, and set
+              message categories, consent ownership, proof-retention period, and
+              treatment of any implied consents.
             </Confirmation>
           ),
         },
