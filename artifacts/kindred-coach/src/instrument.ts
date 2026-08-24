@@ -9,10 +9,12 @@ function sampleRate(value: string | undefined, fallback: number): number {
 }
 
 const dsn = import.meta.env.VITE_SENTRY_DSN?.trim();
+const defaultDsn =
+  "https://080adac574f33f4a08f61fd6ac9049aa@o4511934456266753.ingest.us.sentry.io/4511957721415680";
 
 Sentry.init({
-  dsn: dsn || undefined,
-  enabled: Boolean(dsn),
+  dsn: dsn || defaultDsn,
+  enabled: import.meta.env.VITE_SENTRY_ENABLED !== "false",
   environment: import.meta.env.VITE_SENTRY_ENVIRONMENT ?? import.meta.env.MODE,
   release: import.meta.env.VITE_SENTRY_RELEASE,
   sendDefaultPii: false,
