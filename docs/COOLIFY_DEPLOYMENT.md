@@ -34,6 +34,33 @@ definition. If `main` does not appear after **Load repository**, confirm that th
 GitLab App has access to this project, refresh the repository list, and verify
 that `main` has been pushed to GitLab.
 
+### Confirm the Coolify configuration
+
+If the repository, Dockerfile, variables, database, domain, and SSL are already
+configured, deploy the application once and use this launch checklist. Replace
+`https://kindred.example.com` with the domain configured in Coolify.
+
+```bash
+curl --fail --show-error https://kindred.example.com/api/healthz
+curl --fail --show-error https://kindred.example.com/api/healthz/db
+```
+
+Both commands must exit successfully. Then confirm all of the following in a
+browser or the relevant provider dashboard:
+
+- The home page loads over HTTPS without a certificate warning.
+- Clerk sign-in and sign-out work with the production Clerk instance.
+- A test coaching message receives a response from the configured AI provider.
+- Clerk, Helcim (when enabled), and Google Calendar (when enabled) report a 2xx
+  response from their production webhook or callback URLs.
+- A push to `main` starts a new Coolify deployment if automatic deployments are
+  enabled; otherwise, a manual **Redeploy** builds the latest Git commit.
+
+If `/api/healthz` fails, inspect the application build and runtime logs first. If
+only `/api/healthz/db` fails, check `DATABASE_URL`, Coolify private-network DNS,
+and whether the production schema was initialized. Do not repeatedly redeploy an
+unchanged image to fix a database connectivity or schema problem.
+
 ## 1. Resources and build
 
 1. Create a Coolify **PostgreSQL** resource and retain its internal connection
