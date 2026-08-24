@@ -5,7 +5,6 @@ import {
   type Response,
   type NextFunction,
 } from "express";
-import healthRouter from "./health";
 import morningLogsRouter from "./morningLogs";
 import bodyScansRouter from "./bodyScans";
 import eveningReportsRouter from "./eveningReports";
@@ -33,8 +32,8 @@ function noStore(_req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
-// Open routes: health, clerk webhook, and subscription endpoints.
-router.use(healthRouter);
+// Open routes: clerk webhook, and subscription endpoints.
+// NOTE: health routes are mounted before clerkMiddleware in app.ts.
 router.use(clerkWebhookRouter);
 router.use(userRouter);
 router.use(subscriptionRouter);
