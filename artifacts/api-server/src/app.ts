@@ -9,10 +9,15 @@ import { authMiddleware } from "./middlewares/authMiddleware";
 import { testClerkIdentityAdapter } from "./middlewares/testClerkIdentityAdapter";
 import { generalLimiter, writeLimiter } from "./middlewares/rateLimiter";
 import router from "./routes";
+import healthRouter from "./routes/health";
 import { logger } from "./lib/logger";
 import * as Sentry from "@sentry/node";
 
 const app: Express = express();
+
+// Health routes must respond without Clerk credentials (used in CI/verification
+// environments where Clerk keys may not be configured).
+app.use("/api", healthRouter);
 
 // Clerk must authenticate the untouched incoming request before any middleware
 // that may transform it. Tests use an isolated identity adapter instead.
