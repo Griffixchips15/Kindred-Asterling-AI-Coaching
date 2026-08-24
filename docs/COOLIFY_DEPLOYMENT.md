@@ -40,14 +40,12 @@ PostgreSQL and Ollama services.
 
 ### Sentry
 
-Create separate Sentry projects for the browser and Node API. The browser has
-the production project's public DSN as a fallback; `VITE_SENTRY_DSN` can
-override it for another deployment. Configure the API project's DSN through the
-runtime-only `SENTRY_DSN`. Use the same Git SHA for `VITE_SENTRY_RELEASE` and
-`SENTRY_RELEASE` so events map to one deployment.
+Create separate Sentry projects for the browser and Node API. Configure the
+browser project's DSN through the `VITE_SENTRY_DSN` build argument and the API
+project's DSN through the runtime-only `SENTRY_DSN`. Use the same Git SHA for
+`VITE_SENTRY_RELEASE` and `SENTRY_RELEASE` so events map to one deployment.
 
-Leave the API DSN blank to disable its SDK without affecting app startup. Set
-`VITE_SENTRY_ENABLED=false` at build time to disable browser reporting. The
+Leave either DSN blank to disable that SDK without affecting app startup. The
 default trace sample rate is 10%; tune it for traffic and budget. Configure
 source-map upload in Sentry's deployment integration rather than exposing an
 organization auth token to the application image build.
