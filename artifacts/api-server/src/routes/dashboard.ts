@@ -75,20 +75,26 @@ router.get("/dashboard/streaks", requireAuth, async (req, res): Promise<void> =>
   cutoff.setDate(cutoff.getDate() - STREAK_LOOKBACK_DAYS);
   const cutoffStr = cutoff.toISOString().split("T")[0];
 
-  const streaks = await Promise.all(
-    habits.map(async (habit) => {
-      const entries = await db
-        .select()
-        .from(habitEntriesTable)
-        .where(
-          and(
-            eq(habitEntriesTable.habitId, habit.id),
-            eq(habitEntriesTable.completed, true),
-            gte(habitEntriesTable.date, cutoffStr)
-          )
-        )
-        .orderBy(desc(habitEntriesTable.date))
-        .limit(STREAK_LOOKBACK_DAYS);
+  const allEntries = await db
+    .select()
+    .from(habitEntriesTable)
+    .where(
+      and(
+        eq(habitEntriesTable.userId, userId),
+        eq(habitEntriesTable.completed, true),
+        gte(habitEntriesTable.date, cutoffStr)
+      )
+    )
+    .orderBy(desc(habitEntriesTable.date));
+
+  const entriesByHabit = allEntries.reduce((acc, entry) => {
+    if (!acc[entry.habitId]) acc[entry.habitId] = [];
+    acc[entry.habitId].push(entry);
+    return acc;
+  }, {} as Record<number, typeof allEntries>);
+
+  const streaks = habits.map((habit) => {
+      const entries = (entriesByHabit[habit.id] || []).slice(0, STREAK_LOOKBACK_DAYS);
 
       let currentStreak = 0;
       let longestStreak = 0;
@@ -117,8 +123,7 @@ router.get("/dashboard/streaks", requireAuth, async (req, res): Promise<void> =>
         completedCount: entries.length,
         targetDays: habit.targetDays,
       };
-    })
-  );
+    });
 
   res.json(streaks);
 });
