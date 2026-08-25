@@ -29,7 +29,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { Sunrise, CheckCircle2 } from "lucide-react";
+import { Sunrise, CheckCircle2, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 
 const morningSchema = z.object({
@@ -251,9 +251,12 @@ export default function Morning() {
 
           <Button
             type="submit"
-            className="w-full h-14 text-lg font-medium shadow-md"
+            className="w-full h-14 text-lg font-medium shadow-md flex items-center justify-center"
             disabled={createLog.isPending}
           >
+            {createLog.isPending && (
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+            )}
             {createLog.isPending ? "Saving..." : "Start My Day"}
           </Button>
         </form>
