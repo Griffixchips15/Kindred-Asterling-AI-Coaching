@@ -5,7 +5,7 @@ const PILLARS = [
   {
     name: "Marc Lewis",
     title: "Addiction as Deep Learning",
-    body: "Marc Lewis's argument: addiction is not pathology but deep learning. The brain's capacity to rewire itself is also the path to recovery.",
+    body: "Addiction reflects neuroplastic learning rather than chronic disease. The neural mechanisms that entrench compulsive habits also enable cognitive rewiring and recovery.",
     source: {
       label: "The Biology of Desire (2015) — Basic Books",
       href: "https://www.basicbooks.com/titles/marc-lewis/the-biology-of-desire/9780465049165/",
@@ -14,7 +14,7 @@ const PILLARS = [
   {
     name: "Kevin McCauley",
     title: "Hijacked Reward Circuits",
-    body: "Kevin McCauley's work: how addiction hijacks the reward, memory, and stress circuits; how hypofrontality compromises choice and insight.",
+    body: "Addiction dysregulates neural circuits governing reward, memory, and stress. Resulting hypofrontality significantly impairs cognitive insight and voluntary choice.",
     source: {
       label: "Pleasure Unwoven (2009) — Institute for Addiction Study",
       href: "https://www.instituteforaddictionstudy.com/pleasure-unwoven",
@@ -23,7 +23,7 @@ const PILLARS = [
   {
     name: "Judith Grisel",
     title: "The Neurological Cycle",
-    body: "Judith Grisel's neurological cycle: the brain's homeostatic rebound creates withdrawal, trapping people in a search for normalcy.",
+    body: "Homeostatic adaptation drives chemical tolerance and withdrawal, locking the brain in a continuous struggle to restore baseline equilibrium.",
     source: {
       label: "Never Enough (2019) — Doubleday",
       href: "https://www.penguinrandomhouse.com/books/567263/never-enough-by-judith-grisel/",
@@ -32,7 +32,7 @@ const PILLARS = [
   {
     name: "The ACE Framework",
     title: "Environment & Genetics",
-    body: "The interplay of Adverse Childhood Experiences, genetics, and environment in shaping the hedonic system.",
+    body: "Adverse Childhood Experiences interact with genetic predispositions to alter baseline hedonic function and elevate susceptibility to addiction.",
     source: {
       label: "Felitti et al. (1998) — American Journal of Preventive Medicine",
       href: "https://pubmed.ncbi.nlm.nih.gov/9635069/",
@@ -140,10 +140,11 @@ export default function Science() {
                 Evidence-Based Techniques
               </h2>
               <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-                Recovery as a process of reorganizing habits through social
-                support and self-directed growth. Evidence-based therapeutic
-                techniques — including DBT and CBT — are woven into the coaching
-                framework to build distress tolerance and emotional regulation.
+                Recovery requires active habit reorganization supported by
+                community and deliberate practice. Kindred integrates modalities
+                such as Cognitive Behavioral Therapy (CBT) and Dialectical
+                Behavior Therapy (DBT) to strengthen emotional regulation and
+                distress tolerance.
               </p>
             </CardContent>
           </Card>
@@ -151,12 +152,13 @@ export default function Science() {
             <CardContent className="p-7 md:p-9">
               <HeartHandshake className="h-6 w-6 text-primary" />
               <h2 className="mt-5 font-serif text-2xl font-medium tracking-tight text-foreground">
-                The ethical landscape
+                The Ethical Landscape
               </h2>
               <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-                AI can identify patterns and personalize support, but lacks
-                emotional nuance. Human connection remains essential. Kindred is
-                designed with this boundary clearly in mind.
+                While AI excels at pattern recognition and reflective coaching,
+                it lacks affective empathy and clinical judgment. Human
+                connection remains indispensable; Kindred operates strictly as
+                an adjunct within these defined boundaries.
               </p>
             </CardContent>
           </Card>
