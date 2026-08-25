@@ -18,17 +18,17 @@ const RHYTHM = [
   {
     icon: Sunrise,
     title: "Begin with intention",
-    body: "Notice your mood, sleep, and mental load before the day gathers momentum.",
+    body: "Track mood, sleep quality, and cognitive load before the day builds momentum.",
   },
   {
     icon: MessageCircle,
-    title: "Reflect when you need to",
-    body: "Talk through patterns, practise a different response, or prepare for human support.",
+    title: "Reflect in real time",
+    body: "Deconstruct recurring patterns, rehearse alternative responses, or organize thoughts for upcoming clinical sessions.",
   },
   {
     icon: Sunset,
     title: "Close with perspective",
-    body: "Name what helped, review what felt difficult, and make tomorrow feel more manageable.",
+    body: "Acknowledge daily progress, evaluate stress points, and set a manageable tone for tomorrow.",
   },
 ];
 
@@ -36,17 +36,17 @@ const BENEFITS = [
   {
     icon: Brain,
     title: "Recognize patterns",
-    body: "Bring daily reflections, habits, and check-ins into one clearer view.",
+    body: "Synthesize daily reflections, habits, and check-ins into a unified behavioral narrative.",
   },
   {
     icon: CalendarCheck,
     title: "Prepare for appointments",
-    body: "Remember what changed between conversations with the people supporting you.",
+    body: "Track meaningful shifts between sessions to maximize time with your care team.",
   },
   {
     icon: HeartHandshake,
-    title: "Support human care",
-    body: "Use Kindred between appointments without treating AI as a replacement for professional help.",
+    title: "Reinforce human care",
+    body: "Deepen self-awareness between visits while maintaining appropriate clinical boundaries.",
   },
 ];
 
@@ -66,9 +66,9 @@ export default function Landing() {
               A steadier way to understand your patterns.
             </h1>
             <p className="mt-6 max-w-2xl text-base leading-8 text-primary-foreground/75 md:text-lg">
-              Kindred Asterling is a private AI coaching companion for daily
-              reflection, habit support, and honest conversations between the
-              moments when human care is available.
+              Kindred Asterling is a private AI companion for daily reflection,
+              habit tracking, and honest dialogue—supporting you in the spaces
+              between human care.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button
@@ -125,26 +125,26 @@ export default function Landing() {
         <div className="mx-auto grid max-w-6xl gap-5 px-5 py-6 text-sm sm:grid-cols-3 md:px-8">
           <div>
             <p className="font-semibold text-foreground">
-              Clearly identified AI
+              Explicitly Artificial
             </p>
             <p className="mt-1 text-muted-foreground">
-              No pretending to be a person or clinician.
+              Clear identification with zero pretense of human clinical identity.
             </p>
           </div>
           <div>
             <p className="font-semibold text-foreground">
-              Your reflections stay personal
+              Privately Anchored
             </p>
             <p className="mt-1 text-muted-foreground">
-              Designed around private, user-owned information.
+              Built strictly around confidential, user-owned data.
             </p>
           </div>
           <div>
             <p className="font-semibold text-foreground">
-              Not crisis or medical care
+              Adjunctive Support
             </p>
             <p className="mt-1 text-muted-foreground">
-              Kindred supports—but does not replace—qualified help.
+              Designed to complement, never replace, professional care.
             </p>
           </div>
         </div>
@@ -159,8 +159,8 @@ export default function Landing() {
             Support that fits into your day.
           </h2>
           <p className="mt-4 text-base leading-7 text-muted-foreground">
-            Each moment has a clear purpose, so reflection feels useful instead
-            of overwhelming.
+            Every prompt serves a distinct purpose, making daily reflection
+            grounding rather than overwhelming.
           </p>
         </div>
         <div className="mt-10 grid gap-5 md:grid-cols-3">
@@ -198,11 +198,11 @@ export default function Landing() {
                 Practical benefits
               </p>
               <h2 className="mt-3 font-serif text-4xl font-medium tracking-tight text-foreground">
-                Turn reflection into something you can use.
+                Turn reflection into actionable insight.
               </h2>
               <p className="mt-4 text-base leading-7 text-muted-foreground">
-                Kindred helps organize the small signals that are difficult to
-                see when every day is considered on its own.
+                Kindred organizes subtle daily signals that are easily missed
+                when days are viewed in isolation.
               </p>
             </div>
             <div className="grid gap-4">
@@ -235,11 +235,11 @@ export default function Landing() {
             <CardContent className="p-7">
               <Brain className="h-6 w-6 text-primary" />
               <h2 className="mt-5 font-serif text-xl font-medium">
-                Grounded in research
+                Grounded in Research
               </h2>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                The approach draws from cognitive neuroscience, behavioral
-                health, and addiction research.
+                Informed by cognitive neuroscience, behavioral health, and
+                addiction recovery science.
               </p>
               <Link
                 href="/science"
@@ -253,11 +253,11 @@ export default function Landing() {
             <CardContent className="p-7">
               <ShieldCheck className="h-6 w-6 text-primary" />
               <h2 className="mt-5 font-serif text-xl font-medium">
-                Privacy and transparency
+                Privacy &amp; Transparency
               </h2>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Understand what Kindred is, what it remembers, and where its
-                limitations begin.
+                Clear boundaries regarding data persistence, memory management,
+                and AI capabilities.
               </p>
               <Link
                 href="/legal/privacy"
@@ -271,11 +271,11 @@ export default function Landing() {
             <CardContent className="p-7">
               <HeartHandshake className="h-6 w-6 text-primary" />
               <h2 className="mt-5 font-serif text-xl font-medium">
-                Human care stays central
+                Human-Centered Care
               </h2>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Kindred is a wellness companion—not a therapist, medical
-                service, or emergency resource.
+                A dedicated wellness companion—distinct from clinical therapy,
+                medical treatment, or crisis intervention.
               </p>
               <Link
                 href="/legal/health-disclaimer"
