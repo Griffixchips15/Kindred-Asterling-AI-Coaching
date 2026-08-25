@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { ScanLine, Clock, Search, X } from "lucide-react";
+import { ScanLine, Clock, Search, X, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { FEELINGS_WHEEL, searchFeelings } from "@/lib/feelings-wheel";
 
@@ -294,9 +294,12 @@ export default function Scans() {
       <Button
         onClick={handleSubmit}
         disabled={createScan.isPending}
-        className="w-full h-14 text-lg font-medium shadow-md"
+        className="w-full h-14 text-lg font-medium shadow-md flex items-center justify-center"
         data-testid="button-log-scan"
       >
+        {createScan.isPending && (
+          <Loader2 className="w-5 h-5 animate-spin mr-2" />
+        )}
         {createScan.isPending ? "Saving..." : "Log This Scan"}
       </Button>
 

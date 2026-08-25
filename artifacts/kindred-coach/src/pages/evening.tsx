@@ -22,7 +22,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { Sunset, CheckCircle2, Star } from "lucide-react";
+import { Sunset, CheckCircle2, Star, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -287,9 +287,12 @@ export default function Evening() {
           <Button
             type="submit"
             disabled={createReport.isPending}
-            className="w-full h-14 text-lg font-medium shadow-md"
+            className="w-full h-14 text-lg font-medium shadow-md flex items-center justify-center"
             data-testid="button-save-evening"
           >
+            {createReport.isPending && (
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+            )}
             {createReport.isPending ? "Saving..." : "Close Out My Day"}
           </Button>
         </form>
