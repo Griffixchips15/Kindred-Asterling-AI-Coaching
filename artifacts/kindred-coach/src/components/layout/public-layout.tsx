@@ -187,7 +187,7 @@ function PublicFooter() {
         </div>
         <p className="mt-10 text-xs text-muted-foreground/70">
           © {new Date().getFullYear()} Kindred Asterling AI Coaching. Kindred is
-          a companion to clinical care — not a substitute for professional help.
+          a companion to clinical care—not a substitute for professional help.
         </p>
       </div>
     </footer>

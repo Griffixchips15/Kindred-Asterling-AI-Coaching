@@ -28,16 +28,16 @@ export default function About() {
         <Card>
           <CardContent className="px-6 py-10 md:px-10">
             <h2 className="font-serif text-2xl font-medium tracking-tight text-foreground">
-              Our mission
+              Our Mission
             </h2>
             <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-              We believe AI should be a transparent, compassionate supplement to
-              human care — never a replacement for it. Technology should serve
-              human connection and resilience, helping people identify patterns,
-              reflect on progress, and gently return to their intentions. We
-              hold ourselves to radical transparency: the AI is always named as
-              AI, its limits are stated plainly, and human relationship remains
-              at the center of recovery.
+              We believe artificial intelligence should serve as a compassionate
+              supplement to human care, never its replacement. Technology must
+              strengthen human connection and resilience—guiding individuals to
+              recognize patterns, evaluate progress, and mindfully return to
+              their intentions. We commit to complete transparency: we identify
+              the AI explicitly, state its boundaries plainly, and ensure human
+              connection remains the cornerstone of recovery.
             </p>
           </CardContent>
         </Card>
@@ -45,25 +45,29 @@ export default function About() {
 
       <section className="mx-auto max-w-3xl px-5 pb-12 md:px-8">
         <h2 className="font-serif text-2xl font-medium tracking-tight text-foreground">
-          A note from the creator
+          A Note from the Creator
         </h2>
         <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-          Kindred Asterling grew out of lived experience and a long curiosity
-          about the science of change. It is a pilot — an honest exploration of
-          how AI and human resilience can meet. There are no grand promises
-          here, only careful work and a commitment to doing it with compassion.
+          Kindred Asterling emerged from lived experience and an enduring
+          curiosity about the science of behavioral change. As a pilot
+          initiative, it represents an honest exploration of how AI and human
+          resilience intersect. We make no exaggerated claims—only a commitment
+          to thoughtful, compassionate practice.
         </p>
-        <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
-          <span className="font-medium text-foreground">
-            Written and reviewed by the Kindred Asterling team.
-          </span>{" "}
-          The people behind Kindred write from lived experience with recovery
-          and a sustained study of the cognitive-neuroscience and addiction
-          research referenced across this site. Kindred Asterling offers
-          wellness support and is not a substitute for professional medical or
-          mental-health care.
+
+        <h2 className="mt-8 font-serif text-2xl font-medium tracking-tight text-foreground">
+          Review &amp; Medical Disclaimer
+        </h2>
+        <p className="mt-4 text-base italic leading-relaxed text-muted-foreground">
+          Written and reviewed by the Kindred Asterling team.
         </p>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+          Our team pairs lived recovery experience with rigorous study in
+          cognitive neuroscience and addiction research. Kindred Asterling
+          provides wellness and peer support; it is not a substitute for
+          clinical medical or mental health treatment.
+        </p>
+        <p className="mt-6 text-base italic text-muted-foreground">
           Last reviewed: June 2026
         </p>
       </section>
