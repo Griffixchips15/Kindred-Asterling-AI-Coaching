@@ -66,9 +66,19 @@ format-check:
 # ──────────────────────────────────────────────────────────────────────────────
 
 # Runs the Vitest suite for the API server (artifacts/api-server).
+# A postgres service is required because 13 test suites are integration
+# tests that import lib/db and need a live DATABASE_URL at startup.
 test-api-server:
   extends: .node-base
   stage: test
+  services:
+    - postgres:16-alpine
+  variables:
+    POSTGRES_DB: kindred_test
+    POSTGRES_USER: kindred
+    POSTGRES_PASSWORD: kindred
+    # Connects to the postgres service container defined above
+    DATABASE_URL: "postgres://kindred:kindred@postgres:5432/kindred_test"
   script:
     - pnpm --filter @workspace/api-server run test
 
