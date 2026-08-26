@@ -41,23 +41,16 @@ stages:
 
 # Runs the root-level typecheck which covers all workspace packages via
 # tsc --build (libs) and then each artifact/scripts package.
-# allow_failure: true while frontend/app/layout.tsx has a pre-existing
-# LayoutProps type error on this branch. Remove once that is fixed.
 typecheck:
   extends: .node-base
   stage: validate
-  allow_failure: true
   script:
     - pnpm run typecheck
 
 # Verifies all files conform to the project's Prettier formatting rules.
-# allow_failure: true while the codebase is brought into compliance —
-# run `pnpm exec prettier --write .` locally and commit to fix.
-# Remove allow_failure once the bulk format pass is done.
 format-check:
   extends: .node-base
   stage: validate
-  allow_failure: true
   script:
     - pnpm exec prettier --check .
 
@@ -66,19 +59,9 @@ format-check:
 # ──────────────────────────────────────────────────────────────────────────────
 
 # Runs the Vitest suite for the API server (artifacts/api-server).
-# A postgres service is required because 13 test suites are integration
-# tests that import lib/db and need a live DATABASE_URL at startup.
 test-api-server:
   extends: .node-base
   stage: test
-  services:
-    - postgres:16-alpine
-  variables:
-    POSTGRES_DB: kindred_test
-    POSTGRES_USER: kindred
-    POSTGRES_PASSWORD: kindred
-    # Connects to the postgres service container defined above
-    DATABASE_URL: "postgres://kindred:kindred@postgres:5432/kindred_test"
   script:
     - pnpm --filter @workspace/api-server run test
 
