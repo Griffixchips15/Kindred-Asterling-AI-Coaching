@@ -82,7 +82,7 @@ export function googleAuthorizationUrl(state: string): string {
     response_type: "code",
     access_type: "offline",
     prompt: "consent",
-    scope: "https://www.googleapis.com/auth/calendar.readonly",
+    scope: "https://www.googleapis.com/auth/calendar.events.readonly",
     state,
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
@@ -121,6 +121,52 @@ export async function hasCalendarConnection(userId: string): Promise<boolean> {
     .where(eq(calendarConnectionsTable.userId, userId))
     .limit(1);
   return Boolean(connection);
+}
+
+export async function disconnectCalendar(userId: string): Promise<void> {
+  const [connection] = await db
+    .select({
+      encryptedRefreshToken: calendarConnectionsTable.encryptedRefreshToken,
+    })
+    .from(calendarConnectionsTable)
+    .where(eq(calendarConnectionsTable.userId, userId))
+    .limit(1);
+
+  if (!connection) return;
+
+  try {
+    const encryptionSecret = process.env.CALENDAR_TOKEN_ENCRYPTION_KEY?.trim();
+    if (!encryptionSecret) {
+      logger.warn(
+        { userId },
+        "Calendar token could not be revoked because token encryption is not configured",
+      );
+    } else {
+      const refreshToken = decrypt(
+        connection.encryptedRefreshToken,
+        encryptionSecret,
+      );
+      const response = await fetch("https://oauth2.googleapis.com/revoke", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ token: refreshToken }),
+      });
+      if (!response.ok) {
+        logger.warn(
+          { status: response.status, userId },
+          "Google Calendar token revocation failed",
+        );
+      }
+    }
+  } catch (err) {
+    logger.warn({ err, userId }, "Google Calendar token revocation failed");
+  } finally {
+    // Deleting the encrypted token is unconditional: a provider outage must
+    // not prevent the user from immediately disconnecting Kindred locally.
+    await db
+      .delete(calendarConnectionsTable)
+      .where(eq(calendarConnectionsTable.userId, userId));
+  }
 }
 
 async function accessToken(userId: string): Promise<string | null> {

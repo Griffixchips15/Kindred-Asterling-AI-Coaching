@@ -1,14 +1,23 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  getGetUpcomingCalendarEventsQueryKey,
   useGetCurrentAuthUser,
   getGetCurrentAuthUserQueryKey,
   updateProfile,
   useGetTodayAffirmation,
   getGetTodayAffirmationQueryKey,
 } from "@workspace/api-client-react";
-import { useUser } from "@clerk/clerk-react";
-import { User, Save, Quote, Sparkles, AlertCircle, CalendarDays, CheckCircle2 } from "lucide-react";
+import { useAuth, useUser } from "@clerk/clerk-react";
+import {
+  User,
+  Save,
+  Quote,
+  Sparkles,
+  AlertCircle,
+  CalendarDays,
+  CheckCircle2,
+} from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { QueryErrorState } from "@/components/query-error-state";
@@ -44,6 +53,7 @@ function safeFormatDate(s: string | null | undefined): string | null {
 
 export default function Profile() {
   const qc = useQueryClient();
+  const { getToken } = useAuth();
   const { user: clerkUser } = useUser();
   const { data, isLoading, isError, refetch } = useGetCurrentAuthUser({
     query: { queryKey: getGetCurrentAuthUserQueryKey() },
@@ -62,17 +72,76 @@ export default function Profile() {
   const [calendarConfigured, setCalendarConfigured] = useState(false);
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [statusLoaded, setStatusLoaded] = useState(false);
+  const [disconnectingCalendar, setDisconnectingCalendar] = useState(false);
+  const [calendarMessage, setCalendarMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/calendar/status", { credentials: "include" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((status: { configured?: boolean; connected?: boolean } | null) => {
-        setCalendarConfigured(Boolean(status?.configured));
-        setCalendarConnected(Boolean(status?.connected));
-        setStatusLoaded(true);
-      })
-      .catch(() => setStatusLoaded(true));
-  }, []);
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const token = await getToken();
+        const response = await fetch("/api/calendar/status", {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        const status = response.ok
+          ? ((await response.json()) as {
+              configured?: boolean;
+              connected?: boolean;
+            })
+          : null;
+        if (!cancelled) {
+          setCalendarConfigured(Boolean(status?.configured));
+          setCalendarConnected(Boolean(status?.connected));
+        }
+      } catch {
+        if (!cancelled) {
+          setCalendarConfigured(false);
+          setCalendarConnected(false);
+        }
+      } finally {
+        if (!cancelled) setStatusLoaded(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken]);
+
+  async function handleCalendarDisconnect() {
+    if (
+      !window.confirm(
+        "Disconnect Google Calendar? Kindred will revoke access and delete the stored token.",
+      )
+    ) {
+      return;
+    }
+
+    setDisconnectingCalendar(true);
+    setCalendarMessage(null);
+    try {
+      const token = await getToken();
+      const response = await fetch("/api/calendar/connection", {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (!response.ok) {
+        throw new Error(`Calendar disconnect failed (${response.status})`);
+      }
+      setCalendarConnected(false);
+      qc.removeQueries({ queryKey: getGetUpcomingCalendarEventsQueryKey() });
+      setCalendarMessage(
+        "Google Calendar disconnected. Kindred deleted the stored token.",
+      );
+    } catch {
+      setCalendarMessage(
+        "Google Calendar could not be disconnected. Please try again.",
+      );
+    } finally {
+      setDisconnectingCalendar(false);
+    }
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -320,7 +389,8 @@ export default function Profile() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Allow Kindred to see your upcoming events to make planning suggestions and help you prepare for your day.
+                Allow Kindred to see your upcoming events to make planning
+                suggestions and help you prepare for your day.
               </p>
 
               {statusLoaded && (
@@ -334,13 +404,33 @@ export default function Profile() {
                       Connect Calendar
                     </a>
                   ) : calendarConnected ? (
-                    <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Syncing actively
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Syncing actively
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCalendarDisconnect}
+                        disabled={disconnectingCalendar}
+                        className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
+                      >
+                        {disconnectingCalendar
+                          ? "Disconnecting…"
+                          : "Disconnect Calendar"}
+                      </button>
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground italic">
                       Calendar setup is not complete on the server yet.
+                    </p>
+                  )}
+                  {calendarMessage && (
+                    <p
+                      className="mt-3 text-xs text-muted-foreground"
+                      role="status"
+                    >
+                      {calendarMessage}
                     </p>
                   )}
                 </div>
