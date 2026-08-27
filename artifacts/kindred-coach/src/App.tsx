@@ -97,12 +97,6 @@ function PublicRoutes() {
         <Route path="/pricing" component={Pricing} />
         <Route path="/payment-success" component={PaymentSuccess} />
         <Route path="/login" component={Login} />
-        <Route path="/legal/privacy" component={PrivacyPolicy} />
-        <Route path="/legal/terms" component={TermsAndConditions} />
-        <Route path="/legal/health-disclaimer" component={HealthDisclaimer} />
-        <Route path="/legal/ai-disclosure" component={AIUseDisclosure} />
-        <Route path="/legal/cookies" component={CookieNotice} />
-        <Route path="/legal/marketing-consent" component={MarketingConsent} />
         <Route component={NotFound} />
       </Switch>
     </PublicLayout>
@@ -185,7 +179,46 @@ function SetupMfaTask() {
   );
 }
 
+// Legal pages are fully static and require no authentication context.
+// Rendering them outside ClerkProvider prevents Clerk JS from being fetched
+// on these routes, making them resilient to Clerk CDN failures.
+const LEGAL_ROUTES: Record<string, () => JSX.Element> = {
+  "/legal/privacy": PrivacyPolicy,
+  "/legal/terms": TermsAndConditions,
+  "/legal/health-disclaimer": HealthDisclaimer,
+  "/legal/ai-disclosure": AIUseDisclosure,
+  "/legal/cookies": CookieNotice,
+  "/legal/marketing-consent": MarketingConsent,
+};
+
+function LegalShell() {
+  return (
+    <ThemeProvider>
+      <TooltipProvider>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+          <PublicLayout>
+            <Switch>
+              {Object.entries(LEGAL_ROUTES).map(([path, Component]) => (
+                <Route key={path} path={path} component={Component} />
+              ))}
+            </Switch>
+          </PublicLayout>
+          <Toaster />
+        </WouterRouter>
+      </TooltipProvider>
+    </ThemeProvider>
+  );
+}
+
 function App() {
+  // Serve legal pages without loading Clerk at all.
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const pathname = window.location.pathname;
+  const pathWithoutBase = base ? pathname.replace(base, "") || "/" : pathname;
+  if (Object.keys(LEGAL_ROUTES).some((r) => pathWithoutBase === r)) {
+    return <LegalShell />;
+  }
+
   if (!clerkPubKey) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -209,7 +242,7 @@ function App() {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
             <TooltipProvider>
-              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <WouterRouter base={base}>
                 <Switch>
                   <Route path="/" component={PublicRoutes} />
                   <Route path="/about" component={PublicRoutes} />
@@ -217,18 +250,6 @@ function App() {
                   <Route path="/pricing" component={PublicRoutes} />
                   <Route path="/payment-success" component={PublicRoutes} />
                   <Route path="/login" component={PublicRoutes} />
-                  <Route path="/legal/privacy" component={PublicRoutes} />
-                  <Route path="/legal/terms" component={PublicRoutes} />
-                  <Route
-                    path="/legal/health-disclaimer"
-                    component={PublicRoutes}
-                  />
-                  <Route path="/legal/ai-disclosure" component={PublicRoutes} />
-                  <Route path="/legal/cookies" component={PublicRoutes} />
-                  <Route
-                    path="/legal/marketing-consent"
-                    component={PublicRoutes}
-                  />
                   <Route
                     path="/app/session-tasks/choose-organization"
                     component={ChooseOrganizationTask}
