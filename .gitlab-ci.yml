@@ -1,0 +1,69 @@
+stages:
+  - validate
+  - test
+  - build
+
+include:
+  - template: Jobs/SAST.gitlab-ci.yml
+  - template: Jobs/Dependency-Scanning.gitlab-ci.yml
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+variables:
+  AST_ENABLE_MR_PIPELINES: "true"
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+  PNPM_STORE_DIR: "$CI_PROJECT_DIR/.pnpm-store"
+
+.pnpm-job:
+  image: node:24-bookworm-slim
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store/
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@10.28.1 --activate
+    - pnpm config set store-dir "$PNPM_STORE_DIR"
+    - pnpm install --frozen-lockfile
+
+typecheck:
+  extends: .pnpm-job
+  stage: validate
+  script:
+    - pnpm run typecheck
+
+test-api-server:
+  extends: .pnpm-job
+  stage: test
+  services:
+    - name: postgres:16-bookworm
+      alias: postgres
+  variables:
+    POSTGRES_DB: kindred_test
+    POSTGRES_USER: kindred
+    POSTGRES_PASSWORD: kindred
+    DATABASE_URL: postgres://kindred:kindred@postgres:5432/kindred_test
+    NODE_ENV: test
+    HELCIM_PAYMENTS_ENABLED: "false"
+  script:
+    - pnpm --filter @workspace/db run push
+    - pnpm --filter @workspace/api-server run test
+
+test-kindred-coach:
+  extends: .pnpm-job
+  stage: test
+  script:
+    - pnpm --filter @workspace/kindred-coach run test
+
+build-production-artifacts:
+  extends: .pnpm-job
+  stage: build
+  script:
+    - pnpm --filter @workspace/kindred-coach run build
+    - pnpm --filter @workspace/api-server run build

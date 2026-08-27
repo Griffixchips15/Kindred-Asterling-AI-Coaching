@@ -6,17 +6,27 @@ type LegalBlock =
   | { type: "subheading"; content: ReactNode }
   | { type: "callout"; content: ReactNode };
 
-interface LegalSection {
-  heading: string;
-  blocks: LegalBlock[];
-}
+type LegalSection =
+  | { heading: string; blocks: LegalBlock[] }
+  | { heading: string; content: ReactNode | LegalBlock };
 
 interface LegalPageProps {
   title: string;
   summary: string;
-  governingLaw: string;
-  pdfHref: string;
+  governingLaw?: string;
+  pdfHref?: string;
   sections: LegalSection[];
+}
+
+const confirmationClass =
+  "rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100";
+
+function Confirmation({ children }: { children: ReactNode }) {
+  return (
+    <div className={confirmationClass}>
+      <strong>Founder/legal confirmation required:</strong> {children}
+    </div>
+  );
 }
 
 const paragraph = (content: ReactNode): LegalBlock => ({
@@ -77,6 +87,28 @@ function renderBlock(block: LegalBlock, index: number) {
   );
 }
 
+function isLegalBlock(content: ReactNode | LegalBlock): content is LegalBlock {
+  if (typeof content !== "object" || content === null || !("type" in content)) {
+    return false;
+  }
+
+  const candidate = content as Partial<LegalBlock>;
+  return (
+    candidate.type === "paragraph" ||
+    candidate.type === "list" ||
+    candidate.type === "subheading" ||
+    candidate.type === "callout"
+  );
+}
+
+function renderLegacyContent(content: ReactNode | LegalBlock): ReactNode {
+  if (isLegalBlock(content)) {
+    return renderBlock(content, 0);
+  }
+
+  return content;
+}
+
 function LegalPage({
   title,
   summary,
@@ -87,7 +119,7 @@ function LegalPage({
   const metadata = [
     ["Version", "1.0 (Final Review Draft)"],
     ["Date", "August 24, 2026"],
-    ["Governing law", governingLaw],
+    ...(governingLaw ? [["Governing law", governingLaw]] : []),
     ["Sole proprietor", "Landon Syroid d/b/a Kindred Asterling AI Coaching"],
     ["Status", "Subject to Final Legal Counsel Approval"],
   ];
@@ -122,13 +154,15 @@ function LegalPage({
           Draft - for final legal review and execution - not for distribution
         </div>
 
-        <a
-          className="mt-5 inline-flex items-center rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-          href={pdfHref}
-          download
-        >
-          Download the supplied PDF
-        </a>
+        {pdfHref ? (
+          <a
+            className="mt-5 inline-flex items-center rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+            href={pdfHref}
+            download
+          >
+            Download the supplied PDF
+          </a>
+        ) : null}
       </header>
 
       <div className="mt-10 space-y-10">
@@ -138,7 +172,9 @@ function LegalPage({
               {section.heading}
             </h2>
             <div className="mt-3 space-y-4 text-sm leading-7 text-muted-foreground">
-              {section.blocks.map(renderBlock)}
+              {"blocks" in section
+                ? section.blocks.map(renderBlock)
+                : renderLegacyContent(section.content)}
             </div>
           </section>
         ))}
