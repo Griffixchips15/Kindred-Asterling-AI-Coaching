@@ -4,13 +4,13 @@ The repository-root `Dockerfile` is the **only supported production deployment
 artifact**. Do not use Nixpacks, Docker Compose generated from this repository,
 PM2, Replit workflows, or a host-side Node process. Coolify builds the Dockerfile,
 runs one non-root application container, and connects it to separately managed
-PostgreSQL and Ollama services.
+PostgreSQL and AWS Bedrock.
 
 ## GitLab application setup (the new-resource screen)
 
 For the Coolify screen shown when adding a **Private GitLab App** repository:
 
-1. Select `Kindred_Asterling/kindred-ai`, then click **Load repository**. Loading
+1. Select `kindred-asterling-ai-group/Kindred-Asterling-AI-Coaching`, then click **Load repository**. Loading
    the repository lets Coolify validate the branch and discover the root
    `Dockerfile`.
 2. Set **Branch** to `main`, **Build pack** to `Dockerfile`, and **Base
@@ -50,7 +50,8 @@ browser or the relevant provider dashboard:
 
 - The home page loads over HTTPS without a certificate warning.
 - Clerk sign-in and sign-out work with the production Clerk instance.
-- A test coaching message receives a response from the configured AI provider.
+- A synthetic test coaching message receives a response from the configured AI
+  provider. Do not use real health information for deployment smoke testing.
 - Clerk, Helcim (when enabled), and Google Calendar (when enabled) report a 2xx
   response from their production webhook or callback URLs.
 - A push to `main` starts a new Coolify deployment if automatic deployments are
@@ -65,30 +66,35 @@ unchanged image to fix a database connectivity or schema problem.
 
 1. Create a Coolify **PostgreSQL** resource and retain its internal connection
    URL. Keep PostgreSQL private; do not publish port 5432.
-2. Create an Ollama service reachable on Coolify's private network, and persist
-   `/root/.ollama` so models survive replacement.
+2. Configure AWS Bedrock for production as described in
+   [aws-bedrock-coolify.md](aws-bedrock-coolify.md). Private Ollama is only a
+   temporary, approved rollback option, not the production provider.
 3. Create an application from this Git repository. Select **Dockerfile** with
    path `/Dockerfile`, port `8080`, and the production branch.
 4. Add `VITE_CLERK_PUBLISHABLE_KEY` and `VITE_SENTRY_DSN` as **build
    arguments**. They are public and compiled into browser assets. Also set
    `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_RELEASE` (normally the Git SHA), and
    `VITE_SENTRY_TRACES_SAMPLE_RATE`. A change requires a rebuild.
-5. Add the non-`VITE_*` values from `.env.example` as runtime environment
-   variables. Mark keys, webhook signing secrets, database URLs, and encryption
-   values as secrets. The Clerk publishable key is needed twice: the Vite build
-   argument and `CLERK_PUBLISHABLE_KEY` at server runtime.
-6. Initialize or upgrade the database from a trusted CI/admin environment before
-   switching traffic:
+5. Add the applicable runtime values from `.env.example`. Do not add
+   `MIGRATION_DATABASE_URL` or `SENTRY_AUTH_TOKEN` to the application runtime;
+   their migration-only and build-only delivery paths are documented below. Mark
+   keys, webhook signing secrets, database URLs, and encryption values as secrets.
+   The Clerk publishable key is needed twice: the Vite build argument and
+   `CLERK_PUBLISHABLE_KEY` at server runtime.
+6. Initialize or upgrade the database from a trusted admin/migration environment
+   containing this repository, pnpm, and the `db` workspace before switching
+   traffic:
    - **Brand-new, empty PostgreSQL resource:** run
-     `pnpm --filter @workspace/db initialize`. This creates the complete baseline
-     schema represented by the current Drizzle definitions. Do not run the
-     incremental migrations first: they transform tables from older releases and
-     assume those legacy tables already exist.
-   - **Existing database from an older release:** back it up, run
-     `pnpm --filter @workspace/db migrate` first to preserve and transform legacy
-     data, and then run `pnpm --filter @workspace/db push` to reconcile the rest
-     of the schema. Review the generated changes before accepting them in
-     production.
+     `NODE_ENV=production pnpm --filter @workspace/db run initialize`. This creates
+     the complete baseline schema represented by the current Drizzle definitions.
+     Do not run the incremental migrations first: they transform tables from older
+     releases and assume those legacy tables already exist.
+   - **Existing production database:** complete the pre-migration backup gate,
+     review the committed SQL migrations, then run exactly
+     `NODE_ENV=production pnpm --filter @workspace/db run migrate`. Do not run
+     `drizzle-kit push` against an existing production database. The application
+     container does not run migrations at startup and the slim runtime image is
+     not a migration environment.
 
    Schema initialization and migration are deliberately not part of container
    startup, so a restart cannot unexpectedly mutate production data.
@@ -101,9 +107,15 @@ project's DSN through the runtime-only `SENTRY_DSN`. Use the same Git SHA for
 `VITE_SENTRY_RELEASE` and `SENTRY_RELEASE` so events map to one deployment.
 
 Leave either DSN blank to disable that SDK without affecting app startup. The
-default trace sample rate is 10%; tune it for traffic and budget. Configure
-source-map upload in Sentry's deployment integration rather than exposing an
-organization auth token to the application image build.
+default trace sample rate is 10%; tune it for traffic and budget. The Vite build
+uploads hidden browser source maps only when `SENTRY_AUTH_TOKEN` is available. In
+Coolify, create a private **Build Secret** named exactly `sentry_auth_token`, passed
+to the Docker build as BuildKit secret ID `sentry_auth_token`; do not enable it as
+a build argument or runtime variable. The root Dockerfile mounts it only at
+`/run/secrets/sentry_auth_token` during the build, so it is never persisted in an
+image layer. Tokenless local Docker builds remain supported because the mount is
+optional. Do not claim source maps are verified until a Coolify build upload
+succeeds and a new deployed Sentry event symbolicates with the matching release.
 Session Replay is intentionally not enabled because coaching screens can contain
 sensitive journal and health information.
 
@@ -193,20 +205,22 @@ mount over `/app`; releases and rollback depend on immutable image contents.
 Persist only service data:
 
 - PostgreSQL data directory on a dedicated Coolify volume.
-- Ollama model directory (`/root/.ollama`) on its own volume.
 
 Enable scheduled, encrypted PostgreSQL backups to storage outside the Coolify
-host. Retain daily and weekly restore points, monitor failures, and perform a
+host. Retain **7 daily and 5 weekly restore points only**; all production backups
+must expire within 35 days. Monitor failures, and perform a
 quarterly restore drill into an isolated database. Snapshotting a volume alone is
 not a substitute for a PostgreSQL-consistent backup. Back up Coolify configuration
-and record the deployed Git SHA/image digest; Ollama models may be re-pulled, but
-pinning the model and retaining its volume makes rollback predictable.
+and record the deployed Git SHA/image digest.
 
 ## 6. Deploy and rollback
 
-Before promotion, build the exact commit, run tests, back up PostgreSQL, and apply
-backward-compatible migrations. Deploy, then verify both health endpoints, Clerk
-login, one Ollama response, and webhook delivery.
+Before promotion, GitLab CI validates the Node 24/pnpm 10.28.1 monorepo. Coolify
+separately builds the root `/Dockerfile` from GitLab `main`. Build the exact
+commit, complete the pre-migration backup and reviewed SQL migration gate, and
+deploy. Verify both health endpoints, Clerk login, one response from the configured
+Bedrock provider using synthetic test data, and webhook delivery. Private Ollama
+may be used only under the approved rollback procedure.
 
 For application rollback, select the preceding successful Coolify deployment (or
 its immutable image digest) and redeploy it, then verify both health checks. Do not

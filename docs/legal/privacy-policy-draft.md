@@ -57,7 +57,7 @@ Current internal proposals retain:
 
 - Account and wellness data for the account lifetime.
 - Reminder-delivery records for 90 days.
-- Backups for 35 days.
+- Backups expire within 35 days; the operational schedule is 7 daily and 5 weekly restore points.
 - Administrative audit records for one year.
 - Billing records for up to seven years when legally required.
 
