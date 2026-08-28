@@ -1,5 +1,6 @@
 import {
   createContext,
+  type ReactElement,
   type ReactNode,
   useContext,
   useEffect,
@@ -182,7 +183,7 @@ function SetupMfaTask() {
 // Legal pages are fully static and require no authentication context.
 // Rendering them outside ClerkProvider prevents Clerk JS from being fetched
 // on these routes, making them resilient to Clerk CDN failures.
-const LEGAL_ROUTES: Record<string, () => JSX.Element> = {
+const LEGAL_ROUTES: Record<string, () => ReactElement> = {
   "/legal/privacy": PrivacyPolicy,
   "/legal/terms": TermsAndConditions,
   "/legal/health-disclaimer": HealthDisclaimer,

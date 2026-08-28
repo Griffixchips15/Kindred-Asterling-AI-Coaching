@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 import path from "path";
 
 // PORT and BASE_PATH are set by the dev/preview workflow. A `vite build`
@@ -36,7 +37,19 @@ export default defineConfig(({ command }) => {
 
   return {
     base: resolvedBase,
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      ...(command === "build" && process.env.SENTRY_AUTH_TOKEN
+        ? [
+            sentryVitePlugin({
+              authToken: process.env.SENTRY_AUTH_TOKEN,
+              org: process.env.SENTRY_ORG ?? "kindred-asterling-ai-coaching",
+              project: process.env.SENTRY_PROJECT ?? "javascript-react",
+            }),
+          ]
+        : []),
+    ],
     resolve: {
       alias: {
         "@": path.resolve(import.meta.dirname, "src"),
@@ -51,6 +64,7 @@ export default defineConfig(({ command }) => {
     root: path.resolve(import.meta.dirname),
     envDir: path.resolve(import.meta.dirname, "..", ".."),
     build: {
+      sourcemap: "hidden",
       outDir: path.resolve(import.meta.dirname, "dist/public"),
       emptyOutDir: true,
     },
