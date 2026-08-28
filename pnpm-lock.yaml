@@ -444,10 +444,13 @@ importers:
         version: 5.9.3
 
   lib/api-client-react:
-    dependencies:
+    devDependencies:
       '@tanstack/react-query':
         specifier: 'catalog:'
-        version: 5.101.4(react@19.2.8)
+        version: 5.101.4(react@19.1.0)
+      react:
+        specifier: 'catalog:'
+        version: 19.1.0
 
   lib/api-spec:
     devDependencies:
@@ -7659,11 +7662,6 @@ snapshots:
     dependencies:
       '@tanstack/query-core': 5.101.4
       react: 19.1.0
-
-  '@tanstack/react-query@5.101.4(react@19.2.8)':
-    dependencies:
-      '@tanstack/query-core': 5.101.4
-      react: 19.2.8
 
   '@tybys/wasm-util@0.10.3':
     dependencies:
