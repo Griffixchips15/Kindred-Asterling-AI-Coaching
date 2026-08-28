@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.10
 FROM node:24-bookworm-slim AS build
 
 ENV PNPM_HOME=/pnpm \
