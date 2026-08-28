@@ -46,7 +46,7 @@ export default defineConfig(({ command }) => {
           "src/shims/use-sync-external-store-shim.js",
         ),
       },
-      dedupe: ["react", "react-dom"],
+      dedupe: ["react", "react-dom", "@tanstack/react-query"],
     },
     root: path.resolve(import.meta.dirname),
     envDir: path.resolve(import.meta.dirname, "..", ".."),
