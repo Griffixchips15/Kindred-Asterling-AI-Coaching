@@ -35,7 +35,9 @@ ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN \
     VITE_SENTRY_ENVIRONMENT=$VITE_SENTRY_ENVIRONMENT \
     VITE_SENTRY_RELEASE=$VITE_SENTRY_RELEASE \
     VITE_SENTRY_TRACES_SAMPLE_RATE=$VITE_SENTRY_TRACES_SAMPLE_RATE
-RUN pnpm --filter @workspace/kindred-coach run build \
+RUN --mount=type=secret,id=sentry_auth_token,target=/run/secrets/sentry_auth_token,required=false \
+    if [ -s /run/secrets/sentry_auth_token ]; then export SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token)"; fi; \
+    pnpm --filter @workspace/kindred-coach run build \
  && pnpm --filter @workspace/api-server run build \
  && pnpm --filter @workspace/api-server deploy --prod --legacy /app/runtime
 

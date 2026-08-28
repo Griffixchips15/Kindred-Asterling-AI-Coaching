@@ -1,6 +1,9 @@
 # Coolify/Contabo PostgreSQL operations
 
-PostgreSQL is a persistent, first-class Coolify service. Never deploy it as an ephemeral application sidecar and never use `drizzle-kit push` in production.
+PostgreSQL is a persistent, first-class Coolify service. Never deploy it as an
+ephemeral application sidecar. Never use `drizzle-kit push` to upgrade an existing
+production database; the only production exception is the explicitly documented
+one-time `initialize` bootstrap for a brand-new empty database.
 
 ## Roles and TLS
 
@@ -21,19 +24,30 @@ ALTER DEFAULT PRIVILEGES FOR ROLE kindred_migrator IN SCHEMA public GRANT USAGE,
 GRANT ALL PRIVILEGES ON SCHEMA public TO kindred_migrator;
 ```
 
-Set application `DATABASE_URL` to the app login and migration-job `MIGRATION_DATABASE_URL` to the migrator login. Do not grant `CREATE`, `ALTER`, `DROP`, superuser, or role-management privileges to the app role. Store both in Coolify secrets; the app startup script removes `MIGRATION_DATABASE_URL` before `exec`.
+Set application `DATABASE_URL` to the app login and provide
+`MIGRATION_DATABASE_URL` only to the trusted admin/migration environment. Do not
+grant `CREATE`, `ALTER`, `DROP`, superuser, or role-management privileges to the
+app role. Store both credentials as secrets. The application image has no migration
+entrypoint and does not strip environment variables; the runtime image is not used
+to run pnpm migrations.
 
 Require TLS (`sslmode=verify-full`) and use the database DNS name matching the certificate. For a private/self-signed CA, set `PG_SSL_CA` in both the app and migration job to the complete PEM CA certificate (including header/newlines); it is mandatory in that case. Rotate credentials and certificates through the password manager.
 
 ## Deploy migrations
 
-Preferred: configure a one-shot Coolify deployment job using the new image and migrator secret:
+Run this from a trusted admin/migration environment containing the repository, pnpm,
+and the `db` workspace, after the backup gate and review of the committed SQL files:
 
 ```sh
 NODE_ENV=production pnpm --filter @workspace/db run migrate
 ```
 
-Run it after the backup/pre-deploy gate and before switching traffic to the new application version. The runner records checksums in `schema_migrations` and holds a PostgreSQL advisory lock, so only one migration process runs at once. A failed job blocks deployment. The container entrypoint also runs this command for deployments without a pre-deploy job; never run both deliberately.
+The runner records checksums in `schema_migrations` and holds a PostgreSQL advisory
+lock, so only one migration process runs at once. A failed migration blocks
+promotion. Never run `drizzle-kit push` against an existing production database.
+For a brand-new empty database only, the explicitly documented one-time
+`NODE_ENV=production pnpm --filter @workspace/db run initialize` bootstrap may be
+used instead; it is not an upgrade path.
 
 ## Scheduled encrypted backups and retention
 
@@ -48,7 +62,7 @@ PGSSLMODE=verify-full PGSSLROOTCERT=/run/secrets/postgres-ca.pem \
 aws s3 cp "kindred-${stamp}.dump.age" "s3://$BACKUP_BUCKET/postgres/"
 ```
 
-Keep encryption private keys outside Coolify/Contabo (password manager plus offline recovery copy), restrict bucket access to the backup service account, enable object lock/versioning, and alert on missing/zero-byte uploads. Retain **7 daily, 5 weekly, and 12 monthly** backups; lifecycle deletion occurs only after those windows. Take an additional encrypted backup immediately before every schema migration and retain it for 30 days. Review backup job logs every business day.
+Keep encryption private keys outside Coolify/Contabo (password manager plus offline recovery copy), restrict bucket access to the backup service account, enable object lock/versioning, and alert on missing/zero-byte uploads. Retain **7 daily and 5 weekly** restore points only; configure lifecycle deletion so every production backup expires within 35 days. Take an additional encrypted pre-migration backup and configure it to expire within 30-35 days. Review backup job logs every business day.
 
 ### Troubleshoot Coolify backup permission and role errors
 

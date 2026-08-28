@@ -3,7 +3,7 @@
 > **Purpose:** Define every credential and sensitive runtime value used by the
 > application, where it is stored, and when it is required.
 >
-> **Last reviewed:** 2026-08-24
+> **Last reviewed:** 2026-08-28
 
 This document records **names and storage locations only**. Never add secret
 values to this file, `.env.example`, an image, a build argument, or a `VITE_*`
@@ -31,11 +31,11 @@ op run --env-file=.env.1password -- pnpm --filter @workspace/api-server run dev
 
 ### Database
 
-| Variable                 | Sensitivity / requirement                                                                          | Development source                              | Production source                                                          |
-| ------------------------ | -------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------- |
-| `DATABASE_URL`           | **Secret; required.** Restricted application-role connection URL                                   | `Kindred - Database Development` / `credential` | Coolify secret from `Kindred - Database Production` / `credential`         |
-| `MIGRATION_DATABASE_URL` | **Secret; migration only.** Schema-owner connection URL; remove before starting the app            | Dedicated development migrator credential       | Coolify migration-job secret from dedicated production migrator credential |
-| `PG_SSL_CA`              | Sensitive configuration when it contains a private/internal CA; optional for public-CA connections | Local trusted CA file/value                     | Coolify secret or mounted secret file                                      |
+| Variable                 | Sensitivity / requirement                                                                          | Development source                              | Production source                                                  |
+| ------------------------ | -------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------ |
+| `DATABASE_URL`           | **Secret; required.** Restricted application-role connection URL                                   | `Kindred - Database Development` / `credential` | Coolify secret from `Kindred - Database Production` / `credential` |
+| `MIGRATION_DATABASE_URL` | **Secret; migration environment only.** Never provide it to the application runtime                | Dedicated development migrator credential       | Trusted production migration environment secret                    |
+| `PG_SSL_CA`              | Sensitive configuration when it contains a private/internal CA; optional for public-CA connections | Local trusted CA file/value                     | Coolify secret or mounted secret file                              |
 
 Application and migration roles must remain separate. See
 [`docs/postgresql-operations.md`](docs/postgresql-operations.md) for the required
@@ -106,13 +106,16 @@ affected calendars; do not replace it without a migration plan.
 
 ### Observability
 
-| Variable          | Sensitivity / requirement                             | Development source         | Production source                |
-| ----------------- | ----------------------------------------------------- | -------------------------- | -------------------------------- |
-| `SENTRY_DSN`      | Treat as sensitive configuration; optional server DSN | Development Sentry project | Coolify secret/environment value |
-| `VITE_SENTRY_DSN` | Public browser DSN by design                          | Development Sentry project | Coolify build argument           |
+| Variable            | Sensitivity / requirement                                                  | Development source                             | Production source                                                            |
+| ------------------- | -------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------- |
+| `SENTRY_DSN`        | Treat as sensitive configuration; optional server DSN                      | Development Sentry project                     | Coolify secret/environment value                                             |
+| `VITE_SENTRY_DSN`   | Public browser DSN by design                                               | Development Sentry project                     | Coolify build argument                                                       |
+| `SENTRY_AUTH_TOKEN` | **Secret; browser source-map build only.** Never runtime, `VITE_*`, or ARG | Optional local build environment; never `.env` | Coolify Build Secret ID `sentry_auth_token`; mounted only for the Vite build |
 
 Sentry environment, release, enabled, and trace-sampling variables are
-non-secret. A DSN is not an account credential, but controlling its disclosure
+non-secret. The Dockerfile maps the lowercase BuildKit secret ID
+`sentry_auth_token` to `SENTRY_AUTH_TOKEN` only inside the Vite build step. A DSN
+is not an account credential, but controlling its disclosure
 reduces event-injection abuse.
 
 ## Non-secret runtime inventory
