@@ -6,10 +6,12 @@
   "exports": {
     ".": "./src/index.ts"
   },
-  "dependencies": {
-    "@tanstack/react-query": "catalog:"
-  },
   "peerDependencies": {
+    "@tanstack/react-query": "catalog:",
     "react": ">=18"
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "catalog:",
+    "react": "catalog:"
   }
 }
