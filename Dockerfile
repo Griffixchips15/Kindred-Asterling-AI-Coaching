@@ -27,9 +27,10 @@ COPY tsconfig.base.json ./
 
 ARG VITE_CLERK_PUBLISHABLE_KEY
 ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
+ARG SOURCE_COMMIT
 ARG VITE_SENTRY_DSN
 ARG VITE_SENTRY_ENVIRONMENT=production
-ARG VITE_SENTRY_RELEASE
+ARG VITE_SENTRY_RELEASE=$SOURCE_COMMIT
 ARG VITE_SENTRY_TRACES_SAMPLE_RATE=0.1
 ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN \
     VITE_SENTRY_ENVIRONMENT=$VITE_SENTRY_ENVIRONMENT \
@@ -39,6 +40,7 @@ RUN --mount=type=secret,id=sentry_auth_token,required=false \
     --mount=type=secret,id=VITE_CLERK_PUBLISHABLE_KEY,env=VITE_CLERK_PUBLISHABLE_KEY,required=false \
     --mount=type=secret,id=VITE_SENTRY_DSN,env=VITE_SENTRY_DSN,required=false \
     export NODE_ENV=production \
+           SENTRY_RELEASE="${VITE_SENTRY_RELEASE:-$SOURCE_COMMIT}" \
            SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token 2>/dev/null || true)" \
  && pnpm --filter @workspace/kindred-coach run build \
  && pnpm --filter @workspace/api-server run build \
