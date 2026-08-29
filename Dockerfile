@@ -5,7 +5,12 @@ ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     NODE_ENV=development
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends ca-certificates \
+ && update-ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && corepack enable \
+ && corepack prepare pnpm@10.28.1 --activate
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc tsconfig*.json ./
 COPY artifacts/api-server/package.json artifacts/api-server/package.json
