@@ -38,7 +38,8 @@ ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN \
 RUN --mount=type=secret,id=sentry_auth_token,required=false \
     --mount=type=secret,id=VITE_CLERK_PUBLISHABLE_KEY,env=VITE_CLERK_PUBLISHABLE_KEY,required=false \
     --mount=type=secret,id=VITE_SENTRY_DSN,env=VITE_SENTRY_DSN,required=false \
-    export SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token 2>/dev/null || true)" \
+    export NODE_ENV=production \
+           SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token 2>/dev/null || true)" \
  && pnpm --filter @workspace/kindred-coach run build \
  && pnpm --filter @workspace/api-server run build \
  && pnpm --filter @workspace/api-server deploy --prod --legacy /app/runtime
