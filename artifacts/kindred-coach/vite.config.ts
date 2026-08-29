@@ -46,6 +46,10 @@ export default defineConfig(({ command }) => {
               authToken: process.env.SENTRY_AUTH_TOKEN,
               org: process.env.SENTRY_ORG ?? "kindred-asterling-ai-coaching",
               project: process.env.SENTRY_PROJECT ?? "javascript-react",
+              debug: true,
+              errorHandler(error) {
+                throw error;
+              },
             }),
           ]
         : []),
