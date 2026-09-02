@@ -5,7 +5,6 @@ import pinoHttp from "pino-http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { clerkMiddleware } from "@clerk/express";
-import { createClerkClient } from "@clerk/backend";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import { testClerkIdentityAdapter } from "./middlewares/testClerkIdentityAdapter";
 import { generalLimiter, writeLimiter } from "./middlewares/rateLimiter";
@@ -15,11 +14,6 @@ import { logger } from "./lib/logger";
 import * as Sentry from "@sentry/node";
 
 const app: Express = express();
-
-const clerkClient = createClerkClient({
-  secretKey: process.env.CLERK_SECRET_KEY!,
-  publishableKey: process.env.CLERK_PUBLISHABLE_KEY!,
-});
 
 // Health routes must respond without Clerk credentials (used in CI/verification
 // environments where Clerk keys may not be configured).
@@ -149,29 +143,6 @@ if (isTest) {
 
 app.use(generalLimiter);
 
-// TEMPORARY DEBUG: capture Clerk's exact token rejection reason.
-// Placed after generalLimiter to satisfy CodeQL's rate-limiting rule.
-app.use(async (req, _res, next) => {
-  if (req.path.startsWith("/api") && req.path !== "/api/healthz") {
-    try {
-      const headers = new Headers();
-      for (const [name, value] of Object.entries(req.headers)) {
-        if (typeof value === "string") headers.append(name, value);
-        else if (Array.isArray(value)) value.forEach((v) => headers.append(name, v));
-      }
-      const state = await clerkClient.authenticateRequest(new Request(`http://localhost${req.url}`, {
-        method: req.method,
-        headers
-      }));
-      if (state.status !== "signed-in") {
-        logger.warn({ state }, "TEMPORARY DEBUG: Clerk token rejection state");
-      }
-    } catch (err) {
-      logger.error({ err }, "TEMPORARY DEBUG: Error capturing Clerk token rejection state");
-    }
-  }
-  next();
-});
 app.use((req, res, next) => {
   const writeMethods = ["POST", "PUT", "PATCH", "DELETE"];
   if (writeMethods.includes(req.method)) {

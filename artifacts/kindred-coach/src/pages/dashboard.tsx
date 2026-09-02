@@ -132,22 +132,26 @@ export default function Dashboard() {
         <CardHeader className="pb-2">
           <CardTitle className="text-lg font-medium flex items-center gap-2">
             <Activity className="w-4 h-4 text-primary" />
-            Recent Mood
+            Medication Effectiveness
           </CardTitle>
-          <CardDescription>Over the last 7 days</CardDescription>
+          <CardDescription>How effective your medication felt over the last 7 days</CardDescription>
         </CardHeader>
         <CardContent className="pt-4 pb-6">
           {isLoadingMood ? (
             <Skeleton className="h-40 w-full" />
           ) : moodTrend && moodTrend.length > 0 ? (
-            <div className="h-40 w-full">
+            <div
+              className="h-40 w-full"
+              role="img"
+              aria-label="Medication effectiveness over the last 7 days, rated 1 to 10"
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={moodTrend}
                   margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
                 >
                   <defs>
-                    <linearGradient id="colorMood" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="colorMedicationEffectiveness" x1="0" y1="0" x2="0" y2="1">
                       <stop
                         offset="5%"
                         stopColor="hsl(var(--primary))"
@@ -179,13 +183,15 @@ export default function Dashboard() {
                       borderRadius: "8px",
                     }}
                     labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+                    formatter={(value) => [`${value} / 10`, "Medication effectiveness"]}
                   />
                   <Area
                     type="monotone"
                     dataKey="medicationEffectiveness"
+                    name="Medication effectiveness"
                     stroke="hsl(var(--primary))"
                     fillOpacity={1}
-                    fill="url(#colorMood)"
+                    fill="url(#colorMedicationEffectiveness)"
                     strokeWidth={2}
                   />
                 </AreaChart>

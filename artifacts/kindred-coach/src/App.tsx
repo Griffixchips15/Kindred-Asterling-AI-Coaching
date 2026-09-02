@@ -43,6 +43,7 @@ import PaymentSuccess from "@/pages/public/payment-success";
 import Login from "@/pages/public/login";
 import Account from "@/pages/account";
 import { ThemeProvider } from "@/hooks/use-theme";
+import { protectedRouteLoginTarget } from "@/lib/routing";
 import {
   AIUseDisclosure,
   CookieNotice,
@@ -109,13 +110,17 @@ function PrivateRoutes() {
   const { isLoaded: isSessionLoaded, session } = useSession();
   const sessionStatus = session?.status;
   const tokenBridgeReady = useContext(AuthTokenReadyContext);
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
 
   useEffect(() => {
     if (isLoaded && sessionStatus !== "pending" && !isSignedIn) {
-      setLocation("/login");
+      // `location` is relative to the enclosing `/app` router, so the intended
+      // protected destination is `/app` + `location`. The `~` escape navigates
+      // to the *top-level* public `/login` route (not the non-existent
+      // `/app/login`) while preserving the destination as a validated returnTo.
+      setLocation(`~${protectedRouteLoginTarget(location)}`, { replace: true });
     }
-  }, [isLoaded, isSignedIn, sessionStatus, setLocation]);
+  }, [isLoaded, isSignedIn, sessionStatus, location, setLocation]);
 
   if (sessionStatus === "pending") return <RedirectToTasks />;
 
