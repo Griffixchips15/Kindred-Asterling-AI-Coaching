@@ -32,6 +32,7 @@ export type NextStepKind =
   | "body-scan"
   | "habit"
   | "evening"
+  | "medication-unavailable"
   | "on-track";
 
 export interface NextStep {
@@ -151,7 +152,20 @@ export function deriveNextStep(inputs: TodayInputs, now: Date): NextStep {
     };
   }
 
-  // 6. Nothing actionable remaining.
+  // 6. All known actions are complete, but medication data is unavailable:
+  //    never claim "on track" / "nothing pressing" while a whole input is
+  //    unknown — point to the medications page instead.
+  if (inputs.medicationsUnavailable) {
+    return {
+      kind: "medication-unavailable",
+      href: "/medications",
+      title: "Check your medications",
+      body: "Your medication schedule couldn't load just now, so Kindred can't tell what's next. Opening your medications is the surest way to check.",
+      cta: "Open medications",
+    };
+  }
+
+  // 7. Nothing actionable remaining.
   return {
     kind: "on-track",
     href: "/",
@@ -197,17 +211,18 @@ export function deriveDailyJourney(inputs: TodayInputs): JourneyStep[] {
   let tendHref: string;
 
   if (inputs.medicationsUnavailable) {
-    // Failed: never claim "nothing scheduled", never mark complete.
+    // Failed: unknown medication state can never complete the anchor.
     tendStatus = habitsExist && !habitsDone
       ? `${inputs.habitsCompletedToday} of ${inputs.totalHabits} habits done · Medication unavailable`
       : "Medication unavailable";
-    tendComplete = habitsExist && habitsDone;
+    tendComplete = false;
     tendHref = habitsIncomplete ? "/habits" : "/medications";
   } else if (inputs.medicationsLoading) {
+    // Still loading: unknown medication state can never complete the anchor.
     tendStatus = habitsExist && !habitsDone
       ? `${inputs.habitsCompletedToday} of ${inputs.totalHabits} habits done`
       : "Still loading";
-    tendComplete = habitsExist && habitsDone;
+    tendComplete = false;
     tendHref = habitsIncomplete ? "/habits" : "/medications";
   } else {
     // Medication data known (may be an empty schedule).

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "wouter";
 import {
   Card,
   CardContent,
@@ -62,17 +63,31 @@ export function TodayCalendarSummary() {
     const upcoming = events
       .map((e) => ({ ...e, _date: parseLocalDate(e.date) }))
       .filter((e) => e._date >= today && e._date <= cutoff)
-      .sort((a, b) => a.time.localeCompare(b.time));
+      // Chronological by date first, then time within a day, so the represented
+      // day labels read in calendar order.
+      .sort((a, b) => {
+        const byDate = a._date.getTime() - b._date.getTime();
+        return byDate !== 0 ? byDate : a.time.localeCompare(b.time);
+      });
 
     const dayLabels = Array.from(
       new Set(upcoming.map((e) => dayLabel(e._date, today))),
     );
 
+    // Earliest/latest clock times are computed across every event, independent
+    // of the list ordering, so the window is always the true span.
+    let earliest: string | null = null;
+    let latest: string | null = null;
+    for (const e of upcoming) {
+      if (earliest === null || e.time < earliest) earliest = e.time;
+      if (latest === null || e.time > latest) latest = e.time;
+    }
+
     return {
       count: upcoming.length,
       dayLabels,
-      earliest: upcoming[0]?.time ?? null,
-      latest: upcoming[upcoming.length - 1]?.time ?? null,
+      earliest,
+      latest,
     };
   }, [events]);
 
@@ -133,9 +148,13 @@ export function TodayCalendarSummary() {
                 </span>
               </p>
             )}
-            <p className="text-xs text-muted-foreground pt-1">
-              Open your calendar for details.
-            </p>
+            <Link
+              href="/calendar"
+              className="inline-block pt-1 text-xs font-medium text-primary underline underline-offset-2 hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+              data-testid="calendar-summary-link"
+            >
+              Open your calendar
+            </Link>
           </div>
         )}
       </CardContent>

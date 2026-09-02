@@ -126,16 +126,17 @@ export default function Dashboard() {
         <NextStepPanel step={nextStep} />
       )}
 
-      {/* Compact four-anchor daily journey. */}
-      {isLoadingSummary || !inputs ? (
+      {/* Compact four-anchor daily journey. Never left as a skeleton when the
+          summary itself failed — the retryable error above is the whole story. */}
+      {!summaryError && (isLoadingSummary || !inputs ? (
         <Card className="border-none shadow-sm bg-card">
           <CardContent className="p-5">
-            <Skeleton className="h-24 w-full rounded-lg" />
+            <Skeleton className="h-24 w-full rounded-lg" data-testid="daily-journey-skeleton" />
           </CardContent>
         </Card>
       ) : (
         <DailyJourney journey={journey} />
-      )}
+      ))}
 
       {/* Positive affirmations, secondary to the next-step panel. */}
       <PositiveAffirmations />

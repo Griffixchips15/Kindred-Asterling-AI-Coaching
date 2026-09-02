@@ -271,4 +271,73 @@ describe("deriveDailyJourney", () => {
     expect(tend?.complete).toBe(false);
     expect(tend?.status).not.toContain("Nothing scheduled");
   });
+
+  it("never marks Tend complete from unknown medication data, even with complete habits (failure)", () => {
+    const journey = deriveDailyJourney(
+      base({
+        totalHabits: 2,
+        habitsCompletedToday: 2,
+        doses: null,
+        medicationsUnavailable: true,
+        medicationsLoading: false,
+      }),
+    );
+    const tend = journey.find((j) => j.anchor === "Tend");
+    expect(tend?.complete).toBe(false);
+    expect(tend?.status).toContain("Medication unavailable");
+  });
+
+  it("never marks Tend complete from unknown medication data, even with complete habits (loading)", () => {
+    const journey = deriveDailyJourney(
+      base({
+        totalHabits: 2,
+        habitsCompletedToday: 2,
+        doses: null,
+        medicationsUnavailable: false,
+        medicationsLoading: true,
+      }),
+    );
+    const tend = journey.find((j) => j.anchor === "Tend");
+    expect(tend?.complete).toBe(false);
+  });
+});
+
+describe("deriveNextStep with unavailable medication data", () => {
+  it("never claims on-track when medication data is unavailable and all known actions are complete", () => {
+    const step = deriveNextStep(
+      base({
+        morningDone: true,
+        eveningDone: true,
+        bodyScansCount: 1,
+        totalHabits: 2,
+        habitsCompletedToday: 2,
+        doses: null,
+        medicationsUnavailable: true,
+        medicationsLoading: false,
+      }),
+      at(12),
+    );
+    expect(step.kind).toBe("medication-unavailable");
+    expect(step.title).not.toMatch(/on track/i);
+    expect(step.body).not.toMatch(/nothing pressing/i);
+    expect(step.href).toBe("/medications");
+    expect(step.cta).toContain("medications");
+  });
+
+  it("still prioritises known incomplete non-medication actions first", () => {
+    const step = deriveNextStep(
+      base({
+        morningDone: false,
+        bodyScansCount: 0,
+        totalHabits: 2,
+        habitsCompletedToday: 2,
+        doses: null,
+        medicationsUnavailable: true,
+        medicationsLoading: false,
+      }),
+      at(12),
+    );
+    expect(step.kind).toBe("morning");
+    expect(step.href).toBe("/morning");
+  });
 });

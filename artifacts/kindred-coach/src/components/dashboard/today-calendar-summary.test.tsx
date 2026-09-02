@@ -17,6 +17,11 @@ vi.mock("@workspace/api-client-react", () => ({
   }),
 }));
 
+vi.mock("wouter", () => ({
+  Link: ({ href, children, ...rest }: any) =>
+    createElement("a", { href, ...rest }, children),
+}));
+
 import { TodayCalendarSummary } from "./today-calendar-summary";
 
 describe("TodayCalendarSummary", () => {
@@ -120,5 +125,50 @@ describe("TodayCalendarSummary", () => {
     // But no titles.
     expect(container.textContent).not.toContain("Confidential standup");
     expect(container.textContent).not.toContain("Doctor appointment");
+  });
+
+  it("orders day labels chronologically and spans the true timing window", async () => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const iso = (d: Date) => d.toISOString().split("T")[0];
+
+    mocks.isLoading = false;
+    // A late event today and an early event tomorrow: the window must span
+    // 07:30 – 21:00 even though "Today" sorts before "Tomorrow".
+    mocks.events = [
+      { date: iso(today), time: "21:00", title: "Evening commitment" },
+      { date: iso(tomorrow), time: "07:30", title: "Early commitment" },
+    ];
+    await renderSummary();
+
+    const labels = Array.from(
+      container.querySelectorAll('[data-testid="calendar-summary-loaded"] p'),
+    )
+      .map((p) => p.textContent)
+      .find((t) => t?.startsWith("When"))!;
+
+    // "Today" must appear before "Tomorrow" (chronological by date, not by time).
+    expect(labels.indexOf("Today")).toBeLessThan(labels.indexOf("Tomorrow"));
+    // Earliest/latest are computed separately from the label ordering.
+    expect(container.textContent).toContain("07:30 – 21:00");
+    // Titles remain hidden.
+    expect(container.textContent).not.toContain("Evening commitment");
+    expect(container.textContent).not.toContain("Early commitment");
+  });
+
+  it("links to the full calendar page for details", async () => {
+    const today = new Date();
+    const iso = (d: Date) => d.toISOString().split("T")[0];
+    mocks.isLoading = false;
+    mocks.events = [{ date: iso(today), time: "09:00", title: "Private" }];
+    await renderSummary();
+
+    const link = container.querySelector<HTMLAnchorElement>(
+      '[data-testid="calendar-summary-link"]',
+    );
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute("href")).toBe("/calendar");
+    expect(link!.textContent).toContain("Open your calendar");
   });
 });

@@ -117,6 +117,22 @@ describe("Dashboard (Today experience)", () => {
     expect(container.querySelector('[data-testid="next-step-title"]')).toBeNull();
   });
 
+  it("does not leave the daily-journey skeleton visible when Today data fails", async () => {
+    mocks.summaryLoading = false;
+    mocks.summaryError = true;
+    await renderDashboard();
+
+    // The retryable error is the whole story: no lingering journey skeleton
+    // and no journey content derived from missing data.
+    expect(container.querySelector('[data-testid="query-error-state"]'))
+      .not.toBeNull();
+    expect(container.querySelector('[data-testid="daily-journey-skeleton"]'))
+      .toBeNull();
+    for (const anchor of ["Begin", "Notice", "Tend", "Close"]) {
+      expect(container.textContent).not.toContain(anchor);
+    }
+  });
+
   it("renders the dominant next step with the correct action destination", async () => {
     mocks.summaryLoading = false;
     mocks.summary = {
