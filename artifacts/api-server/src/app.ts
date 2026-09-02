@@ -11,7 +11,6 @@ import { generalLimiter, writeLimiter } from "./middlewares/rateLimiter";
 import router from "./routes";
 import healthRouter from "./routes/health";
 import { logger } from "./lib/logger";
-import * as Sentry from "@sentry/node";
 
 const app: Express = express();
 
@@ -70,8 +69,6 @@ app.use(
         connectSrc: [
           "'self'",
           "https://*.clerk.com",
-          "https://*.ingest.sentry.io",
-          "https://*.ingest.us.sentry.io",
           ...clerkOrigins,
         ],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
@@ -165,9 +162,5 @@ if (process.env.NODE_ENV === "production") {
     res.sendFile(path.join(publicDir, "index.html"));
   });
 }
-
-// This must be registered after every controller and static route so Sentry can
-// observe errors passed through Express without changing normal responses.
-Sentry.setupExpressErrorHandler(app);
 
 export default app;

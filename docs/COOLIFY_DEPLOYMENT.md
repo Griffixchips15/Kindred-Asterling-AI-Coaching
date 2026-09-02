@@ -71,14 +71,12 @@ browser or the relevant provider dashboard:
    temporary, approved rollback option, not the production provider.
 3. Create an application from this Git repository. Select **Dockerfile** with
    path `/Dockerfile`, port `8080`, and the production branch.
-4. Add `VITE_CLERK_PUBLISHABLE_KEY` and `VITE_SENTRY_DSN` as **build
-   arguments**. They are public and compiled into browser assets. Also set
-   `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_RELEASE` (normally the Git SHA), and
-   `VITE_SENTRY_TRACES_SAMPLE_RATE`. A change requires a rebuild.
+4. Add `VITE_CLERK_PUBLISHABLE_KEY` as a **build argument**. It is public and
+   compiled into browser assets. A change requires a rebuild.
 5. Add the applicable runtime values from `.env.example`. Do not add
    `POSTGRES_SOURCE_URL`, `PG_SSL_CA`, migration target variables, or
-   `SENTRY_AUTH_TOKEN` to the application runtime. Mark
-   keys, webhook signing secrets, database URLs, and encryption values as secrets.
+   migration reports to the application runtime. Mark keys, webhook signing
+   secrets, database URLs, and encryption values as secrets.
    The Clerk publishable key is needed twice: the Vite build argument and
    `CLERK_PUBLISHABLE_KEY` at server runtime.
 6. For a new empty MongoDB database, run
@@ -86,59 +84,6 @@ browser or the relevant provider dashboard:
    switching traffic. For the PostgreSQL cutover, follow
    [mongodb-migration.md](mongodb-migration.md) exactly. Migration is deliberately
    not part of container startup, so a restart cannot copy or delete data.
-
-### Sentry
-
-Create separate Sentry projects for the browser and Node API. Configure the
-browser project's DSN through the `VITE_SENTRY_DSN` build argument and the API
-project's DSN through the runtime-only `SENTRY_DSN`. Use the same Git SHA for
-`VITE_SENTRY_RELEASE` and `SENTRY_RELEASE` so events map to one deployment.
-
-Leave either DSN blank to disable that SDK without affecting app startup. The
-default trace sample rate is 10%; tune it for traffic and budget. The Vite build
-uploads hidden browser source maps only when `SENTRY_AUTH_TOKEN` is available. In
-Coolify, create a private **Build Secret** named exactly `sentry_auth_token`, passed
-to the Docker build as BuildKit secret ID `sentry_auth_token`; do not enable it as
-a build argument or runtime variable. The root Dockerfile mounts it only at
-`/run/secrets/sentry_auth_token` during the build, so it is never persisted in an
-image layer. Tokenless local Docker builds remain supported because the mount is
-optional. Do not claim source maps are verified until a Coolify build upload
-succeeds and a new deployed Sentry event symbolicates with the matching release.
-Session Replay is intentionally not enabled because coaching screens can contain
-sensitive journal and health information.
-
-Browser `console.log`, `console.warn`, and `console.error` calls are forwarded as
-Sentry logs. Prefer the structured logger for new instrumentation so fields can
-be searched without parsing prose:
-
-```ts
-import * as Sentry from "@sentry/react";
-
-// Good: a stable message plus low-cardinality, non-sensitive attributes.
-Sentry.logger.info("Dashboard section opened", {
-  section: "habits",
-  source: "navigation",
-});
-
-// Good: interpolate values with Sentry's template helper to preserve grouping.
-Sentry.logger.warn(Sentry.logger.fmt`API request retried after ${delayMs}ms`, {
-  route: "/api/habits",
-  attempt,
-});
-
-// Unexpected exceptions remain errors rather than being converted to strings.
-Sentry.captureException(error, {
-  tags: { operation: "load-habits" },
-});
-```
-
-Do not log journal or chat text, health or medication details, names, email
-addresses, Clerk identifiers, cookies, authorization headers, or request/response
-bodies. Use stable route templates rather than full URLs, and use `debug`/`info`
-for expected lifecycle events, `warn` for recoverable degradation, and `error`
-or `captureException` only for unexpected failures. Console forwarding exists
-for compatibility; avoid logging the same event through both `console` and
-`Sentry.logger`, which would create duplicates.
 
 The image installs exactly once with `pnpm install --frozen-lockfile`, builds only
 the web client and API, and packages the API's production dependency closure.

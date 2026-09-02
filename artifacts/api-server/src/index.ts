@@ -1,6 +1,4 @@
-import "./instrument";
 import app from "./app";
-import * as Sentry from "@sentry/node";
 import { logger } from "./lib/logger";
 import { startReminderScheduler } from "./lib/reminderScheduler";
 import { stopReminderScheduler } from "./lib/reminderScheduler";
@@ -62,7 +60,6 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
       }
       process.exitCode = shutdownFailed ? 1 : 0;
     } finally {
-      await Sentry.close(2_000);
       clearTimeout(forceExit);
     }
   });

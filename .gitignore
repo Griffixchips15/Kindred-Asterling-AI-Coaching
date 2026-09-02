@@ -60,8 +60,5 @@ Thumbs.db
 # Real data — never commit user/operator screenshots, PDFs, or chat logs
 attached_assets/
 
-# Sentry Config File
-.env.sentry-build-plugin
-
 # Generated Next.js build output
 frontend/.next/

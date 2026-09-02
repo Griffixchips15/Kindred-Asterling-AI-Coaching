@@ -110,20 +110,6 @@ Configure the entire Calendar group or none of it. Rotating
 `CALENDAR_TOKEN_ENCRYPTION_KEY` requires a token migration or reconnecting all
 affected calendars; do not replace it without a migration plan.
 
-### Observability
-
-| Variable            | Sensitivity / requirement                                                  | Development source                             | Production source                                                            |
-| ------------------- | -------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------- |
-| `SENTRY_DSN`        | Treat as sensitive configuration; optional server DSN                      | Development Sentry project                     | Coolify secret/environment value                                             |
-| `VITE_SENTRY_DSN`   | Public browser DSN by design                                               | Development Sentry project                     | Coolify build argument                                                       |
-| `SENTRY_AUTH_TOKEN` | **Secret; browser source-map build only.** Never runtime, `VITE_*`, or ARG | Optional local build environment; never `.env` | Coolify Build Secret ID `sentry_auth_token`; mounted only for the Vite build |
-
-Sentry environment, release, enabled, and trace-sampling variables are
-non-secret. The Dockerfile maps the lowercase BuildKit secret ID
-`sentry_auth_token` to `SENTRY_AUTH_TOKEN` only inside the Vite build step. A DSN
-is not an account credential, but controlling its disclosure
-reduces event-injection abuse.
-
 ## Non-secret runtime inventory
 
 These values belong in `.env.example` and Coolify as ordinary environment
@@ -136,7 +122,6 @@ at build time and must always be safe to disclose.
 | AI                  | `AI_PROVIDER`, `AI_REQUEST_TIMEOUT_MS`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `AWS_REGION`, `BEDROCK_MODEL_ID`                                                                                           |
 | Payments            | `HELCIM_PAYMENTS_ENABLED`, `HELCIM_YEARLY_PLAN_ID`, `HELCIM_LIFETIME_PRODUCT_ID`, `HELCIM_YEARLY_CHECKOUT_URL`, `HELCIM_LIFETIME_CHECKOUT_URL`, `HELCIM_LIFETIME_INVOICE_PREFIX`, `HELCIM_PORTAL_URL`, `HELCIM_EMAIL_MIGRATION_FALLBACK` |
 | Subscription policy | `SUBSCRIPTION_OWNER_IDS`, `SUBSCRIPTION_OWNER_EMAILS`, `DAILY_CHAT_LIMIT`                                                                                                                                                                |
-| Sentry              | `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE`, `SENTRY_TRACES_SAMPLE_RATE`, `VITE_SENTRY_ENABLED`, `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_RELEASE`, `VITE_SENTRY_TRACES_SAMPLE_RATE`                                                           |
 | Social links        | `VITE_SOCIAL_WHATSAPP_URL`, `VITE_SOCIAL_INSTAGRAM_URL`, `VITE_SOCIAL_THREADS_URL`, `VITE_SOCIAL_FACEBOOK_URL`, `VITE_SOCIAL_X_URL`, `VITE_SOCIAL_LINKEDIN_URL`, `VITE_SOCIAL_GOOGLE_BUSINESS_URL`, `VITE_SOCIAL_PATREON_URL`            |
 
 `REPLIT_DOMAINS` is a legacy platform-provided compatibility value and must not

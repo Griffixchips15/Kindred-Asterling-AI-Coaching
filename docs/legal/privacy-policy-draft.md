@@ -37,7 +37,7 @@ Kindred uses information to:
 
 Hosting is provided by Contabo GmbH, Welfenstrasse 22, 81541 Munich, Germany. Production AI inference is provided through AWS Bedrock.
 
-The service also supports Clerk for identity, Helcim for payments, Google Calendar for optional read-only calendar access, Sentry for error and performance monitoring when enabled, Twilio for SMS, Resend for email, and ElevenLabs for voice features. Information should be sent to a provider only when its feature is enabled and needed.
+The service also supports Clerk for identity, Helcim for payments, Google Calendar for optional read-only calendar access, Twilio for SMS, Resend for email, and ElevenLabs for voice features. Information should be sent to a provider only when its feature is enabled and needed.
 
 > **Founder/legal confirmation required:** Confirm the Contabo server location, database provider and storage location, AWS Bedrock model and processing region, which optional providers are enabled, provider retention and training terms, subprocessors, cross-border transfers, and contractual safeguards. Remove providers not used in production.
 
