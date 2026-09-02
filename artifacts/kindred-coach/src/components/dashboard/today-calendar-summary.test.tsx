@@ -170,5 +170,8 @@ describe("TodayCalendarSummary", () => {
     expect(link).not.toBeNull();
     expect(link!.getAttribute("href")).toBe("/calendar");
     expect(link!.textContent).toContain("Open your calendar");
+    // min-h-11 is Tailwind's 44px minimum touch target.
+    expect(link!.className).toContain("min-h-11");
+    expect(link!.className).toContain("inline-flex");
   });
 });

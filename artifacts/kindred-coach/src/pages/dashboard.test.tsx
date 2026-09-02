@@ -220,6 +220,8 @@ describe("Dashboard (Today experience)", () => {
     // The page still renders the next-step (on-track) state despite med failure.
     expect(container.querySelector('[data-testid="next-step-title"]')).not.toBeNull();
     expect(container.textContent).toContain("Medications couldn't load");
+    expect(container.querySelector('[data-testid="medication-retry"]')!.className)
+      .toContain("min-h-11");
   });
 
   it("holds the next step and journey skeletons while medications still load", async () => {
@@ -290,6 +292,29 @@ describe("Dashboard (Today experience)", () => {
     expect(container.textContent).toContain("20:00 — Not recorded");
   });
 
+  it("gives the next-step CTA and Open medications at least a 44px touch target", async () => {
+    mocks.summaryLoading = false;
+    mocks.summary = {
+      morningDone: false,
+      eveningDone: false,
+      bodyScansCount: 0,
+      habitsCompletedToday: 0,
+      totalHabits: 0,
+      currentMentalLoad: null,
+    };
+    mocks.medicationsLoading = false;
+    mocks.medications = [];
+    await renderDashboard();
+
+    // min-h-11 is Tailwind's 44px minimum touch target.
+    for (const testid of ["next-step-action", "medications-today-link"]) {
+      const el = container.querySelector(`[data-testid="${testid}"]`);
+      expect(el).not.toBeNull();
+      expect(el!.className).toContain("min-h-11");
+      expect(el!.className).toContain("inline-flex");
+    }
+  });
+
   it("shows a retryable error for medication-effectiveness failures", async () => {
     mocks.summaryLoading = false;
     mocks.summary = {
@@ -311,6 +336,10 @@ describe("Dashboard (Today experience)", () => {
       .not.toBeNull();
     expect(container.textContent).toContain("Medication effectiveness couldn't load");
     expect(container.textContent).not.toContain("Not enough data yet");
+    expect(
+      container.querySelector('[data-testid="medication-effectiveness-retry"]')!
+        .className,
+    ).toContain("min-h-11");
   });
 
   it("shows the genuine empty state for medication-effectiveness with no data", async () => {

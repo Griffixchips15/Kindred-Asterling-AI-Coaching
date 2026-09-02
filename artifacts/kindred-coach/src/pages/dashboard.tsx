@@ -220,7 +220,12 @@ function NextStepPanel({ step }: { step: ReturnType<typeof deriveNextStep> }) {
           </div>
           {!onTrack && (
             <div className="pl-[3.25rem]">
-              <Button asChild size="lg" data-testid="next-step-action">
+              <Button
+                asChild
+                size="lg"
+                className="min-h-11"
+                data-testid="next-step-action"
+              >
                 <Link href={step.href}>{step.cta}</Link>
               </Button>
             </div>
@@ -305,7 +310,13 @@ function MedicationTiming({
           <div className="flex items-center gap-3">
             <CardTitle className="font-serif text-xl">Medication today</CardTitle>
           </div>
-          <Button asChild variant="ghost" size="sm">
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="min-h-11 md:min-h-8"
+            data-testid="medications-today-link"
+          >
             <Link href="/medications">Open medications</Link>
           </Button>
         </div>
@@ -320,7 +331,8 @@ function MedicationTiming({
             <button
               type="button"
               onClick={onRetry}
-              className="text-xs font-medium text-primary underline underline-offset-2"
+              className="inline-flex min-h-11 items-center px-2 text-xs font-medium text-primary underline underline-offset-2 md:min-h-8"
+              data-testid="medication-retry"
             >
               Try again
             </button>
@@ -466,7 +478,8 @@ function MedicationEffectivenessCard({
             <button
               type="button"
               onClick={onRetry}
-              className="text-xs font-medium text-primary underline underline-offset-2"
+              className="inline-flex min-h-11 items-center px-2 text-xs font-medium text-primary underline underline-offset-2 md:min-h-8"
+              data-testid="medication-effectiveness-retry"
             >
               Try again
             </button>

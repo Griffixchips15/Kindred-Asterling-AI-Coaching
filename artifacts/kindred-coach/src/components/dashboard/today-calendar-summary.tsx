@@ -150,7 +150,7 @@ export function TodayCalendarSummary() {
             )}
             <Link
               href="/calendar"
-              className="inline-block pt-1 text-xs font-medium text-primary underline underline-offset-2 hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+              className="inline-flex min-h-11 items-center text-xs font-medium text-primary underline underline-offset-2 hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm md:min-h-8"
               data-testid="calendar-summary-link"
             >
               Open your calendar
