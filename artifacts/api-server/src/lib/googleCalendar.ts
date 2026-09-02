@@ -1,5 +1,11 @@
-import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { eq } from "drizzle-orm";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from "node:crypto";
+import { eq } from "@workspace/db";
 import { calendarConnectionsTable, db } from "@workspace/db";
 import { logger } from "./logger";
 
@@ -12,16 +18,29 @@ type GoogleEvent = {
 type GoogleEventsResponse = { items?: GoogleEvent[] };
 type GoogleTokenResponse = { access_token?: string; refresh_token?: string };
 
-export type NormalizedCalendarEvent = { date: string; time: string; title: string };
+export type NormalizedCalendarEvent = {
+  date: string;
+  time: string;
+  title: string;
+};
 
 function config() {
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
-  const redirectUri = (process.env.GOOGLE_CALENDAR_REDIRECT_URI ||
-    `${process.env.APP_PUBLIC_URL || ""}/api/calendar/callback`).replace(/\/$/, "");
+  const redirectUri = (
+    process.env.GOOGLE_CALENDAR_REDIRECT_URI ||
+    `${process.env.APP_PUBLIC_URL || ""}/api/calendar/callback`
+  ).replace(/\/$/, "");
   const stateSecret = process.env.CALENDAR_OAUTH_STATE_SECRET?.trim();
   const encryptionSecret = process.env.CALENDAR_TOKEN_ENCRYPTION_KEY?.trim();
-  if (!clientId || !clientSecret || !redirectUri || !stateSecret || !encryptionSecret) return null;
+  if (
+    !clientId ||
+    !clientSecret ||
+    !redirectUri ||
+    !stateSecret ||
+    !encryptionSecret
+  )
+    return null;
   return { clientId, clientSecret, redirectUri, stateSecret, encryptionSecret };
 }
 
@@ -36,14 +55,24 @@ function key(secret: string): Buffer {
 function encrypt(value: string, secret: string): string {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key(secret), iv);
-  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
-  return [iv, cipher.getAuthTag(), encrypted].map((part) => part.toString("base64url")).join(".");
+  const encrypted = Buffer.concat([
+    cipher.update(value, "utf8"),
+    cipher.final(),
+  ]);
+  return [iv, cipher.getAuthTag(), encrypted]
+    .map((part) => part.toString("base64url"))
+    .join(".");
 }
 
 function decrypt(value: string, secret: string): string {
   const [ivText, tagText, encryptedText] = value.split(".");
-  if (!ivText || !tagText || !encryptedText) throw new Error("Invalid calendar token");
-  const decipher = createDecipheriv("aes-256-gcm", key(secret), Buffer.from(ivText, "base64url"));
+  if (!ivText || !tagText || !encryptedText)
+    throw new Error("Invalid calendar token");
+  const decipher = createDecipheriv(
+    "aes-256-gcm",
+    key(secret),
+    Buffer.from(ivText, "base64url"),
+  );
   decipher.setAuthTag(Buffer.from(tagText, "base64url"));
   return Buffer.concat([
     decipher.update(Buffer.from(encryptedText, "base64url")),
@@ -54,8 +83,12 @@ function decrypt(value: string, secret: string): string {
 export function createOAuthState(userId: string): string {
   const settings = config();
   if (!settings) throw new Error("Google Calendar is not configured");
-  const payload = Buffer.from(JSON.stringify({ userId, expiresAt: Date.now() + 10 * 60 * 1000 })).toString("base64url");
-  const signature = createHmac("sha256", settings.stateSecret).update(payload).digest("base64url");
+  const payload = Buffer.from(
+    JSON.stringify({ userId, expiresAt: Date.now() + 10 * 60 * 1000 }),
+  ).toString("base64url");
+  const signature = createHmac("sha256", settings.stateSecret)
+    .update(payload)
+    .digest("base64url");
   return `${payload}.${signature}`;
 }
 
@@ -64,12 +97,20 @@ export function verifyOAuthState(state: string): string {
   if (!settings) throw new Error("Google Calendar is not configured");
   const [payload, signature] = state.split(".");
   if (!payload || !signature) throw new Error("Invalid calendar OAuth state");
-  const expected = createHmac("sha256", settings.stateSecret).update(payload).digest("base64url");
-  if (signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+  const expected = createHmac("sha256", settings.stateSecret)
+    .update(payload)
+    .digest("base64url");
+  if (
+    signature.length !== expected.length ||
+    !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+  ) {
     throw new Error("Invalid calendar OAuth state");
   }
-  const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { userId?: string; expiresAt?: number };
-  if (!parsed.userId || !parsed.expiresAt || parsed.expiresAt < Date.now()) throw new Error("Expired calendar OAuth state");
+  const parsed = JSON.parse(
+    Buffer.from(payload, "base64url").toString("utf8"),
+  ) as { userId?: string; expiresAt?: number };
+  if (!parsed.userId || !parsed.expiresAt || parsed.expiresAt < Date.now())
+    throw new Error("Expired calendar OAuth state");
   return parsed.userId;
 }
 
@@ -88,7 +129,10 @@ export function googleAuthorizationUrl(state: string): string {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }
 
-export async function saveAuthorizationCode(userId: string, code: string): Promise<void> {
+export async function saveAuthorizationCode(
+  userId: string,
+  code: string,
+): Promise<void> {
   const settings = config();
   if (!settings) throw new Error("Google Calendar is not configured");
   const response = await fetch("https://oauth2.googleapis.com/token", {
@@ -102,15 +146,29 @@ export async function saveAuthorizationCode(userId: string, code: string): Promi
       grant_type: "authorization_code",
     }),
   });
-  if (!response.ok) throw new Error(`Google token exchange failed (${response.status})`);
+  if (!response.ok)
+    throw new Error(`Google token exchange failed (${response.status})`);
   const token = (await response.json()) as GoogleTokenResponse;
-  if (!token.refresh_token) throw new Error("Google did not return a refresh token");
+  if (!token.refresh_token)
+    throw new Error("Google did not return a refresh token");
   await db
     .insert(calendarConnectionsTable)
-    .values({ userId, encryptedRefreshToken: encrypt(token.refresh_token, settings.encryptionSecret) })
+    .values({
+      userId,
+      encryptedRefreshToken: encrypt(
+        token.refresh_token,
+        settings.encryptionSecret,
+      ),
+    })
     .onConflictDoUpdate({
       target: calendarConnectionsTable.userId,
-      set: { encryptedRefreshToken: encrypt(token.refresh_token, settings.encryptionSecret), updatedAt: new Date() },
+      set: {
+        encryptedRefreshToken: encrypt(
+          token.refresh_token,
+          settings.encryptionSecret,
+        ),
+        updatedAt: new Date(),
+      },
     });
 }
 
@@ -178,7 +236,10 @@ async function accessToken(userId: string): Promise<string | null> {
     .where(eq(calendarConnectionsTable.userId, userId))
     .limit(1);
   if (!connection) return null;
-  const refreshToken = decrypt(connection.encryptedRefreshToken, settings.encryptionSecret);
+  const refreshToken = decrypt(
+    connection.encryptedRefreshToken,
+    settings.encryptionSecret,
+  );
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -189,7 +250,8 @@ async function accessToken(userId: string): Promise<string | null> {
       grant_type: "refresh_token",
     }),
   });
-  if (!response.ok) throw new Error(`Google token refresh failed (${response.status})`);
+  if (!response.ok)
+    throw new Error(`Google token refresh failed (${response.status})`);
   const token = (await response.json()) as GoogleTokenResponse;
   return token.access_token ?? null;
 }
@@ -199,10 +261,17 @@ function formatLocalDate(d: Date): string {
 }
 
 function formatLocalTime(d: Date): string {
-  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
-export async function fetchUpcomingEvents(userId: string, daysAhead: number): Promise<NormalizedCalendarEvent[]> {
+export async function fetchUpcomingEvents(
+  userId: string,
+  daysAhead: number,
+): Promise<NormalizedCalendarEvent[]> {
   const token = await accessToken(userId);
   if (!token) return [];
   const now = new Date();
@@ -216,21 +285,39 @@ export async function fetchUpcomingEvents(userId: string, daysAhead: number): Pr
     orderBy: "startTime",
     maxResults: "50",
   });
-  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const response = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
   if (!response.ok) {
-    logger.warn({ status: response.status, userId }, "Google Calendar API request failed");
+    logger.warn(
+      { status: response.status, userId },
+      "Google Calendar API request failed",
+    );
     throw new Error(`Google Calendar API returned ${response.status}`);
   }
   const body = (await response.json()) as GoogleEventsResponse;
   return (body.items ?? [])
-    .filter((event) => event.status !== "cancelled" && (event.start?.dateTime || event.start?.date))
+    .filter(
+      (event) =>
+        event.status !== "cancelled" &&
+        (event.start?.dateTime || event.start?.date),
+    )
     .map((event) => {
       if (event.start?.dateTime) {
         const date = new Date(event.start.dateTime);
-        return { date: formatLocalDate(date), time: formatLocalTime(date), title: event.summary?.trim() || "(no title)" };
+        return {
+          date: formatLocalDate(date),
+          time: formatLocalTime(date),
+          title: event.summary?.trim() || "(no title)",
+        };
       }
-      return { date: event.start!.date!, time: "All day", title: event.summary?.trim() || "(no title)" };
+      return {
+        date: event.start!.date!,
+        time: "All day",
+        title: event.summary?.trim() || "(no title)",
+      };
     });
 }

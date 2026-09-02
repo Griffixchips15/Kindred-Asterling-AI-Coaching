@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { desc, eq, and, sql } from "drizzle-orm";
+import { desc, eq, and } from "@workspace/db";
 import { db, habitsTable, habitEntriesTable } from "@workspace/db";
 import {
   CreateHabitBody,
@@ -28,17 +28,15 @@ router.get("/habits", requireAuth, async (req, res): Promise<void> => {
 
   const withCounts = await Promise.all(
     habits.map(async (habit) => {
-      const [{ count }] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(habitEntriesTable)
-        .where(
-          and(
-            eq(habitEntriesTable.habitId, habit.id),
-            eq(habitEntriesTable.completed, true),
-            eq(habitEntriesTable.userId, userId),
-          ),
-        );
-      return { ...habit, completedCount: count ?? 0 };
+      const count = await db.count(
+        habitEntriesTable,
+        and(
+          eq(habitEntriesTable.habitId, habit.id),
+          eq(habitEntriesTable.completed, true),
+          eq(habitEntriesTable.userId, userId),
+        ),
+      );
+      return { ...habit, completedCount: count };
     }),
   );
 
@@ -85,19 +83,17 @@ router.patch("/habits/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Habit not found" });
     return;
   }
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(habitEntriesTable)
-    .where(
-      and(
-        eq(habitEntriesTable.habitId, habit.id),
-        eq(habitEntriesTable.completed, true),
-        eq(habitEntriesTable.userId, userId),
-      ),
-    );
+  const count = await db.count(
+    habitEntriesTable,
+    and(
+      eq(habitEntriesTable.habitId, habit.id),
+      eq(habitEntriesTable.completed, true),
+      eq(habitEntriesTable.userId, userId),
+    ),
+  );
   res.json(
     UpdateHabitResponse.parse(
-      JSON.parse(JSON.stringify({ ...habit, completedCount: count ?? 0 })),
+      JSON.parse(JSON.stringify({ ...habit, completedCount: count })),
     ),
   );
 });

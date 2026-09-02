@@ -14,21 +14,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_DB: kindred_test
-          POSTGRES_USER: kindred
-          POSTGRES_PASSWORD: kindred
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - uses: actions/checkout@v4
 
@@ -43,25 +28,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Push DB schema
-        run: pnpm --filter @workspace/db run push
-        env:
-          DATABASE_URL: postgres://kindred:kindred@localhost:5432/kindred_test
-
       - name: Run typecheck
         run: pnpm run typecheck
-        env:
-          DATABASE_URL: postgres://kindred:kindred@localhost:5432/kindred_test
 
       - name: Run tests
-        run: pnpm --filter @workspace/api-server test
-        env:
-          DATABASE_URL: postgres://kindred:kindred@localhost:5432/kindred_test
+        run: pnpm --filter @workspace/db run test:api
 
       - name: Build production artifacts
         run: pnpm run build
         env:
-          DATABASE_URL: postgres://kindred:kindred@localhost:5432/kindred_test
+          MONGODB_URI: mongodb://build-placeholder:27017
+          MONGODB_DATABASE: kindred_test
           PORT: 3000
           APP_PUBLIC_URL: https://beta.example.test
           SUBSCRIPTION_OWNER_IDS: ci-owner

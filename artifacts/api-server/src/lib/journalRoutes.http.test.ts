@@ -9,10 +9,10 @@ import {
 } from "vitest";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { eq } from "drizzle-orm";
+import { eq } from "@workspace/db";
 import {
   db,
-  pool,
+  closeDatabase,
   usersTable,
   habitsTable,
   morningLogsTable,
@@ -131,7 +131,7 @@ afterAll(async () => {
   await new Promise<void>((resolve, reject) =>
     server.close((err) => (err ? reject(err) : resolve())),
   );
-  await pool.end();
+  await closeDatabase();
 });
 
 describe("auth is required", () => {

@@ -3,7 +3,7 @@
 > **Purpose:** Define every credential and sensitive runtime value used by the
 > application, where it is stored, and when it is required.
 >
-> **Last reviewed:** 2026-08-28
+> **Last reviewed:** 2026-09-02
 
 This document records **names and storage locations only**. Never add secret
 values to this file, `.env.example`, an image, a build argument, or a `VITE_*`
@@ -31,15 +31,18 @@ op run --env-file=.env.1password -- pnpm --filter @workspace/api-server run dev
 
 ### Database
 
-| Variable                 | Sensitivity / requirement                                                                          | Development source                              | Production source                                                  |
-| ------------------------ | -------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------ |
-| `DATABASE_URL`           | **Secret; required.** Restricted application-role connection URL                                   | `Kindred - Database Development` / `credential` | Coolify secret from `Kindred - Database Production` / `credential` |
-| `MIGRATION_DATABASE_URL` | **Secret; migration environment only.** Never provide it to the application runtime                | Dedicated development migrator credential       | Trusted production migration environment secret                    |
-| `PG_SSL_CA`              | Sensitive configuration when it contains a private/internal CA; optional for public-CA connections | Local trusted CA file/value                     | Coolify secret or mounted secret file                              |
+| Variable                     | Sensitivity / requirement                                                                                 | Development source                              | Production source                                                  |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------ |
+| `MONGODB_URI`                | **Secret; required.** Application credential scoped only to the configured Kindred database               | Dedicated MongoDB development item / writer URI | Coolify secret from dedicated MongoDB production item / writer URI |
+| `POSTGRES_SOURCE_URL`        | **Secret; one-time migration job only.** Read-only source credential; never provide it to the application | `Kindred - Database Development` / `credential` | Trusted migration environment only                                 |
+| `PG_SSL_CA`                  | Migration-only sensitive CA configuration when PostgreSQL uses a private/internal CA                      | Local trusted CA file/value                     | Trusted migration environment only                                 |
+| `MONGODB_MIGRATION_DATABASE` | Non-production staging database name used for parity validation before cutover                            | Fresh development staging database              | Fresh production staging database                                  |
 
-Application and migration roles must remain separate. See
-[`docs/postgresql-operations.md`](docs/postgresql-operations.md) for the required
-least-privilege model.
+Use separate MongoDB credentials for the application and human/service readers.
+The application credential needs `readWrite` only on `MONGODB_DATABASE`; grant
+reporting consumers the `read` role. MongoDB contains Kindred's sensitive
+customer data and must never be exposed to browser code. See
+[`docs/mongodb-migration.md`](docs/mongodb-migration.md).
 
 ### Authentication — Clerk
 
@@ -126,7 +129,7 @@ at build time and must always be safe to disclose.
 
 | Area                | Variables                                                                                                                                                                                                                                |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime             | `NODE_ENV`, `PORT`, `APP_PUBLIC_URL`, `BASE_PATH`, `LOG_LEVEL`, `TRUST_PROXY_HOPS`                                                                                                                                                       |
+| Runtime             | `NODE_ENV`, `PORT`, `APP_PUBLIC_URL`, `BASE_PATH`, `LOG_LEVEL`, `TRUST_PROXY_HOPS`, `MONGODB_DATABASE`                                                                                                                                   |
 | AI                  | `AI_PROVIDER`, `AI_REQUEST_TIMEOUT_MS`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `AWS_REGION`, `BEDROCK_MODEL_ID`                                                                                           |
 | Payments            | `HELCIM_PAYMENTS_ENABLED`, `HELCIM_YEARLY_PLAN_ID`, `HELCIM_LIFETIME_PRODUCT_ID`, `HELCIM_YEARLY_CHECKOUT_URL`, `HELCIM_LIFETIME_CHECKOUT_URL`, `HELCIM_LIFETIME_INVOICE_PREFIX`, `HELCIM_PORTAL_URL`, `HELCIM_EMAIL_MIGRATION_FALLBACK` |
 | Subscription policy | `SUBSCRIPTION_OWNER_IDS`, `SUBSCRIPTION_OWNER_EMAILS`, `DAILY_CHAT_LIMIT`                                                                                                                                                                |

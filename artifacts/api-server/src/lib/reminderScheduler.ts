@@ -1,5 +1,5 @@
 import cron, { type ScheduledTask } from "node-cron";
-import { and, eq, isNull, lte, or, gt, inArray } from "drizzle-orm";
+import { and, eq, isNull, lte, or, gt, inArray } from "@workspace/db";
 import {
   db,
   usersTable,
@@ -125,16 +125,9 @@ async function medsDueInWindow(
   localDate: string,
   nowMin: number,
 ): Promise<Array<Dose>> {
-  const rows = await db
-    .select({
-      name: medicationsTable.name,
-      scheduledTime: medicationScheduleEntriesTable.scheduledTime,
-    })
+  const schedules = await db
+    .select()
     .from(medicationScheduleEntriesTable)
-    .innerJoin(
-      medicationsTable,
-      eq(medicationScheduleEntriesTable.medicationId, medicationsTable.id),
-    )
     .where(
       and(
         eq(medicationScheduleEntriesTable.userId, userId),
@@ -145,13 +138,28 @@ async function medsDueInWindow(
         ),
       ),
     );
+  const medicationIds = [...new Set(schedules.map((row) => row.medicationId))];
+  const medications = medicationIds.length
+    ? await db
+        .select()
+        .from(medicationsTable)
+        .where(
+          and(
+            eq(medicationsTable.userId, userId),
+            inArray(medicationsTable.id, medicationIds),
+          ),
+        )
+    : [];
+  const namesById = new Map(medications.map((row) => [row.id, row.name]));
 
   const byTime = new Map<string, Set<string>>();
-  for (const r of rows) {
+  for (const r of schedules) {
+    const name = namesById.get(r.medicationId);
+    if (!name) continue;
     const sMin = hmToMin(r.scheduledTime);
     if (sMin === null || !isDueInWindow(sMin, nowMin)) continue;
     const set = byTime.get(r.scheduledTime) ?? new Set<string>();
-    set.add(r.name);
+    set.add(name);
     byTime.set(r.scheduledTime, set);
   }
   return Array.from(byTime.entries()).map(([doseTime, names]) => ({
@@ -281,22 +289,9 @@ export async function runReminderTick(now: Date = new Date()): Promise<void> {
   if (ticking) return; // don't overlap if a tick runs long
   ticking = true;
   try {
-    const rows = await db
-      .select({
-        userId: reminderSettingsTable.userId,
-        morningEnabled: reminderSettingsTable.morningEnabled,
-        morningTime: reminderSettingsTable.morningTime,
-        medicationEnabled: reminderSettingsTable.medicationEnabled,
-        eveningEnabled: reminderSettingsTable.eveningEnabled,
-        eveningTime: reminderSettingsTable.eveningTime,
-        smsEnabled: reminderSettingsTable.smsEnabled,
-        emailEnabled: reminderSettingsTable.emailEnabled,
-        timezone: usersTable.timezone,
-        phone: usersTable.phone,
-        preferredName: usersTable.preferredName,
-      })
+    const settings = await db
+      .select()
       .from(reminderSettingsTable)
-      .innerJoin(usersTable, eq(reminderSettingsTable.userId, usersTable.id))
       .where(
         and(
           or(
@@ -310,6 +305,27 @@ export async function runReminderTick(now: Date = new Date()): Promise<void> {
           ),
         ),
       );
+    const userIds = settings.map((row) => row.userId);
+    const users = userIds.length
+      ? await db
+          .select()
+          .from(usersTable)
+          .where(inArray(usersTable.id, userIds))
+      : [];
+    const usersById = new Map(users.map((row) => [row.id, row]));
+    const rows = settings.flatMap((setting) => {
+      const user = usersById.get(setting.userId);
+      return user
+        ? [
+            {
+              ...setting,
+              timezone: user.timezone,
+              phone: user.phone,
+              preferredName: user.preferredName,
+            },
+          ]
+        : [];
+    });
 
     const rowsWithIdentity = await Promise.all(
       rows.map(async (row) => {
@@ -340,23 +356,27 @@ export async function runReminderTick(now: Date = new Date()): Promise<void> {
     // Batch fetch medications
     const medsByUser = new Map<string, Array<Dose>>();
     if (medUserIds.length > 0) {
-      const allMedRows = await db
-        .select({
-          userId: medicationScheduleEntriesTable.userId,
-          name: medicationsTable.name,
-          scheduledTime: medicationScheduleEntriesTable.scheduledTime,
-          startDate: medicationScheduleEntriesTable.startDate,
-          endDate: medicationScheduleEntriesTable.endDate,
-        })
+      const allSchedules = await db
+        .select()
         .from(medicationScheduleEntriesTable)
-        .innerJoin(
-          medicationsTable,
-          eq(medicationScheduleEntriesTable.medicationId, medicationsTable.id),
-        )
         .where(inArray(medicationScheduleEntriesTable.userId, medUserIds));
+      const medicationIds = [
+        ...new Set(allSchedules.map((row) => row.medicationId)),
+      ];
+      const allMedications = medicationIds.length
+        ? await db
+            .select()
+            .from(medicationsTable)
+            .where(inArray(medicationsTable.id, medicationIds))
+        : [];
+      const medicationsById = new Map(
+        allMedications.map((row) => [row.id, row]),
+      );
 
       // Group by user and check dates/windows in memory
-      for (const r of allMedRows) {
+      for (const r of allSchedules) {
+        const medication = medicationsById.get(r.medicationId);
+        if (!medication || medication.userId !== r.userId) continue;
         const uTime = userTimes.get(r.userId);
         if (!uTime) continue; // Should not happen, but safeguard
 
@@ -380,8 +400,8 @@ export async function runReminderTick(now: Date = new Date()): Promise<void> {
           dose = { doseTime: r.scheduledTime, names: [] };
           userMeds.push(dose);
         }
-        if (!dose.names.includes(r.name)) {
-          dose.names.push(r.name);
+        if (!dose.names.includes(medication.name)) {
+          dose.names.push(medication.name);
         }
       }
     }

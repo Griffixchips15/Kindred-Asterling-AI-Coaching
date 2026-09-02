@@ -41,19 +41,11 @@ typecheck:
 test-api-server:
   extends: .pnpm-job
   stage: test
-  services:
-    - name: postgres:16-bookworm
-      alias: postgres
   variables:
-    POSTGRES_DB: kindred_test
-    POSTGRES_USER: kindred
-    POSTGRES_PASSWORD: kindred
-    DATABASE_URL: postgres://kindred:kindred@postgres:5432/kindred_test
     NODE_ENV: test
     HELCIM_PAYMENTS_ENABLED: "false"
   script:
-    - pnpm --filter @workspace/db run push
-    - pnpm --filter @workspace/api-server run test
+    - pnpm --filter @workspace/db run test:api
 
 test-kindred-coach:
   extends: .pnpm-job

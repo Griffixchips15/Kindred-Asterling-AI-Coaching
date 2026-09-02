@@ -1,6 +1,20 @@
-import { vi, describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
-import { db, usersTable, subscriptionsTable, betaGrantsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import {
+  vi,
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  afterEach,
+} from "vitest";
+import {
+  db,
+  usersTable,
+  subscriptionsTable,
+  betaGrantsTable,
+} from "@workspace/db";
+import { eq } from "@workspace/db";
 
 import { resolveSubscription } from "./subscriptionService";
 

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq } from "@workspace/db";
 import {
   db,
   medicationsTable,
@@ -59,7 +59,9 @@ export async function updateMedicationTx(
         times: data.times,
         notes: data.notes,
       })
-      .where(and(eq(medicationsTable.id, id), eq(medicationsTable.userId, userId)))
+      .where(
+        and(eq(medicationsTable.id, id), eq(medicationsTable.userId, userId)),
+      )
       .returning();
     if (!row) return null;
     await reconcileScheduleEntries(tx, id, userId, data.times, today);
@@ -77,7 +79,9 @@ export async function deleteMedicationTx(
   return db.transaction(async (tx) => {
     const [row] = await tx
       .delete(medicationsTable)
-      .where(and(eq(medicationsTable.id, id), eq(medicationsTable.userId, userId)))
+      .where(
+        and(eq(medicationsTable.id, id), eq(medicationsTable.userId, userId)),
+      )
       .returning();
     return row ?? null;
   });
@@ -103,7 +107,9 @@ export async function logDoseTx(
     const [med] = await tx
       .select()
       .from(medicationsTable)
-      .where(and(eq(medicationsTable.id, id), eq(medicationsTable.userId, userId)));
+      .where(
+        and(eq(medicationsTable.id, id), eq(medicationsTable.userId, userId)),
+      );
     if (!med) return null;
     // The dose must be one of the medication's scheduled times.
     if (!normalizeTimes(med.times).includes(data.scheduledTime)) return null;

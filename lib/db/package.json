@@ -4,26 +4,23 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./schema": "./src/schema/index.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
-    "initialize": "drizzle-kit push --config ./drizzle.config.ts",
-    "push": "drizzle-kit push --config ./drizzle.config.ts",
-    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts",
-    "migrate": "tsx ./migrations/run.ts"
+    "initialize": "tsx ./scripts/initialize-mongodb.ts",
+    "migrate:from-postgres": "tsx ./scripts/migrate-from-postgres.ts",
+    "test:api": "tsx ./scripts/test-api-server.ts",
+    "typecheck:scripts": "tsc --noEmit --strict --skipLibCheck --module preserve --moduleResolution bundler --target es2022 --types node ./scripts/*.ts"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
-    "drizzle-orm": "catalog:",
-    "drizzle-zod": "^0.8.3",
-    "pg": "^8.20.0",
-    "zod": "catalog:"
+    "mongodb": "^7.6.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/pg": "^8.20.0",
-    "drizzle-kit": "^0.31.10",
+    "mongodb-memory-server": "10.4.3",
+    "pg": "^8.20.0",
     "tsx": "catalog:"
   }
 }

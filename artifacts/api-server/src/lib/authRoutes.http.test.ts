@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { AddressInfo } from "net";
 import type { Server } from "http";
-import { eq } from "drizzle-orm";
+import { eq } from "@workspace/db";
 import { db, usersTable } from "@workspace/db";
 import app from "../app";
 import {

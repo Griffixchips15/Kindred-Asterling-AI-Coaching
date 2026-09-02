@@ -7,7 +7,7 @@ import {
   afterAll,
   beforeEach,
 } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq } from "@workspace/db";
 import {
   db,
   usersTable,
@@ -26,7 +26,12 @@ vi.mock("./resend", () => ({
   sendEmail: vi.fn(async () => true),
 }));
 vi.mock("../middlewares/authMiddleware", () => ({
-  getClerkIdentity: vi.fn(async () => ({ email: "test@example.com", firstName: "Test", profileImageUrl: null, emailVerified: true })),
+  getClerkIdentity: vi.fn(async () => ({
+    email: "test@example.com",
+    firstName: "Test",
+    profileImageUrl: null,
+    emailVerified: true,
+  })),
 }));
 
 import * as twilio from "./twilio";
