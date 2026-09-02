@@ -11,6 +11,7 @@ import {
 } from "mongodb";
 import { trace } from "@opentelemetry/api";
 import {
+  allTables,
   conversations,
   habitEntriesTable,
   habitsTable,
@@ -52,10 +53,12 @@ export function eq(column: Column, value: unknown): Condition {
 }
 
 export function and(...conditions: Condition[]): Condition {
+  if (conditions.length === 0) return condition({});
   return condition({ $and: conditions.map((entry) => entry.filter) });
 }
 
 export function or(...conditions: Condition[]): Condition {
+  if (conditions.length === 0) return condition({});
   return condition({ $or: conditions.map((entry) => entry.filter) });
 }
 
@@ -152,6 +155,15 @@ const indexDefinitions: ReadonlyArray<{
       partialFilterExpression: { email: { $type: "string" } },
     },
   },
+  {
+    table: usersTable,
+    keys: { email: 1 },
+    options: {
+      name: "users_email_case_insensitive_lookup",
+      collation: { locale: "en", strength: 2 },
+      partialFilterExpression: { email: { $type: "string" } },
+    },
+  },
   { table: habitsTable, keys: { userId: 1 } },
   { table: habitEntriesTable, keys: { userId: 1, habitId: 1, date: -1 } },
   { table: conversations, keys: { userId: 1, status: 1, createdAt: -1 } },
@@ -180,6 +192,9 @@ export async function initializeMongoIndexes(current: Db): Promise<void> {
   await current
     .collection("beta_grants")
     .createIndex({ userId: 1, revokedAt: 1, expiresAt: 1 });
+  await current.collection("beta_grants").createIndex({ grantedBy: 1 });
+  await current.collection("beta_grants").createIndex({ revokedBy: 1 });
+  await current.collection("beta_grants").createIndex({ grantedAt: -1 });
   await current
     .collection("body_scans")
     .createIndex({ userId: 1, scannedAt: -1 });
@@ -200,6 +215,9 @@ export async function initializeMongoIndexes(current: Db): Promise<void> {
   await current
     .collection("entitlement_audit")
     .createIndex({ userId: 1, createdAt: -1 });
+  await current
+    .collection("entitlement_audit")
+    .createIndex({ actorId: 1, createdAt: -1 });
   await current
     .collection("reminder_settings")
     .createIndex({ userId: 1 }, { unique: true });
@@ -222,6 +240,26 @@ export async function initializeDatabase(): Promise<void> {
     });
   }
   await indexesPromise;
+}
+
+export async function initializeMongoCounters(current: Db): Promise<void> {
+  for (const table of allTables) {
+    if (!table.autoIncrement) continue;
+    const [latest] = await current
+      .collection(table.collectionName)
+      .find({}, { projection: { [table.autoIncrement]: 1 } })
+      .sort({ [table.autoIncrement]: -1 })
+      .limit(1)
+      .toArray();
+    const value = latest?.[table.autoIncrement];
+    await current
+      .collection<{ _id: string; value: number }>("_counters")
+      .updateOne(
+        { _id: table.collectionName },
+        { $set: { value: typeof value === "number" ? value : 0 } },
+        { upsert: true },
+      );
+  }
 }
 
 export async function pingDatabase(): Promise<void> {
@@ -268,9 +306,22 @@ export async function withDatabaseLease<T>(
     }
     throw error;
   }
+  const renewal = setInterval(
+    () => {
+      void leases
+        .updateOne(
+          { _id: leaseId, token },
+          { $set: { expiresAt: new Date(Date.now() + ttlMs) } },
+        )
+        .catch(() => undefined);
+    },
+    Math.max(25, Math.floor(ttlMs / 3)),
+  );
+  renewal.unref();
   try {
     return await callback();
   } finally {
+    clearInterval(renewal);
     await leases.deleteOne({ _id: leaseId, token });
   }
 }
@@ -347,6 +398,28 @@ async function prepareInsert(
 
 function isDuplicateKey(error: unknown): boolean {
   return error instanceof MongoServerError && error.code === 11000;
+}
+
+function isDuplicateForTarget(
+  error: unknown,
+  table: Table,
+  target: Column | Column[],
+): boolean {
+  if (!isDuplicateKey(error)) return false;
+  const pattern = (
+    error as MongoServerError & {
+      keyPattern?: Record<string, unknown>;
+    }
+  ).keyPattern;
+  if (!pattern) return false;
+  const columns = Array.isArray(target) ? target : [target];
+  const targetKeys = columns.map(({ key }) => key).sort();
+  const primaryKeys = [...table.primaryKey].sort();
+  const expectedKeys =
+    targetKeys.join("\n") === primaryKeys.join("\n") ? ["_id"] : targetKeys;
+  return (
+    Object.keys(pattern).sort().join("\n") === expectedKeys.sort().join("\n")
+  );
 }
 
 type SelectedRow<Selection extends Record<string, unknown>> = {
@@ -428,7 +501,7 @@ class SelectStart<Selection extends Record<string, unknown> | undefined> {
 }
 
 type ConflictAction =
-  | { kind: "none" }
+  | { kind: "none"; target: Column | Column[] }
   | {
       kind: "update";
       target: Column | Column[];
@@ -451,8 +524,8 @@ class InsertQuery<TableRow extends Row> implements PromiseLike<TableRow[]> {
     return this;
   }
 
-  onConflictDoNothing(): this {
-    this.conflict = { kind: "none" };
+  onConflictDoNothing(options: { target: Column | Column[] }): this {
+    this.conflict = { kind: "none", target: options.target };
     return this;
   }
 
@@ -509,8 +582,40 @@ class InsertQuery<TableRow extends Row> implements PromiseLike<TableRow[]> {
         await targetCollection.insertOne(document, { session: this.session });
         returned.push(project(stripMongoId(document), this.selection));
       } catch (error) {
-        if (isDuplicateKey(error) && this.conflict) continue;
-        throw error;
+        if (
+          !this.conflict ||
+          !isDuplicateForTarget(error, this.table, this.conflict.target)
+        ) {
+          throw error;
+        }
+        if (this.conflict.kind === "update") {
+          const targetColumns = Array.isArray(this.conflict.target)
+            ? this.conflict.target
+            : [this.conflict.target];
+          const filter: Filter<Document> = Object.fromEntries(
+            targetColumns.map((column) => [column.key, document[column.key]]),
+          );
+          if (this.conflict.setWhere) {
+            Object.assign(filter, this.conflict.setWhere.filter);
+          }
+          const updateValues = Object.fromEntries(
+            Object.entries(this.conflict.set).filter(
+              ([, value]) => !isColumn(value),
+            ),
+          );
+          if (this.table.updatedAtField) {
+            updateValues[this.table.updatedAtField] = new Date();
+          }
+          const result = await targetCollection.findOneAndUpdate(
+            filter,
+            { $set: updateValues },
+            { returnDocument: "after", session: this.session },
+          );
+          if (result) {
+            returned.push(project(stripMongoId(result), this.selection));
+          }
+        }
+        continue;
       }
     }
     return returned as TableRow[];
@@ -560,14 +665,25 @@ class UpdateQuery<TableRow extends Row> implements PromiseLike<TableRow[]> {
     if (this.table.updatedAtField)
       changes[this.table.updatedAtField] = new Date();
     if (this.shouldReturn) {
-      const updated = await target.findOneAndUpdate(
-        this.filter,
+      const matches = await target
+        .find(this.filter, {
+          projection: { _id: 1 },
+          session: this.session,
+        })
+        .toArray();
+      if (matches.length === 0) return [];
+      const ids = matches.map(({ _id }) => _id);
+      await target.updateMany(
+        { _id: { $in: ids } },
         { $set: changes },
-        { returnDocument: "after", session: this.session },
+        { session: this.session },
       );
-      return updated
-        ? ([project(stripMongoId(updated), this.selection)] as TableRow[])
-        : [];
+      const updated = await target
+        .find({ _id: { $in: ids } }, { session: this.session })
+        .toArray();
+      return updated.map((document) =>
+        project(stripMongoId(document), this.selection),
+      ) as TableRow[];
     }
     await target.updateMany(
       this.filter,

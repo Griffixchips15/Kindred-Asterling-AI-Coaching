@@ -72,7 +72,10 @@ async function api(
 }
 
 beforeAll(async () => {
-  await db.insert(usersTable).values({ id: userId }).onConflictDoNothing();
+  await db
+    .insert(usersTable)
+    .values({ id: userId })
+    .onConflictDoNothing({ target: usersTable.id });
   token = await makeSession(userId);
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => {

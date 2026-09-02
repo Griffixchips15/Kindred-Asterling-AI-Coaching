@@ -187,22 +187,33 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
     if (!allowedEvents.has(event.eventType) || !event.customerId)
       throw new Error("Unsupported or uncorrelated Helcim event");
     const customerId = event.customerId;
+    if (
+      !verifyHelcimWebhook(body, {
+        "webhook-id": webhookId,
+        "webhook-timestamp": timestamp,
+        "webhook-signature": signature,
+      })
+    ) {
+      throw new InvalidWebhookSignatureError();
+    }
+    const referencedUser = verifyCustomerReference(customerId);
+    const [knownSubscription] = await db
+      .select({ userId: subscriptionsTable.userId })
+      .from(subscriptionsTable)
+      .where(eq(subscriptionsTable.paymentCustomerId, customerId))
+      .limit(1);
+    const fallbackEmail =
+      !knownSubscription &&
+      !referencedUser &&
+      process.env.HELCIM_EMAIL_MIGRATION_FALLBACK === "true"
+        ? (event.customerEmail ?? (await getHelcimCustomerEmail(customerId)))
+        : null;
     const result = await db.transaction(async (tx) => {
-      // Verification is deliberately inside the same unit of work as the claim and effects.
-      if (
-        !verifyHelcimWebhook(body, {
-          "webhook-id": webhookId,
-          "webhook-timestamp": timestamp,
-          "webhook-signature": signature,
-        })
-      ) {
-        throw new InvalidWebhookSignatureError();
-      }
       // Claim first, but the claim rolls back with every other effect on failure.
       const [claim] = await tx
         .insert(processedWebhooksTable)
         .values({ webhookId, eventType: event.eventType })
-        .onConflictDoNothing()
+        .onConflictDoNothing({ target: processedWebhooksTable.webhookId })
         .returning();
       if (!claim) return "duplicate" as const;
       let [subscription] = await tx
@@ -213,13 +224,7 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
 
       // Controlled migration only: signed customer reference, then explicitly-enabled legacy email matching.
       if (!subscription) {
-        const referencedUser = verifyCustomerReference(customerId);
         let userId = referencedUser;
-        const fallbackEmail =
-          !userId && process.env.HELCIM_EMAIL_MIGRATION_FALLBACK === "true"
-            ? (event.customerEmail ??
-              (await getHelcimCustomerEmail(customerId)))
-            : null;
         if (fallbackEmail) {
           const database = await getMongoDatabase();
           const legacyUsers = await database

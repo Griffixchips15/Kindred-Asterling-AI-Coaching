@@ -12,6 +12,7 @@ export {
   gte,
   inArray,
   initializeDatabase,
+  initializeMongoCounters,
   initializeMongoIndexes,
   isNull,
   lt,

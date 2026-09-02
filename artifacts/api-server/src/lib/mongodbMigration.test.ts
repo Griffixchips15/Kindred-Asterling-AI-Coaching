@@ -1,6 +1,17 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { OrderIndependentDigest, transformRow } from "@workspace/db";
+import {
+  DATE_ONLY_FIELDS,
+  OrderIndependentDigest,
+  assertDateOnlyFields,
+  authoritativeMigrationTables,
+  expectedMigrationCollections,
+  parsePostgresDate,
+  parsePostgresTimestampWithoutTimezone,
+  transformRow,
+  validateDiscoveredTableDefinitions,
+  validateMigrationCollectionNames,
+} from "@workspace/db";
 
 describe("PostgreSQL to MongoDB migration", () => {
   it("preserves values while converting database column names", () => {
@@ -33,6 +44,74 @@ describe("PostgreSQL to MongoDB migration", () => {
     ).toBe("user-1:2026-09-02");
   });
 
+  it("preserves PostgreSQL DATE values as exact calendar strings", () => {
+    expect(parsePostgresDate("2026-09-02")).toBe("2026-09-02");
+    expect(() => parsePostgresDate("2026-9-2")).toThrow(
+      /Invalid PostgreSQL DATE/,
+    );
+  });
+
+  it("parses timestamp-without-time-zone deterministically as UTC", () => {
+    expect(
+      parsePostgresTimestampWithoutTimezone(
+        "2026-09-02 12:34:56.789",
+      ).toISOString(),
+    ).toBe("2026-09-02T12:34:56.789Z");
+  });
+
+  it("checks every authoritative date-only field after transformation", () => {
+    for (const [table, fields] of Object.entries(DATE_ONLY_FIELDS)) {
+      const valid = Object.fromEntries(
+        fields.map((field) => [field, "2026-09-02"]),
+      );
+      expect(() => assertDateOnlyFields(table, valid)).not.toThrow();
+      for (const field of fields) {
+        expect(() =>
+          assertDateOnlyFields(table, { ...valid, [field]: new Date() }),
+        ).toThrow(`${table}.${field} must be an exact YYYY-MM-DD string`);
+      }
+    }
+  });
+
+  it("uses an explicit 20-collection product-data allowlist", () => {
+    const names = authoritativeMigrationTables.map(({ name }) => name);
+    expect(names).toHaveLength(20);
+    expect(names).not.toEqual(
+      expect.arrayContaining([
+        "sessions",
+        "schema_migrations",
+        "privacy_migration_orphans",
+        "mongodb_mirror_outbox",
+      ]),
+    );
+    expect(expectedMigrationCollections).toHaveLength(21);
+    expect(() =>
+      validateMigrationCollectionNames(expectedMigrationCollections),
+    ).not.toThrow();
+    expect(() =>
+      validateMigrationCollectionNames([
+        ...expectedMigrationCollections,
+        "sessions",
+      ]),
+    ).toThrow(/collection set mismatch/);
+  });
+
+  it("requires every allowlisted source table with the expected primary key", () => {
+    expect(
+      validateDiscoveredTableDefinitions(authoritativeMigrationTables),
+    ).toEqual(authoritativeMigrationTables);
+    expect(() =>
+      validateDiscoveredTableDefinitions(authoritativeMigrationTables.slice(1)),
+    ).toThrow(/Required source table is missing/);
+    expect(() =>
+      validateDiscoveredTableDefinitions(
+        authoritativeMigrationTables.map((table, index) =>
+          index === 0 ? { ...table, primaryKey: ["wrong_key"] } : table,
+        ),
+      ),
+    ).toThrow(/primary key mismatch/);
+  });
+
   it("computes a row-order-independent parity digest", () => {
     const left = new OrderIndependentDigest();
     const right = new OrderIndependentDigest();
@@ -54,6 +133,9 @@ describe("PostgreSQL to MongoDB migration", () => {
       "utf8",
     );
     expect(source).toContain("REPEATABLE READ READ ONLY");
+    expect(source).toContain("setTypeParser(POSTGRES_DATE_OID");
+    expect(source).toContain("POSTGRES_TIMESTAMP_WITHOUT_TIME_ZONE_OID");
+    expect(source).toContain("table_name = ANY($1::text[])");
     expect(source).toContain(
       "MONGODB_MIGRATION_DATABASE must differ from MONGODB_DATABASE",
     );
@@ -61,6 +143,10 @@ describe("PostgreSQL to MongoDB migration", () => {
     expect(source).not.toContain("MONGODB_MIGRATION_ALLOW_RUNTIME_TARGET");
     expect(source).toContain("sourceDigest");
     expect(source).toContain("validateReferences(target)");
+    expect(source).toContain("validateDateOnlyCollections(target)");
+    expect(source).toContain(
+      "validateMigrationCollectionNames(collectionNames)",
+    );
     expect(source).not.toContain("dropDatabase");
   });
 });

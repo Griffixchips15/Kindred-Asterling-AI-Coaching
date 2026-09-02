@@ -588,7 +588,6 @@ export interface Subscription extends Record<string, unknown> {
   currentPeriodEnd: Date | null;
   providerEventAt: Date | null;
   lastCheckedAt: Date | null;
-  checkoutLockUntil: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -604,7 +603,6 @@ export const subscriptionsTable = table<Subscription>(
     "currentPeriodEnd",
     "providerEventAt",
     "lastCheckedAt",
-    "checkoutLockUntil",
     "createdAt",
     "updatedAt",
   ],
@@ -619,7 +617,6 @@ export const subscriptionsTable = table<Subscription>(
       currentPeriodEnd: null,
       providerEventAt: null,
       lastCheckedAt: null,
-      checkoutLockUntil: null,
       createdAt: () => new Date(),
       updatedAt: () => new Date(),
     },

@@ -28,7 +28,7 @@ beforeAll(async () => {
       email: `${userId}@example.test`,
       emailVerifiedAt: new Date(),
     })
-    .onConflictDoNothing();
+    .onConflictDoNothing({ target: usersTable.id });
   token = registerTestClerkIdentity({ id: userId });
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => resolve());

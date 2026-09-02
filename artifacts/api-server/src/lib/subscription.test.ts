@@ -27,7 +27,10 @@ const email = `sub-${suffix}@example.test`;
 
 beforeAll(async () => {
   for (const id of [ownerId, betaUserId, helcimUserId, inactiveUserId]) {
-    await db.insert(usersTable).values({ id }).onConflictDoNothing();
+    await db
+      .insert(usersTable)
+      .values({ id })
+      .onConflictDoNothing({ target: usersTable.id });
   }
 });
 

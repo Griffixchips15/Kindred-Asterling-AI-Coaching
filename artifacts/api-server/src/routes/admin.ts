@@ -81,7 +81,8 @@ router.get("/admin/beta/grants", async (_req, res): Promise<void> => {
       revokedBy: betaGrantsTable.revokedBy,
     })
     .from(betaGrantsTable)
-    .orderBy(desc(betaGrantsTable.grantedAt));
+    .orderBy(desc(betaGrantsTable.grantedAt))
+    .limit(200);
 
   res.json({ grants: rows });
 });

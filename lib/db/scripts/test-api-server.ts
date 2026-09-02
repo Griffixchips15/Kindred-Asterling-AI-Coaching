@@ -14,7 +14,12 @@ try {
   const client = new MongoClient(uri);
   try {
     await client.connect();
-    await initializeMongoIndexes(client.db(databaseName));
+    const database = client.db(databaseName);
+    const topology = await database.command({ hello: 1 });
+    if (typeof topology.setName !== "string") {
+      throw new Error("API tests require a MongoDB replica set");
+    }
+    await initializeMongoIndexes(database);
   } finally {
     await client.close();
   }

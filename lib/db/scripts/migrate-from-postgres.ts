@@ -4,18 +4,27 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { MongoClient, type Db, type Document } from "mongodb";
 import pg from "pg";
-import { allTables } from "../src/mongoSchema";
-import { initializeMongoIndexes } from "../src/mongoDb";
-import { OrderIndependentDigest, transformRow } from "../src/migrationSupport";
+import {
+  initializeMongoCounters,
+  initializeMongoIndexes,
+} from "../src/mongoDb";
+import {
+  POSTGRES_DATE_OID,
+  POSTGRES_TIMESTAMP_WITHOUT_TIME_ZONE_OID,
+  OrderIndependentDigest,
+  assertDateOnlyFields,
+  authoritativeMigrationTables,
+  parsePostgresDate,
+  parsePostgresTimestampWithoutTimezone,
+  transformRow,
+  validateDiscoveredTableDefinitions,
+  validateMigrationCollectionNames,
+  type MigrationTableDefinition,
+} from "../src/migrationSupport";
 
 const { Client: PostgresClient } = pg;
 const BATCH_SIZE = 1_000;
 const IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
-
-type TableDefinition = {
-  name: string;
-  primaryKey: string[];
-};
 
 type TableReport = {
   table: string;
@@ -23,6 +32,12 @@ type TableReport = {
   sourceDigest: string;
   targetDigest: string;
 };
+
+pg.types.setTypeParser(POSTGRES_DATE_OID, parsePostgresDate);
+pg.types.setTypeParser(
+  POSTGRES_TIMESTAMP_WITHOUT_TIME_ZONE_OID,
+  parsePostgresTimestampWithoutTimezone,
+);
 
 function required(name: string): string {
   const value = process.env[name]?.trim();
@@ -36,12 +51,18 @@ function quotedIdentifier(value: string): string {
   return `"${value}"`;
 }
 
-async function discoverTables(source: pg.Client): Promise<TableDefinition[]> {
+async function discoverTables(
+  source: pg.Client,
+): Promise<MigrationTableDefinition[]> {
+  const allowlist = authoritativeMigrationTables.map(({ name }) => name);
   const tables = await source.query<{ table_name: string }>(
     `SELECT table_name
        FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+      WHERE table_schema = 'public'
+        AND table_type = 'BASE TABLE'
+        AND table_name = ANY($1::text[])
       ORDER BY table_name`,
+    [allowlist],
   );
   const keys = await source.query<{
     table_name: string;
@@ -53,8 +74,11 @@ async function discoverTables(source: pg.Client): Promise<TableDefinition[]> {
        JOIN information_schema.key_column_usage kcu
          ON kcu.constraint_name = tc.constraint_name
         AND kcu.constraint_schema = tc.constraint_schema
-      WHERE tc.table_schema = 'public' AND tc.constraint_type = 'PRIMARY KEY'
+      WHERE tc.table_schema = 'public'
+        AND tc.constraint_type = 'PRIMARY KEY'
+        AND tc.table_name = ANY($1::text[])
       ORDER BY tc.table_name, kcu.ordinal_position`,
+    [allowlist],
   );
   const byTable = new Map<string, string[]>();
   for (const key of keys.rows) {
@@ -62,16 +86,18 @@ async function discoverTables(source: pg.Client): Promise<TableDefinition[]> {
     columns.push(key.column_name);
     byTable.set(key.table_name, columns);
   }
-  return tables.rows.map(({ table_name }) => ({
-    name: table_name,
-    primaryKey: byTable.get(table_name) ?? [],
-  }));
+  return validateDiscoveredTableDefinitions(
+    tables.rows.map(({ table_name }) => ({
+      name: table_name,
+      primaryKey: byTable.get(table_name) ?? [],
+    })),
+  );
 }
 
 async function migrateTable(
   source: pg.Client,
   target: Db,
-  definition: TableDefinition,
+  definition: MigrationTableDefinition,
 ): Promise<TableReport> {
   const sourceDigest = new OrderIndependentDigest();
   const cursor = `kindred_${definition.name}_${randomUUID().replaceAll("-", "")}`;
@@ -120,6 +146,14 @@ async function migrateTable(
     sourceDigest: sourceDigest.hex(),
     targetDigest: targetDigest.hex(),
   };
+}
+
+async function validateDateOnlyCollections(database: Db): Promise<void> {
+  for (const { name } of authoritativeMigrationTables) {
+    for await (const document of database.collection(name).find()) {
+      assertDateOnlyFields(name, document);
+    }
+  }
 }
 
 async function countOrphans(
@@ -194,26 +228,6 @@ async function validateReferences(database: Db): Promise<void> {
   }
 }
 
-async function initializeCounters(database: Db): Promise<void> {
-  for (const table of allTables) {
-    if (!table.autoIncrement) continue;
-    const [latest] = await database
-      .collection(table.collectionName)
-      .find({}, { projection: { [table.autoIncrement]: 1 } })
-      .sort({ [table.autoIncrement]: -1 })
-      .limit(1)
-      .toArray();
-    const value = latest?.[table.autoIncrement];
-    await database
-      .collection<any>("_counters")
-      .updateOne(
-        { _id: table.collectionName },
-        { $set: { value: typeof value === "number" ? value : 0 } },
-        { upsert: true },
-      );
-  }
-}
-
 export async function runMigration(): Promise<void> {
   const sourceUrl = required("POSTGRES_SOURCE_URL");
   const mongoUri = required("MONGODB_URI");
@@ -249,10 +263,13 @@ export async function runMigration(): Promise<void> {
       );
     }
 
+    for (const { name } of authoritativeMigrationTables) {
+      await target.createCollection(name);
+    }
+
     await source.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const startedAt = new Date();
     const tables = await discoverTables(source);
-    if (tables.length === 0) throw new Error("No PostgreSQL tables discovered");
     const reports: TableReport[] = [];
     try {
       for (const table of tables) {
@@ -265,14 +282,20 @@ export async function runMigration(): Promise<void> {
     }
 
     await validateReferences(target);
+    await validateDateOnlyCollections(target);
     await initializeMongoIndexes(target);
-    await initializeCounters(target);
+    await initializeMongoCounters(target);
+    const collectionNames = (
+      await target.listCollections({}, { nameOnly: true }).toArray()
+    ).map(({ name }) => name);
+    validateMigrationCollectionNames(collectionNames);
     const report = {
       status: "validated",
       startedAt: startedAt.toISOString(),
       completedAt: new Date().toISOString(),
       source: "postgresql-read-only-snapshot",
       targetDatabase: targetName,
+      collectionCount: collectionNames.length,
       tables: reports,
       totalRows: reports.reduce((sum, table) => sum + table.rows, 0),
     };

@@ -31,12 +31,15 @@ op run --env-file=.env.1password -- pnpm --filter @workspace/api-server run dev
 
 ### Database
 
-| Variable                     | Sensitivity / requirement                                                                                 | Development source                              | Production source                                                  |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------ |
-| `MONGODB_URI`                | **Secret; required.** Application credential scoped only to the configured Kindred database               | Dedicated MongoDB development item / writer URI | Coolify secret from dedicated MongoDB production item / writer URI |
-| `POSTGRES_SOURCE_URL`        | **Secret; one-time migration job only.** Read-only source credential; never provide it to the application | `Kindred - Database Development` / `credential` | Trusted migration environment only                                 |
-| `PG_SSL_CA`                  | Migration-only sensitive CA configuration when PostgreSQL uses a private/internal CA                      | Local trusted CA file/value                     | Trusted migration environment only                                 |
-| `MONGODB_MIGRATION_DATABASE` | Non-production staging database name used for parity validation before cutover                            | Fresh development staging database              | Fresh production staging database                                  |
+| Variable                              | Sensitivity / requirement                                                                                 | Development source                              | Production source                                                  |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------ |
+| `MONGODB_URI`                         | **Secret; required.** Application credential scoped only to the configured Kindred database               | Dedicated MongoDB development item / writer URI | Coolify secret from dedicated MongoDB production item / writer URI |
+| `POSTGRES_SOURCE_URL`                 | **Secret; one-time migration job only.** Read-only source credential; never provide it to the application | `Kindred - Database Development` / `credential` | Trusted migration environment only                                 |
+| `POSTGRES_RESTORE_URL`                | **Secret; rehearsal only.** Isolated empty PostgreSQL restore target; never production                    | Disposable local/test PostgreSQL                | Isolated restore environment only                                  |
+| `PG_SSL_CA`                           | Migration-only sensitive CA configuration when PostgreSQL uses a private/internal CA                      | Local trusted CA file/value                     | Trusted migration environment only                                 |
+| `MONGODB_MIGRATION_DATABASE`          | Fresh empty rehearsal or final cutover-candidate database name                                            | Fresh development staging database              | Fresh production candidate database                                |
+| `MONGODB_VALIDATION_SOURCE_DATABASE`  | Read-only restore-validation source database name                                                         | Successful rehearsal candidate                  | Successful final candidate                                         |
+| `MONGODB_VALIDATION_RESTORE_DATABASE` | Fresh empty database name used only for the restore drill                                                 | Disposable restore database                     | Isolated restore database                                          |
 
 Use separate MongoDB credentials for the application and human/service readers.
 The application credential needs `readWrite` only on `MONGODB_DATABASE`; grant

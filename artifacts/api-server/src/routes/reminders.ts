@@ -20,7 +20,7 @@ async function getOrCreateSettings(userId: string) {
   const [created] = await db
     .insert(reminderSettingsTable)
     .values({ userId })
-    .onConflictDoNothing()
+    .onConflictDoNothing({ target: reminderSettingsTable.userId })
     .returning();
   if (created) return created;
   // Lost the insert race — read the row the other request created.

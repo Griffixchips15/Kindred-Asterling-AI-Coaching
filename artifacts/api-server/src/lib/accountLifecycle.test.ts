@@ -53,6 +53,25 @@ describe("MongoDB account lifecycle", () => {
     ).resolves.toBe("released");
   });
 
+  it("renews a live lease so long work cannot be overtaken after its initial TTL", async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const first = withDatabaseLease(
+      "renewal-test",
+      userId,
+      90,
+      async () => held,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 140));
+    await expect(
+      withDatabaseLease("renewal-test", userId, 90, async () => undefined),
+    ).rejects.toBeInstanceOf(DatabaseLeaseUnavailableError);
+    release();
+    await first;
+  });
+
   it("exports every owned data category and transactionally erases it", async () => {
     await db.insert(usersTable).values([{ id: userId }, { id: survivorId }]);
     const [habit] = await db.insert(habitsTable).values({

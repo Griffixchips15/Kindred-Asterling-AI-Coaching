@@ -69,7 +69,7 @@ beforeAll(async () => {
   await db
     .insert(usersTable)
     .values({ id: userId, phone: "+15551234567", timezone: TZ })
-    .onConflictDoNothing();
+    .onConflictDoNothing({ target: usersTable.id });
 });
 
 afterAll(async () => {
