@@ -9,10 +9,10 @@ import {
 } from "vitest";
 import type { AddressInfo } from "net";
 import type { Server } from "http";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray } from "@workspace/db";
 import {
   db,
-  pool,
+  closeDatabase,
   usersTable,
   conversations,
   messages,
@@ -22,6 +22,7 @@ import {
   habitsTable,
   habitEntriesTable,
   medicationsTable,
+  dailyUsageTable,
 } from "@workspace/db";
 import app from "../app";
 import {
@@ -156,10 +157,23 @@ interface ConvWithMessages {
 }
 
 async function quotaCount(userId: string): Promise<number> {
-  const result = await db.execute<{ count: number }>(
-    sql`SELECT count FROM daily_usage WHERE user_id = ${userId} AND date = CURRENT_DATE`,
-  );
-  return Number(result.rows[0]?.count ?? 0);
+  const today = new Date().toISOString().split("T")[0];
+  const [result] = await db
+    .select()
+    .from(dailyUsageTable)
+    .where(eq(dailyUsageTable.userId, userId));
+  return result?.date === today ? result.count : 0;
+}
+
+async function messagesForUser(userId: string) {
+  const chats = await db
+    .select()
+    .from(conversations)
+    .where(eq(conversations.userId, userId));
+  const ids = chats.map((chat) => chat.id);
+  return ids.length === 0
+    ? []
+    : db.select().from(messages).where(inArray(messages.conversationId, ids));
 }
 
 beforeAll(async () => {
@@ -208,7 +222,7 @@ afterAll(async () => {
   await new Promise<void>((resolve, reject) =>
     server.close((err) => (err ? reject(err) : resolve())),
   );
-  await pool.end();
+  await closeDatabase();
 });
 
 describe("auth is required", () => {
@@ -331,11 +345,7 @@ describe("POST /chat/send", () => {
       .where(eq(conversations.userId, userAId));
     expect(quotaRows).toHaveLength(0);
 
-    const storedMessages = await db
-      .select()
-      .from(messages)
-      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
-      .where(eq(conversations.userId, userAId));
+    const storedMessages = await messagesForUser(userAId);
     expect(storedMessages).toHaveLength(0);
   });
 
@@ -367,11 +377,7 @@ describe("POST /chat/send", () => {
     expect(res.status).toBe(400);
     expect(createMock).not.toHaveBeenCalled();
 
-    const rows = await db
-      .select()
-      .from(messages)
-      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
-      .where(eq(conversations.userId, userAId));
+    const rows = await messagesForUser(userAId);
     expect(rows).toHaveLength(0);
   });
 
@@ -386,11 +392,7 @@ describe("POST /chat/send", () => {
 
     // The user turn is stored, but no assistant turn is — a failed LLM call
     // must never pollute history with a fabricated reply.
-    const rows = await db
-      .select({ role: messages.role, content: messages.content })
-      .from(messages)
-      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
-      .where(eq(conversations.userId, userAId));
+    const rows = await messagesForUser(userAId);
     expect(rows.filter((r) => r.role === "assistant")).toHaveLength(0);
     expect(rows.filter((r) => r.role === "user")).toHaveLength(1);
     // The reserved slot is returned after both bounded attempts fail.
@@ -735,11 +737,7 @@ describe("POST /chat/send agentic tool loop", () => {
 
     // The user turn is stored, but the capped turn persisted no assistant
     // reply (no fabricated history).
-    const rows = await db
-      .select({ role: messages.role })
-      .from(messages)
-      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
-      .where(eq(conversations.userId, userAId));
+    const rows = await messagesForUser(userAId);
     expect(rows.filter((r) => r.role === "assistant")).toHaveLength(0);
     expect(rows.filter((r) => r.role === "user")).toHaveLength(1);
   });

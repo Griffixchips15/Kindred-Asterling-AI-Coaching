@@ -16,7 +16,7 @@ Kindred may use:
 
 ## Diagnostics and advertising
 
-Sentry may process technical error, performance, log, and error-triggered session-replay information when configured. The reviewed configuration is intended to avoid direct user information and request-body capture, but production behavior, retention, and any browser storage must be verified.
+Kindred does not load a third-party browser analytics or error-reporting SDK. Technical server and hosting logs may still be processed to operate, secure, and troubleshoot the service; their production retention and storage behavior must be verified.
 
 No Google Analytics, Meta Pixel, advertising network, or similar advertising tracker was found in the reviewed repository. This notice must be updated before any such technology is enabled. Social links in the footer are ordinary outbound links; the site does not embed social feeds or pixels.
 
@@ -24,4 +24,4 @@ No Google Analytics, Meta Pixel, advertising network, or similar advertising tra
 
 Users can use browser controls to remove or block cookies, but blocking essential authentication storage may prevent sign-in or secure features from working.
 
-> **Founder/legal confirmation required:** Inspect production response headers and browser storage. Identify cookie names, providers, and lifetimes; confirm Sentry, Clerk, and hosting behavior; and determine whether a consent manager is required in each supported launch location.
+> **Founder/legal confirmation required:** Inspect production response headers and browser storage. Identify cookie names, providers, and lifetimes; confirm Clerk and hosting behavior; and determine whether a consent manager is required in each supported launch location.

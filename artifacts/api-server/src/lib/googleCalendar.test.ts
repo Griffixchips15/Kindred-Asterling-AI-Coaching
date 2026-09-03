@@ -10,6 +10,7 @@ const databaseMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@workspace/db", () => ({
+  eq: vi.fn(() => ({ filter: {} })),
   calendarConnectionsTable: {
     encryptedRefreshToken: "encryptedRefreshToken",
     userId: "userId",
@@ -34,7 +35,10 @@ function encryptRefreshToken(value: string, secret: string): string {
     .digest();
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  const encrypted = Buffer.concat([
+    cipher.update(value, "utf8"),
+    cipher.final(),
+  ]);
   return [iv, cipher.getAuthTag(), encrypted]
     .map((part) => part.toString("base64url"))
     .join(".");
@@ -82,7 +86,10 @@ describe("disconnectCalendar", () => {
       { encryptedRefreshToken: encryptRefreshToken("refresh-token", secret) },
     ]);
     databaseMocks.deleteWhere.mockResolvedValueOnce(undefined);
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("network down")),
+    );
 
     await expect(disconnectCalendar("user-123")).resolves.toBeUndefined();
 

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { sql } from "drizzle-orm";
+import { eq } from "@workspace/db";
 import { db, affirmationsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -51,7 +51,7 @@ router.get("/affirmations", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db
     .select()
     .from(affirmationsTable)
-    .where(sql`${affirmationsTable.isActive} = true`)
+    .where(eq(affirmationsTable.isActive, true))
     .orderBy(affirmationsTable.id);
   res.json(JSON.parse(JSON.stringify(rows)));
 });
@@ -64,7 +64,7 @@ router.get(
     const rows = await db
       .select()
       .from(affirmationsTable)
-      .where(sql`${affirmationsTable.isActive} = true`)
+      .where(eq(affirmationsTable.isActive, true))
       .orderBy(affirmationsTable.id);
     if (rows.length === 0) {
       res.status(404).json({ error: "No affirmations available" });
@@ -82,12 +82,11 @@ router.get(
   requireAuth,
   async (_req, res): Promise<void> => {
     await ensureSeeded();
-    const [row] = await db
+    const rows = await db
       .select()
       .from(affirmationsTable)
-      .where(sql`${affirmationsTable.isActive} = true`)
-      .orderBy(sql`random()`)
-      .limit(1);
+      .where(eq(affirmationsTable.isActive, true));
+    const row = rows[Math.floor(Math.random() * rows.length)];
     if (!row) {
       res.status(404).json({ error: "No affirmations available" });
       return;

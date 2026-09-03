@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq } from "@workspace/db";
 
 export interface ClerkIdentityData {
   id: string;

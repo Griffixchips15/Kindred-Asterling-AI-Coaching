@@ -3,7 +3,7 @@
 > **Purpose:** Define every credential and sensitive runtime value used by the
 > application, where it is stored, and when it is required.
 >
-> **Last reviewed:** 2026-08-28
+> **Last reviewed:** 2026-09-02
 
 This document records **names and storage locations only**. Never add secret
 values to this file, `.env.example`, an image, a build argument, or a `VITE_*`
@@ -31,15 +31,21 @@ op run --env-file=.env.1password -- pnpm --filter @workspace/api-server run dev
 
 ### Database
 
-| Variable                 | Sensitivity / requirement                                                                          | Development source                              | Production source                                                  |
-| ------------------------ | -------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------ |
-| `DATABASE_URL`           | **Secret; required.** Restricted application-role connection URL                                   | `Kindred - Database Development` / `credential` | Coolify secret from `Kindred - Database Production` / `credential` |
-| `MIGRATION_DATABASE_URL` | **Secret; migration environment only.** Never provide it to the application runtime                | Dedicated development migrator credential       | Trusted production migration environment secret                    |
-| `PG_SSL_CA`              | Sensitive configuration when it contains a private/internal CA; optional for public-CA connections | Local trusted CA file/value                     | Coolify secret or mounted secret file                              |
+| Variable                              | Sensitivity / requirement                                                                                 | Development source                              | Production source                                                  |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------ |
+| `MONGODB_URI`                         | **Secret; required.** Application credential scoped only to the configured Kindred database               | Dedicated MongoDB development item / writer URI | Coolify secret from dedicated MongoDB production item / writer URI |
+| `POSTGRES_SOURCE_URL`                 | **Secret; one-time migration job only.** Read-only source credential; never provide it to the application | `Kindred - Database Development` / `credential` | Trusted migration environment only                                 |
+| `POSTGRES_RESTORE_URL`                | **Secret; rehearsal only.** Isolated empty PostgreSQL restore target; never production                    | Disposable local/test PostgreSQL                | Isolated restore environment only                                  |
+| `PG_SSL_CA`                           | Migration-only sensitive CA configuration when PostgreSQL uses a private/internal CA                      | Local trusted CA file/value                     | Trusted migration environment only                                 |
+| `MONGODB_MIGRATION_DATABASE`          | Fresh empty rehearsal or final cutover-candidate database name                                            | Fresh development staging database              | Fresh production candidate database                                |
+| `MONGODB_VALIDATION_SOURCE_DATABASE`  | Read-only restore-validation source database name                                                         | Successful rehearsal candidate                  | Successful final candidate                                         |
+| `MONGODB_VALIDATION_RESTORE_DATABASE` | Fresh empty database name used only for the restore drill                                                 | Disposable restore database                     | Isolated restore database                                          |
 
-Application and migration roles must remain separate. See
-[`docs/postgresql-operations.md`](docs/postgresql-operations.md) for the required
-least-privilege model.
+Use separate MongoDB credentials for the application and human/service readers.
+The application credential needs `readWrite` only on `MONGODB_DATABASE`; grant
+reporting consumers the `read` role. MongoDB contains Kindred's sensitive
+customer data and must never be exposed to browser code. See
+[`docs/mongodb-migration.md`](docs/mongodb-migration.md).
 
 ### Authentication — Clerk
 
@@ -104,20 +110,6 @@ Configure the entire Calendar group or none of it. Rotating
 `CALENDAR_TOKEN_ENCRYPTION_KEY` requires a token migration or reconnecting all
 affected calendars; do not replace it without a migration plan.
 
-### Observability
-
-| Variable            | Sensitivity / requirement                                                  | Development source                             | Production source                                                            |
-| ------------------- | -------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------- |
-| `SENTRY_DSN`        | Treat as sensitive configuration; optional server DSN                      | Development Sentry project                     | Coolify secret/environment value                                             |
-| `VITE_SENTRY_DSN`   | Public browser DSN by design                                               | Development Sentry project                     | Coolify build argument                                                       |
-| `SENTRY_AUTH_TOKEN` | **Secret; browser source-map build only.** Never runtime, `VITE_*`, or ARG | Optional local build environment; never `.env` | Coolify Build Secret ID `sentry_auth_token`; mounted only for the Vite build |
-
-Sentry environment, release, enabled, and trace-sampling variables are
-non-secret. The Dockerfile maps the lowercase BuildKit secret ID
-`sentry_auth_token` to `SENTRY_AUTH_TOKEN` only inside the Vite build step. A DSN
-is not an account credential, but controlling its disclosure
-reduces event-injection abuse.
-
 ## Non-secret runtime inventory
 
 These values belong in `.env.example` and Coolify as ordinary environment
@@ -126,11 +118,10 @@ at build time and must always be safe to disclose.
 
 | Area                | Variables                                                                                                                                                                                                                                |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime             | `NODE_ENV`, `PORT`, `APP_PUBLIC_URL`, `BASE_PATH`, `LOG_LEVEL`, `TRUST_PROXY_HOPS`                                                                                                                                                       |
+| Runtime             | `NODE_ENV`, `PORT`, `APP_PUBLIC_URL`, `BASE_PATH`, `LOG_LEVEL`, `TRUST_PROXY_HOPS`, `MONGODB_DATABASE`                                                                                                                                   |
 | AI                  | `AI_PROVIDER`, `AI_REQUEST_TIMEOUT_MS`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `AWS_REGION`, `BEDROCK_MODEL_ID`                                                                                           |
 | Payments            | `HELCIM_PAYMENTS_ENABLED`, `HELCIM_YEARLY_PLAN_ID`, `HELCIM_LIFETIME_PRODUCT_ID`, `HELCIM_YEARLY_CHECKOUT_URL`, `HELCIM_LIFETIME_CHECKOUT_URL`, `HELCIM_LIFETIME_INVOICE_PREFIX`, `HELCIM_PORTAL_URL`, `HELCIM_EMAIL_MIGRATION_FALLBACK` |
 | Subscription policy | `SUBSCRIPTION_OWNER_IDS`, `SUBSCRIPTION_OWNER_EMAILS`, `DAILY_CHAT_LIMIT`                                                                                                                                                                |
-| Sentry              | `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE`, `SENTRY_TRACES_SAMPLE_RATE`, `VITE_SENTRY_ENABLED`, `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_RELEASE`, `VITE_SENTRY_TRACES_SAMPLE_RATE`                                                           |
 | Social links        | `VITE_SOCIAL_WHATSAPP_URL`, `VITE_SOCIAL_INSTAGRAM_URL`, `VITE_SOCIAL_THREADS_URL`, `VITE_SOCIAL_FACEBOOK_URL`, `VITE_SOCIAL_X_URL`, `VITE_SOCIAL_LINKEDIN_URL`, `VITE_SOCIAL_GOOGLE_BUSINESS_URL`, `VITE_SOCIAL_PATREON_URL`            |
 
 `REPLIT_DOMAINS` is a legacy platform-provided compatibility value and must not

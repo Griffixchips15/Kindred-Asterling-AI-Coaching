@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createCheckout: vi.fn(),
-  captureException: vi.fn(),
   getToken: vi.fn(),
   authState: { isLoaded: true, isSignedIn: true },
 }));
@@ -19,10 +18,6 @@ vi.mock("@clerk/clerk-react", () => ({
 
 vi.mock("@workspace/api-client-react", () => ({
   createCheckout: mocks.createCheckout,
-}));
-
-vi.mock("@sentry/react", () => ({
-  captureException: mocks.captureException,
 }));
 
 import { CheckoutButton } from "./checkout-button";
@@ -68,7 +63,7 @@ describe("CheckoutButton", () => {
     });
   });
 
-  it("normalizes a non-Error checkout rejection before reporting it", async () => {
+  it("shows a stable error when checkout rejects with a non-Error value", async () => {
     mocks.createCheckout.mockRejectedValue(undefined);
 
     await act(async () => {
@@ -83,12 +78,6 @@ describe("CheckoutButton", () => {
       await Promise.resolve();
     });
 
-    expect(mocks.captureException).toHaveBeenCalledWith(expect.any(Error), {
-      tags: { checkout_plan_type: "yearly" },
-    });
-    expect(mocks.captureException.mock.calls[0][0]).toMatchObject({
-      message: "Failed to start checkout",
-    });
     expect(container.textContent).toContain(
       "Checkout isn't ready just yet — please try again shortly.",
     );

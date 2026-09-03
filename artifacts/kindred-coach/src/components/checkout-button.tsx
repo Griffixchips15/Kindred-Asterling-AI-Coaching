@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useAuth } from "@clerk/clerk-react";
-import * as Sentry from "@sentry/react";
 import { createCheckout } from "@workspace/api-client-react";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -52,12 +51,7 @@ export function CheckoutButton({
         throw new Error("Checkout session URL is missing");
       }
       window.location.assign(data.checkoutUrl);
-    } catch (err) {
-      const error =
-        err instanceof Error ? err : new Error("Failed to start checkout");
-      Sentry.captureException(error, {
-        tags: { checkout_plan_type: planType },
-      });
+    } catch {
       setError("Checkout isn't ready just yet — please try again shortly.");
     } finally {
       setIsPending(false);

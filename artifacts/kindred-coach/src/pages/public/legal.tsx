@@ -213,7 +213,7 @@ const privacySections: LegalSection[] = [
           "Wellness, Reflection & Coaching Data: Self-submitted morning check-ins, evening reflections, mood scores, body scan notes, habit records, medication logs, personal goals, and chat interactions with the coaching AI.",
           "Calendar Integration Metadata (Optional): When you choose to connect Google Calendar, we retrieve read-only upcoming schedule data to calculate a non-identifying, title-free schedule-density metric (e.g., light, moderate, heavy schedule load).",
           "Subscription & Transaction Data: Payment references, plan tiers (Yearly or Lifetime Access), and transaction IDs processed securely through Helcim. We do not store or process raw credit card numbers.",
-          "Operational & Security Telemetry: Server access logs, security events, quota tracking, and error diagnostic logs (managed via Sentry with sensitive PII masked).",
+          "Operational & Security Telemetry: Server access logs, security events, quota tracking, and application error logs.",
         ],
         true,
       ),
@@ -247,7 +247,6 @@ const privacySections: LegalSection[] = [
         "Cloud Hosting & Infrastructure: Contabo GmbH (Munich, Germany) - secure VPS infrastructure and database management.",
         "Authentication & Identity: Clerk (USA / Global) - secure session management.",
         "Payment Processing: Helcim (Calgary, AB, Canada) - PCI-DSS compliant checkout and subscription billing.",
-        "Error Diagnostics: Sentry (USA) - crash telemetry with automatic PII masking.",
         "Communications: Resend (transactional email), Twilio (SMS reminders, where enabled), and ElevenLabs (voice synthesis, where enabled).",
       ]),
     ],
@@ -593,8 +592,8 @@ const cookieSections: LegalSection[] = [
       ]),
       subheading("C. Technical Diagnostics & Error Monitoring"),
       list([
-        "Sentry Error Diagnostics: Used solely to capture anonymous crash reports, stack traces, and software performance anomalies.",
-        "Privacy Protections in Diagnostics: Sentry is configured with strict data-masking rules. Keystrokes, user passwords, payment tokens, and the text content of personal coaching reflections are strictly excluded and masked from error telemetry.",
+        "Application and Hosting Logs: Technical server and infrastructure logs may be used to operate, secure, and troubleshoot the service.",
+        "No Third-Party Browser Diagnostics: Kindred does not load a third-party browser analytics or error-reporting SDK.",
       ]),
     ],
   },
@@ -765,10 +764,10 @@ export function PrivacyPolicy() {
                 Hosting is provided by Contabo GmbH, Welfenstrasse 22, 81541
                 Munich, Germany. Production AI inference is provided through AWS
                 Bedrock. The repository also supports Clerk (identity), Helcim
-                (payments), Google Calendar (optional read-only access), Sentry
-                (error and performance monitoring when enabled), Twilio (SMS),
-                Resend (email), and ElevenLabs (voice features). Data should be
-                sent to a provider only when its feature is enabled and needed.
+                (payments), Google Calendar (optional read-only access), Twilio
+                (SMS), Resend (email), and ElevenLabs (voice features). Data
+                should be sent to a provider only when its feature is enabled
+                and needed.
               </p>
               <Confirmation>
                 Confirm the Contabo server location, database provider and
@@ -1186,7 +1185,7 @@ export function CookieNotice() {
   return (
     <LegalPage
       title="Cookie and Analytics Notice"
-      summary="The current repository uses essential authentication and preference storage and supports Sentry diagnostics when configured. No advertising tracker is evident in the application source reviewed for this draft."
+      summary="The current repository uses essential authentication and preference storage without a third-party browser analytics or error-reporting SDK. No advertising tracker is evident in the application source reviewed for this draft."
       sections={[
         {
           heading: "Essential technologies",
@@ -1201,11 +1200,11 @@ export function CookieNotice() {
           content: (
             <>
               <p>
-                Sentry may process technical error, performance, log, and
-                error-triggered session-replay information when configured. The
-                reviewed configuration is intended to avoid direct user
-                information and request-body capture, but production behavior,
-                retention, and any browser storage must be verified.
+                Kindred does not load a third-party browser analytics or
+                error-reporting SDK. Technical server and hosting logs may still
+                be processed to operate, secure, and troubleshoot the service;
+                their production retention and storage behavior must be
+                verified.
               </p>
               <p>
                 No Google Analytics, Meta Pixel, advertising network, or similar
@@ -1232,8 +1231,8 @@ export function CookieNotice() {
           content: (
             <Confirmation>
               Inspect production response headers and browser storage, identify
-              cookie names, providers, and lifetimes, confirm Sentry, Clerk, and
-              hosting behavior, and determine whether a consent manager is
+              cookie names, providers, and lifetimes, confirm Clerk and hosting
+              behavior, and determine whether a consent manager is
               required in each supported launch location.
             </Confirmation>
           ),

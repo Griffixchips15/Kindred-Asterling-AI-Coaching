@@ -4,7 +4,7 @@ The repository-root `Dockerfile` is the **only supported production deployment
 artifact**. Do not use Nixpacks, Docker Compose generated from this repository,
 PM2, Replit workflows, or a host-side Node process. Coolify builds the Dockerfile,
 runs one non-root application container, and connects it to separately managed
-PostgreSQL and AWS Bedrock.
+MongoDB and AWS Bedrock.
 
 ## GitLab application setup (the new-resource screen)
 
@@ -21,7 +21,7 @@ For the Coolify screen shown when adding a **Private GitLab App** repository:
    application's public HTTPS domain.
 4. In **Environment Variables**, add the values described below. Any `VITE_*`
    value used by the browser must have **Build Variable** enabled. Runtime-only
-   secrets such as `DATABASE_URL`, `CLERK_SECRET_KEY`, and webhook secrets must
+   secrets such as `MONGODB_URI`, `CLERK_SECRET_KEY`, and webhook secrets must
    not be exposed as build variables.
 5. Save, deploy, and watch the build logs. A successful deployment should pass
    `GET /api/healthz`; verify `GET /api/healthz/db` separately after the database
@@ -56,101 +56,34 @@ browser or the relevant provider dashboard:
   response from their production webhook or callback URLs.
 - A push to `main` starts a new Coolify deployment if automatic deployments are
   enabled; otherwise, a manual **Redeploy** builds the latest Git commit.
-
-If `/api/healthz` fails, inspect the application build and runtime logs first. If
-only `/api/healthz/db` fails, check `DATABASE_URL`, Coolify private-network DNS,
-and whether the production schema was initialized. Do not repeatedly redeploy an
-unchanged image to fix a database connectivity or schema problem.
+  If `/api/healthz` fails, inspect the application build and runtime logs first. If
+  only `/api/healthz/db` fails, check `MONGODB_URI`, `MONGODB_DATABASE`, Coolify
+  private-network DNS, and MongoDB's network allowlist. Do not repeatedly redeploy
+  an unchanged image to fix a database connectivity or index problem.
 
 ## 1. Resources and build
 
-1. Create a Coolify **PostgreSQL** resource and retain its internal connection
-   URL. Keep PostgreSQL private; do not publish port 5432.
+1. Provision a MongoDB Atlas cluster or replica set and retain its private
+   application connection URL. Standalone MongoDB is unsupported because
+   Kindred's multi-document writes require transactions.
 2. Configure AWS Bedrock for production as described in
    [aws-bedrock-coolify.md](aws-bedrock-coolify.md). Private Ollama is only a
    temporary, approved rollback option, not the production provider.
 3. Create an application from this Git repository. Select **Dockerfile** with
    path `/Dockerfile`, port `8080`, and the production branch.
-4. Add `VITE_CLERK_PUBLISHABLE_KEY` and `VITE_SENTRY_DSN` as **build
-   arguments**. They are public and compiled into browser assets. Also set
-   `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_RELEASE` (normally the Git SHA), and
-   `VITE_SENTRY_TRACES_SAMPLE_RATE`. A change requires a rebuild.
+4. Add `VITE_CLERK_PUBLISHABLE_KEY` as a **build argument**. It is public and
+   compiled into browser assets. A change requires a rebuild.
 5. Add the applicable runtime values from `.env.example`. Do not add
-   `MIGRATION_DATABASE_URL` or `SENTRY_AUTH_TOKEN` to the application runtime;
-   their migration-only and build-only delivery paths are documented below. Mark
-   keys, webhook signing secrets, database URLs, and encryption values as secrets.
+   `POSTGRES_SOURCE_URL`, `PG_SSL_CA`, migration target variables, or
+   migration reports to the application runtime. Mark keys, webhook signing
+   secrets, database URLs, and encryption values as secrets.
    The Clerk publishable key is needed twice: the Vite build argument and
    `CLERK_PUBLISHABLE_KEY` at server runtime.
-6. Initialize or upgrade the database from a trusted admin/migration environment
-   containing this repository, pnpm, and the `db` workspace before switching
-   traffic:
-   - **Brand-new, empty PostgreSQL resource:** run
-     `NODE_ENV=production pnpm --filter @workspace/db run initialize`. This creates
-     the complete baseline schema represented by the current Drizzle definitions.
-     Do not run the incremental migrations first: they transform tables from older
-     releases and assume those legacy tables already exist.
-   - **Existing production database:** complete the pre-migration backup gate,
-     review the committed SQL migrations, then run exactly
-     `NODE_ENV=production pnpm --filter @workspace/db run migrate`. Do not run
-     `drizzle-kit push` against an existing production database. The application
-     container does not run migrations at startup and the slim runtime image is
-     not a migration environment.
-
-   Schema initialization and migration are deliberately not part of container
-   startup, so a restart cannot unexpectedly mutate production data.
-
-### Sentry
-
-Create separate Sentry projects for the browser and Node API. Configure the
-browser project's DSN through the `VITE_SENTRY_DSN` build argument and the API
-project's DSN through the runtime-only `SENTRY_DSN`. Use the same Git SHA for
-`VITE_SENTRY_RELEASE` and `SENTRY_RELEASE` so events map to one deployment.
-
-Leave either DSN blank to disable that SDK without affecting app startup. The
-default trace sample rate is 10%; tune it for traffic and budget. The Vite build
-uploads hidden browser source maps only when `SENTRY_AUTH_TOKEN` is available. In
-Coolify, create a private **Build Secret** named exactly `sentry_auth_token`, passed
-to the Docker build as BuildKit secret ID `sentry_auth_token`; do not enable it as
-a build argument or runtime variable. The root Dockerfile mounts it only at
-`/run/secrets/sentry_auth_token` during the build, so it is never persisted in an
-image layer. Tokenless local Docker builds remain supported because the mount is
-optional. Do not claim source maps are verified until a Coolify build upload
-succeeds and a new deployed Sentry event symbolicates with the matching release.
-Session Replay is intentionally not enabled because coaching screens can contain
-sensitive journal and health information.
-
-Browser `console.log`, `console.warn`, and `console.error` calls are forwarded as
-Sentry logs. Prefer the structured logger for new instrumentation so fields can
-be searched without parsing prose:
-
-```ts
-import * as Sentry from "@sentry/react";
-
-// Good: a stable message plus low-cardinality, non-sensitive attributes.
-Sentry.logger.info("Dashboard section opened", {
-  section: "habits",
-  source: "navigation",
-});
-
-// Good: interpolate values with Sentry's template helper to preserve grouping.
-Sentry.logger.warn(Sentry.logger.fmt`API request retried after ${delayMs}ms`, {
-  route: "/api/habits",
-  attempt,
-});
-
-// Unexpected exceptions remain errors rather than being converted to strings.
-Sentry.captureException(error, {
-  tags: { operation: "load-habits" },
-});
-```
-
-Do not log journal or chat text, health or medication details, names, email
-addresses, Clerk identifiers, cookies, authorization headers, or request/response
-bodies. Use stable route templates rather than full URLs, and use `debug`/`info`
-for expected lifecycle events, `warn` for recoverable degradation, and `error`
-or `captureException` only for unexpected failures. Console forwarding exists
-for compatibility; avoid logging the same event through both `console` and
-`Sentry.logger`, which would create duplicates.
+6. For a new empty MongoDB database, run
+   `pnpm --filter @workspace/db run initialize` from a trusted environment before
+   switching traffic. For the PostgreSQL cutover, follow
+   [mongodb-migration.md](mongodb-migration.md) exactly. Migration is deliberately
+   not part of container startup, so a restart cannot copy or delete data.
 
 The image installs exactly once with `pnpm install --frozen-lockfile`, builds only
 the web client and API, and packages the API's production dependency closure.
@@ -159,14 +92,14 @@ The final image contains compiled output, browser assets, and production
 
 ## 2. Health checks
 
-Configure two Coolify checks:
+Configure the two core Coolify checks:
 
 - **Application liveness:** `GET /api/healthz` expects HTTP 200. The Docker image
   also defines this check. It proves Express can accept requests without making
-  deployment availability depend on PostgreSQL.
+  deployment availability depend on MongoDB.
 - **Database readiness:** `GET /api/healthz/db` expects HTTP 200. A database
   failure returns 503. Use it for alerts/readiness verification, not an aggressive
-  restart loop, because restarting the application cannot repair PostgreSQL.
+  restart loop, because restarting the application cannot repair MongoDB.
 
 ## 3. Domain, Cloudflare, and TLS
 
@@ -204,20 +137,20 @@ The application container is stateless and needs **no persistent volume**. Do no
 mount over `/app`; releases and rollback depend on immutable image contents.
 Persist only service data:
 
-- PostgreSQL data directory on a dedicated Coolify volume.
+- MongoDB data on an Atlas cluster or a dedicated replica-set volume.
 
-Enable scheduled, encrypted PostgreSQL backups to storage outside the Coolify
+Enable scheduled, encrypted MongoDB backups to storage outside the Coolify
 host. Retain **7 daily and 5 weekly restore points only**; all production backups
 must expire within 35 days. Monitor failures, and perform a
 quarterly restore drill into an isolated database. Snapshotting a volume alone is
-not a substitute for a PostgreSQL-consistent backup. Back up Coolify configuration
+not a substitute for a MongoDB-consistent backup. Back up Coolify configuration
 and record the deployed Git SHA/image digest.
 
 ## 6. Deploy and rollback
 
 Before promotion, GitLab CI validates the Node 24/pnpm 10.28.1 monorepo. Coolify
 separately builds the root `/Dockerfile` from GitLab `main`. Build the exact
-commit, complete the pre-migration backup and reviewed SQL migration gate, and
+commit, complete the backup and MongoDB migration gate, and
 deploy. Verify both health endpoints, Clerk login, one response from the configured
 Bedrock provider using synthetic test data, and webhook delivery. Private Ollama
 may be used only under the approved rollback procedure.
@@ -230,5 +163,5 @@ only after stopping writes and accepting the documented data-loss window. Keep a
 least two known-good application images and their configuration available.
 
 On replacement, Coolify sends `SIGTERM`; the API stops its scheduler, drains the
-HTTP listener, and closes the PostgreSQL pool. Allow at least 30 seconds before a
+HTTP listener, and closes the MongoDB pool. Allow at least 30 seconds before a
 forced kill.

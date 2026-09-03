@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "@workspace/db";
 import { db, medicationScheduleEntriesTable } from "@workspace/db";
 
 // A database executor: either the top-level `db` or a transaction handle. Used so

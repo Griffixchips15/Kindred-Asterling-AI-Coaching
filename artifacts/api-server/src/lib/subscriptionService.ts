@@ -1,4 +1,4 @@
-import { eq, and, isNull, sql } from "drizzle-orm";
+import { eq, and, gt, isNull, or } from "@workspace/db";
 import {
   db,
   subscriptionsTable,
@@ -110,7 +110,10 @@ export async function resolveSubscription(
       and(
         eq(betaGrantsTable.userId, user.id),
         isNull(betaGrantsTable.revokedAt),
-        sql`(${betaGrantsTable.expiresAt} IS NULL OR ${betaGrantsTable.expiresAt} > NOW())`,
+        or(
+          isNull(betaGrantsTable.expiresAt),
+          gt(betaGrantsTable.expiresAt, new Date()),
+        ),
       ),
     )
     .limit(1);
