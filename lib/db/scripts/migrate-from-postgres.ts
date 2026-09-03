@@ -66,31 +66,59 @@ async function discoverTables(
   );
   const keys = await source.query<{
     table_name: string;
+    constraint_name: string;
+    constraint_type: "PRIMARY KEY" | "UNIQUE";
     column_name: string;
     ordinal_position: number;
   }>(
-    `SELECT tc.table_name, kcu.column_name, kcu.ordinal_position
+    `SELECT tc.table_name, tc.constraint_name, tc.constraint_type,
+            kcu.column_name, kcu.ordinal_position
        FROM information_schema.table_constraints tc
        JOIN information_schema.key_column_usage kcu
          ON kcu.constraint_name = tc.constraint_name
         AND kcu.constraint_schema = tc.constraint_schema
+        AND kcu.table_name = tc.table_name
       WHERE tc.table_schema = 'public'
-        AND tc.constraint_type = 'PRIMARY KEY'
+        AND tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE')
         AND tc.table_name = ANY($1::text[])
-      ORDER BY tc.table_name, kcu.ordinal_position`,
+      ORDER BY tc.table_name,
+               CASE tc.constraint_type WHEN 'PRIMARY KEY' THEN 0 ELSE 1 END,
+               tc.constraint_name,
+               kcu.ordinal_position`,
     [allowlist],
   );
-  const byTable = new Map<string, string[]>();
+  const byConstraint = new Map<string, string[]>();
   for (const key of keys.rows) {
-    const columns = byTable.get(key.table_name) ?? [];
+    const constraint = `${key.table_name}\0${key.constraint_name}`;
+    const columns = byConstraint.get(constraint) ?? [];
     columns.push(key.column_name);
-    byTable.set(key.table_name, columns);
+    byConstraint.set(constraint, columns);
   }
+  const candidatesByTable = new Map<string, string[][]>();
+  for (const [constraint, columns] of byConstraint) {
+    const tableName = constraint.slice(0, constraint.indexOf("\0"));
+    const candidates = candidatesByTable.get(tableName) ?? [];
+    candidates.push(columns);
+    candidatesByTable.set(tableName, candidates);
+  }
+  const expectedByTable = new Map(
+    authoritativeMigrationTables.map(({ name, primaryKey }) => [
+      name,
+      primaryKey,
+    ]),
+  );
   return validateDiscoveredTableDefinitions(
-    tables.rows.map(({ table_name }) => ({
-      name: table_name,
-      primaryKey: byTable.get(table_name) ?? [],
-    })),
+    tables.rows.map(({ table_name }) => {
+      const expected = expectedByTable.get(table_name) ?? [];
+      const candidates = candidatesByTable.get(table_name) ?? [];
+      const matchingIdentity = candidates.find(
+        (columns) => columns.join("\0") === expected.join("\0"),
+      );
+      return {
+        name: table_name,
+        primaryKey: matchingIdentity ?? candidates[0] ?? [],
+      };
+    }),
   );
 }
 
@@ -257,14 +285,30 @@ export async function runMigration(): Promise<void> {
     const existingCollections = await target
       .listCollections({}, { nameOnly: true })
       .toArray();
-    if (existingCollections.length > 0) {
-      throw new Error(
-        `Migration target ${targetName} is not empty; use a new staging database`,
-      );
+    const expectedCollectionNames = new Set(
+      authoritativeMigrationTables.map(({ name }) => name),
+    );
+    for (const { name } of existingCollections) {
+      if (!expectedCollectionNames.has(name)) {
+        throw new Error(
+          `Migration target ${targetName} contains unexpected collection ${name}; use a new staging database`,
+        );
+      }
+      const documents = await target.collection(name).estimatedDocumentCount();
+      if (documents > 0) {
+        throw new Error(
+          `Migration target ${targetName} is not empty; ${name} contains ${documents} documents`,
+        );
+      }
     }
 
+    const existingCollectionNames = new Set(
+      existingCollections.map(({ name }) => name),
+    );
     for (const { name } of authoritativeMigrationTables) {
-      await target.createCollection(name);
+      if (!existingCollectionNames.has(name)) {
+        await target.createCollection(name);
+      }
     }
 
     await source.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");

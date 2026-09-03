@@ -96,7 +96,7 @@ describe("PostgreSQL to MongoDB migration", () => {
     ).toThrow(/collection set mismatch/);
   });
 
-  it("requires every allowlisted source table with the expected primary key", () => {
+  it("requires every allowlisted source table with the expected identity constraint", () => {
     expect(
       validateDiscoveredTableDefinitions(authoritativeMigrationTables),
     ).toEqual(authoritativeMigrationTables);
@@ -109,7 +109,7 @@ describe("PostgreSQL to MongoDB migration", () => {
           index === 0 ? { ...table, primaryKey: ["wrong_key"] } : table,
         ),
       ),
-    ).toThrow(/primary key mismatch/);
+    ).toThrow(/identity constraint mismatch/);
   });
 
   it("computes a row-order-independent parity digest", () => {
@@ -136,10 +136,13 @@ describe("PostgreSQL to MongoDB migration", () => {
     expect(source).toContain("setTypeParser(POSTGRES_DATE_OID");
     expect(source).toContain("POSTGRES_TIMESTAMP_WITHOUT_TIME_ZONE_OID");
     expect(source).toContain("table_name = ANY($1::text[])");
+    expect(source).toContain("constraint_type IN ('PRIMARY KEY', 'UNIQUE')");
     expect(source).toContain(
       "MONGODB_MIGRATION_DATABASE must differ from MONGODB_DATABASE",
     );
-    expect(source).toContain("is not empty; use a new staging database");
+    expect(source).toContain("estimatedDocumentCount");
+    expect(source).toContain("contains unexpected collection");
+    expect(source).toContain("is not empty;");
     expect(source).not.toContain("MONGODB_MIGRATION_ALLOW_RUNTIME_TARGET");
     expect(source).toContain("sourceDigest");
     expect(source).toContain("validateReferences(target)");

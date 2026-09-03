@@ -68,7 +68,7 @@ export function validateDiscoveredTableDefinitions(
       throw new Error(`Required source table is missing: ${expected.name}`);
     if (actual.primaryKey.join(",") !== expected.primaryKey.join(",")) {
       throw new Error(
-        `${expected.name} primary key mismatch: expected ${expected.primaryKey.join(",")} but found ${actual.primaryKey.join(",")}`,
+        `${expected.name} identity constraint mismatch: expected ${expected.primaryKey.join(",")} but found ${actual.primaryKey.join(",")}`,
       );
     }
   }
