@@ -35,9 +35,11 @@ pnpm --filter @workspace/db run migrate:from-postgres
 The exporter opens one PostgreSQL `REPEATABLE READ READ ONLY` transaction and
 streams rows in bounded batches. Its allowlist is derived from Kindred's current
 runtime schema: exactly 20 product collections plus `_counters`. It refuses a
-missing table or primary-key mismatch. It does not copy `sessions`,
+missing table or mismatched logical identity constraint. PostgreSQL primary
+keys are accepted, as is the existing unique `(user_id, date)` identity
+constraint on `daily_usage`. It does not copy `sessions`,
 `schema_migrations`, `privacy_migration_orphans`, `mongodb_mirror_outbox`, or
-other legacy/migration infrastructure. Existing primary keys remain `_id`,
+other legacy/migration infrastructure. Existing logical keys remain `_id`,
 including composite keys.
 
 PostgreSQL `DATE` values are parsed and rechecked as exact `YYYY-MM-DD` strings.
