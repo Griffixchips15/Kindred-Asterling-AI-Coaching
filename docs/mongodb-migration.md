@@ -58,6 +58,11 @@ The command succeeds only after all of these checks pass:
 - every runtime unique/index constraint can be created; and
 - integer ID counters are advanced to the migrated maxima.
 
+If a pre-copy validation failure created only empty allowlisted collections, the
+same rehearsal target may be retried. The exporter verifies that every existing
+collection is expected and contains zero documents before reusing it. Any
+unexpected collection or document still forces a new target database.
+
 Explicitly review the report entries for critical identity and customer data:
 `users`, `conversations`, `messages`, `medications`, `medication_logs`,
 `medication_schedule_entries`, `subscriptions`, and `processed_webhooks`. A

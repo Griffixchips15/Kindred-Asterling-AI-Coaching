@@ -285,14 +285,30 @@ export async function runMigration(): Promise<void> {
     const existingCollections = await target
       .listCollections({}, { nameOnly: true })
       .toArray();
-    if (existingCollections.length > 0) {
-      throw new Error(
-        `Migration target ${targetName} is not empty; use a new staging database`,
-      );
+    const expectedCollectionNames = new Set(
+      authoritativeMigrationTables.map(({ name }) => name),
+    );
+    for (const { name } of existingCollections) {
+      if (!expectedCollectionNames.has(name)) {
+        throw new Error(
+          `Migration target ${targetName} contains unexpected collection ${name}; use a new staging database`,
+        );
+      }
+      const documents = await target.collection(name).estimatedDocumentCount();
+      if (documents > 0) {
+        throw new Error(
+          `Migration target ${targetName} is not empty; ${name} contains ${documents} documents`,
+        );
+      }
     }
 
+    const existingCollectionNames = new Set(
+      existingCollections.map(({ name }) => name),
+    );
     for (const { name } of authoritativeMigrationTables) {
-      await target.createCollection(name);
+      if (!existingCollectionNames.has(name)) {
+        await target.createCollection(name);
+      }
     }
 
     await source.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");

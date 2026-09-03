@@ -140,7 +140,9 @@ describe("PostgreSQL to MongoDB migration", () => {
     expect(source).toContain(
       "MONGODB_MIGRATION_DATABASE must differ from MONGODB_DATABASE",
     );
-    expect(source).toContain("is not empty; use a new staging database");
+    expect(source).toContain("estimatedDocumentCount");
+    expect(source).toContain("contains unexpected collection");
+    expect(source).toContain("is not empty;");
     expect(source).not.toContain("MONGODB_MIGRATION_ALLOW_RUNTIME_TARGET");
     expect(source).toContain("sourceDigest");
     expect(source).toContain("validateReferences(target)");
