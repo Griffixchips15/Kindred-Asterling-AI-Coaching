@@ -41,6 +41,14 @@ typecheck:
 test-api-server:
   extends: .pnpm-job
   stage: test
+  before_script:
+    - apt-get update
+    - apt-get install --yes --no-install-recommends libcurl4
+    - rm -rf /var/lib/apt/lists/*
+    - corepack enable
+    - corepack prepare pnpm@10.28.1 --activate
+    - pnpm config set store-dir "$PNPM_STORE_DIR"
+    - pnpm install --frozen-lockfile
   variables:
     NODE_ENV: test
     HELCIM_PAYMENTS_ENABLED: "false"
