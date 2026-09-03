@@ -136,7 +136,8 @@ describe("PostgreSQL to MongoDB migration", () => {
     expect(source).toContain("setTypeParser(POSTGRES_DATE_OID");
     expect(source).toContain("POSTGRES_TIMESTAMP_WITHOUT_TIME_ZONE_OID");
     expect(source).toContain("table_name = ANY($1::text[])");
-    expect(source).toContain("constraint_type IN ('PRIMARY KEY', 'UNIQUE')");
+    expect(source).toContain("pg_catalog.pg_constraint");
+    expect(source).toContain("con.contype IN ('p', 'u')");
     expect(source).toContain(
       "MONGODB_MIGRATION_DATABASE must differ from MONGODB_DATABASE",
     );

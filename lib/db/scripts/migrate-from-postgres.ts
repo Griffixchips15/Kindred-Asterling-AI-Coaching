@@ -71,20 +71,24 @@ async function discoverTables(
     column_name: string;
     ordinal_position: number;
   }>(
-    `SELECT tc.table_name, tc.constraint_name, tc.constraint_type,
-            kcu.column_name, kcu.ordinal_position
-       FROM information_schema.table_constraints tc
-       JOIN information_schema.key_column_usage kcu
-         ON kcu.constraint_name = tc.constraint_name
-        AND kcu.constraint_schema = tc.constraint_schema
-        AND kcu.table_name = tc.table_name
-      WHERE tc.table_schema = 'public'
-        AND tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE')
-        AND tc.table_name = ANY($1::text[])
-      ORDER BY tc.table_name,
-               CASE tc.constraint_type WHEN 'PRIMARY KEY' THEN 0 ELSE 1 END,
-               tc.constraint_name,
-               kcu.ordinal_position`,
+    `SELECT c.relname AS table_name,
+            con.conname AS constraint_name,
+            CASE con.contype WHEN 'p' THEN 'PRIMARY KEY' ELSE 'UNIQUE' END AS constraint_type,
+            a.attname AS column_name,
+            k.ord AS ordinal_position
+       FROM pg_catalog.pg_constraint con
+       JOIN pg_catalog.pg_class c ON c.oid = con.conrelid
+       JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+       CROSS JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS k(attnum, ord)
+       JOIN pg_catalog.pg_attribute a
+         ON a.attrelid = con.conrelid AND a.attnum = k.attnum
+      WHERE n.nspname = 'public'
+        AND con.contype IN ('p', 'u')
+        AND c.relname = ANY($1::text[])
+      ORDER BY c.relname,
+               CASE con.contype WHEN 'p' THEN 0 ELSE 1 END,
+               con.conname,
+               k.ord`,
     [allowlist],
   );
   const byConstraint = new Map<string, string[]>();
