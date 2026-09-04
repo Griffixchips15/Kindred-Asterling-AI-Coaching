@@ -4,8 +4,19 @@ export function validateRuntimeConfig(): void {
     if (!process.env[name]?.trim()) missing.push(name);
   };
 
-  requireValue("DATABASE_URL");
+  requireValue("MONGODB_URI");
+  requireValue("MONGODB_DATABASE");
   requireValue("PORT");
+  const uri = process.env.MONGODB_URI?.trim();
+  if (uri && !/^mongodb(?:\+srv)?:\/\//i.test(uri)) {
+    throw new Error("MONGODB_URI must use mongodb:// or mongodb+srv://");
+  }
+  const databaseName = process.env.MONGODB_DATABASE?.trim();
+  if (databaseName && !/^[A-Za-z0-9_-]{1,63}$/.test(databaseName)) {
+    throw new Error(
+      "MONGODB_DATABASE must contain only letters, numbers, underscores, or hyphens",
+    );
+  }
   const aiProvider = (process.env.AI_PROVIDER || "ollama").toLowerCase();
   if (aiProvider === "ollama") {
     requireValue("OLLAMA_BASE_URL");

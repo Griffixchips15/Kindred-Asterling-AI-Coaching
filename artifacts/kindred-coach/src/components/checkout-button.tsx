@@ -3,6 +3,7 @@ import { useAuth } from "@clerk/clerk-react";
 import { createCheckout } from "@workspace/api-client-react";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { buildLoginUrl, PRICING_RETURN_PATH } from "@/lib/routing";
 
 interface CheckoutButtonProps {
   planType: "yearly" | "lifetime";
@@ -28,7 +29,7 @@ export function CheckoutButton({
     setError(null);
     if (!isLoaded) return;
     if (!isSignedIn) {
-      window.location.href = "/login?returnTo=/pricing";
+      window.location.href = buildLoginUrl(PRICING_RETURN_PATH);
       return;
     }
 
@@ -47,8 +48,7 @@ export function CheckoutButton({
         { headers: { Authorization: `Bearer ${token}` } },
       );
       if (!data?.checkoutUrl) {
-        setError("Unable to start checkout. Please try again.");
-        return;
+        throw new Error("Checkout session URL is missing");
       }
       window.location.assign(data.checkoutUrl);
     } catch {

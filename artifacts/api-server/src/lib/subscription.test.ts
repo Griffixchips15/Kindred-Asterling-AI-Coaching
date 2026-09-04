@@ -1,6 +1,20 @@
-import { vi, describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
-import { db, usersTable, subscriptionsTable, betaGrantsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import {
+  vi,
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  afterEach,
+} from "vitest";
+import {
+  db,
+  usersTable,
+  subscriptionsTable,
+  betaGrantsTable,
+} from "@workspace/db";
+import { eq } from "@workspace/db";
 
 import { resolveSubscription } from "./subscriptionService";
 
@@ -13,7 +27,10 @@ const email = `sub-${suffix}@example.test`;
 
 beforeAll(async () => {
   for (const id of [ownerId, betaUserId, helcimUserId, inactiveUserId]) {
-    await db.insert(usersTable).values({ id }).onConflictDoNothing();
+    await db
+      .insert(usersTable)
+      .values({ id })
+      .onConflictDoNothing({ target: usersTable.id });
   }
 });
 

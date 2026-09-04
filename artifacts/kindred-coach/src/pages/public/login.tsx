@@ -2,11 +2,12 @@ import { SignIn, useUser } from "@clerk/clerk-react";
 import { useEffect } from "react";
 import { useSearch } from "wouter";
 import logoPoster from "@/assets/brand/logo-poster.jpg";
+import { resolveReturnDestination } from "@/lib/routing";
 
 export default function Login() {
   const { isSignedIn, isLoaded } = useUser();
   const params = new URLSearchParams(useSearch());
-  const returnTo = params.get("returnTo") || "/app";
+  const returnTo = resolveReturnDestination(params.get("returnTo"));
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {

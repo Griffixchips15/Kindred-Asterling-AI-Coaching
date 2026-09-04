@@ -1,10 +1,7 @@
 import { Router, type IRouter } from "express";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq } from "@workspace/db";
 import { db, bodyScansTable } from "@workspace/db";
-import {
-  CreateBodyScanBody,
-  ListBodyScansResponse,
-} from "@workspace/api-zod";
+import { CreateBodyScanBody, ListBodyScansResponse } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { createBodyScanTx } from "../lib/journalWrites";
 
@@ -29,7 +26,9 @@ router.post("/body-scans", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const scan = await createBodyScanTx(userId, {
-    scannedAt: parsed.data.scannedAt ? new Date(parsed.data.scannedAt) : new Date(),
+    scannedAt: parsed.data.scannedAt
+      ? new Date(parsed.data.scannedAt)
+      : new Date(),
     feelings: parsed.data.feelings ?? [],
     energyLevel: parsed.data.energyLevel,
     physicalSensations: parsed.data.physicalSensations ?? null,

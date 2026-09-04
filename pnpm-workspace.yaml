@@ -3,23 +3,23 @@ packages:
   - lib/*
   - lib/integrations/*
   - scripts
+  - frontend
 
 allowBuilds:
-  '@google/genai': true
+  "@google/genai": true
   esbuild: true
 
 autoInstallPeers: false
 
 catalog:
-  '@tailwindcss/vite': ^4.1.14
-  '@tanstack/react-query': ^5.90.21
-  '@types/node': ^25.3.3
-  '@types/react': ^19.2.0
-  '@types/react-dom': ^19.2.0
-  '@vitejs/plugin-react': ^5.0.4
+  "@tailwindcss/vite": ^4.1.14
+  "@tanstack/react-query": ^5.90.21
+  "@types/node": ^25.3.3
+  "@types/react": ^19.2.0
+  "@types/react-dom": ^19.2.0
+  "@vitejs/plugin-react": ^5.0.4
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
-  drizzle-orm: ^0.45.2
   framer-motion: ^12.23.24
   lucide-react: ^0.545.0
   react: 19.1.0
@@ -34,24 +34,25 @@ catalog:
 minimumReleaseAge: 1440
 
 onlyBuiltDependencies:
-  - '@google/genai'
+  - "@google/genai"
   - esbuild
 
 overrides:
-  '@babel/core': '>=7.29.6'
-  '@clerk/clerk-react': '>=5.61.6'
-  '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
-  body-parser: '>=2.3.0'
-  brace-expansion: '>=5.0.8'
-  esbuild: '>=0.28.1'
+  "@babel/core": ">=7.29.6"
+  "@clerk/clerk-react": ">=5.61.6"
+  "@esbuild-kit/esm-loader": npm:tsx@^4.21.0
+  body-parser: ">=2.3.0"
+  brace-expansion: ">=5.0.8"
+  minimatch@3.1.5>brace-expansion: 1.1.12
+  esbuild: ">=0.28.1"
   fast-xml-parser: ^5.5.6
-  fast-uri: '>=3.1.4'
-  js-cookie: '>=3.0.7'
-  js-yaml: '>=5.2.2'
-  linkify-it: '>=5.0.2'
-  markdown-it: '>=14.2.0'
-  nanoid: '>=3.3.17'
-  postcss: '>=8.5.18'
-  protobufjs: '>=8.6.6'
-  qs: '>=6.15.2'
-  vite: '>=7.3.5'
+  fast-uri: ">=3.1.4"
+  js-cookie: ">=3.0.7"
+  js-yaml: ">=5.2.2"
+  linkify-it: ">=5.0.2"
+  markdown-it: ">=14.2.0"
+  nanoid: ">=3.3.17"
+  postcss: ">=8.5.18"
+  protobufjs: ">=8.6.6"
+  qs: ">=6.15.2"
+  vite: ">=7.3.5"

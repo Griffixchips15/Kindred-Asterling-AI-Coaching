@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { requireAuth } from "../middlewares/requireAuth";
 import {
   createOAuthState,
+  disconnectCalendar,
   fetchUpcomingEvents,
   googleAuthorizationUrl,
   hasCalendarConnection,
@@ -18,6 +19,15 @@ router.get("/calendar/status", requireAuth, async (req, res): Promise<void> => {
     connected: await hasCalendarConnection(req.user!.id),
   });
 });
+
+router.delete(
+  "/calendar/connection",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    await disconnectCalendar(req.user!.id);
+    res.status(204).end();
+  },
+);
 
 router.get("/calendar/connect", requireAuth, (req, res): void => {
   if (!isCalendarConfigured()) {

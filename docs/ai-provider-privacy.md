@@ -1,7 +1,10 @@
 # AI provider data and privacy policy
 
-`AI_PROVIDER=disabled` prevents chat content from leaving the application. `ollama`
-uses the configured private Ollama endpoint. `openai` sends data to the configured
+After the production approval gate below is complete, `AI_PROVIDER=bedrock` is the
+explicit production setting and sends the bounded coaching request to the
+configured AWS Bedrock model. `AI_PROVIDER=disabled`
+prevents chat content from leaving the application. Private `ollama` is only a
+temporary, approved rollback option. `openai` sends data to the configured
 OpenAI-compatible hosted endpoint. Hosted-provider credentials must be injected only
 into the API container's secret store. They must never be placed in browser builds,
 `VITE_*` variables, client logs, or source control.

@@ -1,8 +1,9 @@
 # AWS Bedrock on Coolify
 
-Kindred selects Bedrock through the existing provider interface. OpenAI and
-Ollama remain available temporarily for rollback, while ElevenLabs continues
-to provide speech-to-text and text-to-speech.
+Kindred selects Bedrock through the existing provider interface. **Production
+uses `AI_PROVIDER=bedrock`.** Private Ollama is retained only as a temporary,
+approved rollback option, while ElevenLabs continues to provide speech-to-text
+and text-to-speech.
 
 ## 1. Resolve the live model ID
 

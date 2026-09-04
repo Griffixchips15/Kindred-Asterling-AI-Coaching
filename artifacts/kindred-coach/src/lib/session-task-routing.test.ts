@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("Clerk session task routing", () => {
-  const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
+  const app = readFileSync(resolve(process.cwd(), "src/App.tsx"), "utf8");
 
   it("does not mount protected pages for a pending session", () => {
     expect(app).toContain('sessionStatus === "pending"');

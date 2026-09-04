@@ -1,23 +1,11 @@
 import { Link, useLocation } from "wouter";
 import {
-  Home,
-  Sunrise,
-  ScanLine,
-  Sunset,
-  ListTodo,
-  Pill,
-  BarChart3,
-  CalendarDays,
-  Bell,
-  User,
   LogOut,
   Palette,
   Check,
-  MessageCircle,
-  Archive as ArchiveIcon,
   PanelLeftClose,
   PanelLeftOpen,
-  UserRoundCog,
+  MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoMark from "@/assets/brand/logo-mark.png";
@@ -43,7 +31,21 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  type NavigationItem,
+  PRIMARY_DESTINATIONS,
+  SECONDARY_NAV_ITEMS,
+  primaryAreaForPath,
+} from "@/lib/navigation";
 
 const SIDEBAR_STORAGE_KEY = "kindred:sidebar-collapsed";
 
@@ -69,7 +71,7 @@ function ThemePicker({ collapsed }: { collapsed: boolean }) {
   const trigger = (
     <button
       className={cn(
-        "flex items-center rounded-lg transition-colors text-sm font-medium w-full text-sidebar-foreground hover:bg-sidebar-accent",
+        "flex items-center rounded-lg transition-colors text-sm font-medium w-full text-sidebar-foreground hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
         collapsed ? "justify-center p-2" : "gap-3 px-3 py-2.5",
       )}
       data-testid="theme-picker-trigger"
@@ -135,22 +137,6 @@ function ThemePicker({ collapsed }: { collapsed: boolean }) {
     </DropdownMenu>
   );
 }
-
-const navItems = [
-  { icon: Home, label: "Dashboard", href: "/" },
-  { icon: MessageCircle, label: "Chat", href: "/chat" },
-  { icon: Sunrise, label: "Morning", href: "/morning" },
-  { icon: ScanLine, label: "Scans", href: "/scans" },
-  { icon: Sunset, label: "Evening", href: "/evening" },
-  { icon: ListTodo, label: "Habits", href: "/habits" },
-  { icon: Pill, label: "Medications", href: "/medications" },
-  { icon: BarChart3, label: "Reports", href: "/reports" },
-  { icon: CalendarDays, label: "Calendar", href: "/calendar" },
-  { icon: Bell, label: "Reminders", href: "/reminders" },
-  { icon: User, label: "Profile", href: "/profile" },
-  { icon: UserRoundCog, label: "Account security", href: "/account" },
-  { icon: ArchiveIcon, label: "Archive", href: "/archive" },
-];
 
 function ProfilePanel({
   user,
@@ -234,30 +220,34 @@ function safeFormatDate(s: string): string {
   }
 }
 
-function NavLinkItem({
+function DesktopNavLink({
   href,
-  icon: Icon,
   label,
   isActive,
   collapsed,
+  icon,
+  testId,
 }: {
   href: string;
-  icon: typeof Home;
   label: string;
   isActive: boolean;
   collapsed: boolean;
+  icon: NavigationItem["icon"];
+  testId?: string;
 }) {
+  const Icon = icon;
   const link = (
     <Link
       href={href}
+      aria-current={isActive ? "page" : undefined}
       className={cn(
-        "flex items-center rounded-lg transition-colors text-sm font-medium",
+        "flex items-center rounded-lg transition-colors text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
         collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
         isActive
           ? "bg-primary/10 text-primary"
           : "text-sidebar-foreground hover:bg-sidebar-accent",
       )}
-      data-testid={`nav-${label.toLowerCase()}`}
+      data-testid={testId}
     >
       <Icon
         className={cn(
@@ -278,6 +268,80 @@ function NavLinkItem({
   );
 }
 
+function MobileTabLink({
+  href,
+  label,
+  isActive,
+  icon: Icon,
+}: {
+  href: string;
+  label: string;
+  isActive: boolean;
+  icon: NavigationItem["icon"];
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={isActive ? "page" : undefined}
+      className={cn(
+        "flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        isActive
+          ? "text-primary"
+          : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <Icon
+        className="h-5 w-5 shrink-0"
+        strokeWidth={isActive ? 2.5 : 2}
+      />
+      <span>{label}</span>
+    </Link>
+  );
+}
+
+function SecondaryNavList({
+  items,
+  activeHref,
+  onNavigate,
+}: {
+  items: NavigationItem[];
+  activeHref: string;
+  onNavigate?: () => void;
+}) {
+  return (
+    <ul className="space-y-1">
+      {items.map((item) => {
+        const isActive = item.href === activeHref;
+        const Icon = item.icon;
+        return (
+          <li key={item.href}>
+            <Link
+              href={item.href}
+              onClick={onNavigate}
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                isActive
+                  ? "bg-primary/10 text-primary"
+                  : "text-foreground hover:bg-muted",
+              )}
+            >
+              <Icon
+                className={cn(
+                  "h-5 w-5 shrink-0",
+                  isActive ? "text-primary" : "text-muted-foreground",
+                )}
+                strokeWidth={isActive ? 2.5 : 2}
+              />
+              <span>{item.label}</span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { signOut } = useClerkAuth();
@@ -287,25 +351,29 @@ export function AppLayout({ children }: { children: ReactNode }) {
   });
   const user = authData?.user ?? null;
   const [collapsed, setCollapsed] = useSidebarCollapsed();
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const logout = useCallback(async () => {
     queryClient.clear();
     await signOut();
   }, [queryClient, signOut]);
-  const visibleNavItems = navItems;
+
+  const activeArea = primaryAreaForPath(location);
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
+      {/* Desktop sidebar (hidden on small screens). */}
       <aside
+        aria-label="Primary navigation"
         className={cn(
-          "flex flex-col border-r bg-sidebar border-border transition-[width] duration-200 ease-in-out",
+          "hidden md:flex flex-col border-r bg-sidebar border-border transition-[width] duration-200 ease-in-out motion-reduce:transition-none",
           collapsed ? "w-16" : "w-64",
         )}
       >
-        {/* Header with brand + collapse toggle */}
+        {/* Brand + collapse toggle */}
         <div
           className={cn(
-            "flex items-center justify-between",
+            "flex items-center justify-between shrink-0",
             collapsed ? "p-3 flex-col gap-2" : "p-6",
           )}
         >
@@ -336,7 +404,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <TooltipTrigger asChild>
               <button
                 onClick={() => setCollapsed(!collapsed)}
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors"
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 data-testid="sidebar-toggle"
                 aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
               >
@@ -353,24 +421,59 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </Tooltip>
         </div>
 
+        {/* Primary destinations */}
         <nav
-          className={cn("flex-1 space-y-1.5 mt-2", collapsed ? "px-2" : "px-4")}
+          aria-label="Primary destinations"
+          className={cn("mt-2", collapsed ? "px-2" : "px-4")}
         >
-          {visibleNavItems.map((item) => (
-            <NavLinkItem
-              key={item.href}
-              href={item.href}
-              icon={item.icon}
-              label={item.label}
-              isActive={location === item.href}
-              collapsed={collapsed}
-            />
-          ))}
+          <ul className="space-y-1.5">
+            {PRIMARY_DESTINATIONS.map((item) => (
+              <li key={item.area}>
+                <DesktopNavLink
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  isActive={item.area === activeArea}
+                  collapsed={collapsed}
+                  testId={`nav-primary-${item.area}`}
+                />
+              </li>
+            ))}
+          </ul>
         </nav>
 
+        {/* Scroll-safe secondary destinations */}
+        <nav
+          aria-label="All destinations"
+          className={cn(
+            "flex-1 min-h-0 overflow-y-auto mt-2 pb-2",
+            collapsed ? "px-2" : "px-4",
+          )}
+        >
+          {!collapsed && (
+            <p className="px-3 pb-1.5 pt-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+              More
+            </p>
+          )}
+          <ul className="space-y-1.5">
+            {SECONDARY_NAV_ITEMS.map((item) => (
+              <li key={item.href}>
+                <DesktopNavLink
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  isActive={location === item.href}
+                  collapsed={collapsed}
+                />
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        {/* Footer: profile, theme, logout */}
         <div
           className={cn(
-            "border-t border-border space-y-1",
+            "shrink-0 border-t border-border space-y-1",
             collapsed ? "p-2" : "p-4",
           )}
         >
@@ -381,7 +484,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <TooltipTrigger asChild>
                 <button
                   onClick={logout}
-                  className="flex items-center justify-center p-2 rounded-lg transition-colors text-sm font-medium w-full text-sidebar-foreground hover:bg-sidebar-accent"
+                  className="flex items-center justify-center p-2 rounded-lg transition-colors text-sm font-medium w-full text-sidebar-foreground hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   data-testid="logout"
                   aria-label="Log out"
                 >
@@ -396,7 +499,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           ) : (
             <button
               onClick={logout}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium w-full text-sidebar-foreground hover:bg-sidebar-accent"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium w-full text-sidebar-foreground hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               data-testid="logout"
             >
               <LogOut
@@ -411,10 +514,77 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto relative">
-        <div className="max-w-2xl mx-auto p-4 md:p-8 min-h-full">
+        <div className="mx-auto max-w-2xl p-4 md:p-8 min-h-full pb-24 md:pb-8">
           {children}
         </div>
       </main>
+
+      {/* Mobile bottom navigation (small screens only). */}
+      <nav
+        aria-label="Primary navigation"
+        className={cn(
+          "md:hidden fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-border bg-background/95 backdrop-blur-md",
+          "pb-[env(safe-area-inset-bottom)]",
+        )}
+      >
+        {PRIMARY_DESTINATIONS.map((item) => (
+          <MobileTabLink
+            key={item.area}
+            href={item.href}
+            label={item.label}
+            icon={item.icon}
+            isActive={item.area === activeArea}
+          />
+        ))}
+
+        <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+          <SheetTrigger asChild>
+            <button
+              className={cn(
+                "flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "text-muted-foreground hover:text-foreground",
+              )}
+              data-testid="mobile-more-trigger"
+              aria-label="More destinations"
+            >
+              <MoreHorizontal className="h-5 w-5 shrink-0" strokeWidth={2} />
+              <span>More</span>
+            </button>
+          </SheetTrigger>
+          <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+            <SheetHeader className="text-left">
+              <SheetTitle>More destinations</SheetTitle>
+              <SheetDescription>
+                Everything else in Kindred, one tap away.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="mt-4 space-y-6">
+              <SecondaryNavList
+                items={SECONDARY_NAV_ITEMS}
+                activeHref={location}
+                onNavigate={() => setMoreOpen(false)}
+              />
+              <div className="border-t border-border pt-4 flex flex-col gap-2">
+                <ProfilePanel user={user} collapsed={false} />
+                <div className="px-1">
+                  <ThemePicker collapsed={false} />
+                </div>
+                <button
+                  onClick={logout}
+                  className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  data-testid="logout-mobile"
+                >
+                  <LogOut
+                    className="w-5 h-5 text-muted-foreground"
+                    strokeWidth={2}
+                  />
+                  Log out
+                </button>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+      </nav>
     </div>
   );
 }

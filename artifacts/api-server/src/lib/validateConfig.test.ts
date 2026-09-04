@@ -11,7 +11,8 @@ function baseEnv(): void {
   process.env = {
     ...originalEnv,
     NODE_ENV: "test",
-    DATABASE_URL: "postgres://test",
+    MONGODB_URI: "mongodb://test:27017",
+    MONGODB_DATABASE: "kindred_test",
     PORT: "8080",
     AI_PROVIDER: "disabled",
   };
@@ -56,6 +57,32 @@ describe("AI provider configuration", () => {
     baseEnv();
     process.env.AI_PROVIDER = "openai";
     expect(validateRuntimeConfig).toThrow(/OPENAI_API_KEY, OPENAI_MODEL/);
+  });
+});
+
+describe("MongoDB runtime configuration", () => {
+  it("requires the server-only URI and database", () => {
+    baseEnv();
+    delete process.env.MONGODB_URI;
+    delete process.env.MONGODB_DATABASE;
+    expect(validateRuntimeConfig).toThrow(/MONGODB_URI, MONGODB_DATABASE/);
+  });
+
+  it("accepts a complete configuration", () => {
+    baseEnv();
+    process.env.MONGODB_URI = "mongodb://app-user:secret@mongo:27017";
+    process.env.MONGODB_DATABASE = "kindred";
+    expect(validateRuntimeConfig).not.toThrow();
+  });
+
+  it("rejects an unsafe URI scheme or database name", () => {
+    baseEnv();
+    process.env.MONGODB_URI = "https://mongo.example";
+    process.env.MONGODB_DATABASE = "kindred/mirror";
+    expect(validateRuntimeConfig).toThrow(/MONGODB_URI must use/);
+
+    process.env.MONGODB_URI = "mongodb+srv://mongo.example";
+    expect(validateRuntimeConfig).toThrow(/MONGODB_DATABASE must contain/);
   });
 });
 

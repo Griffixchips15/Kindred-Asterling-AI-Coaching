@@ -6,7 +6,7 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
     testTimeout: 20000,
     hookTimeout: 20000,
-    // Tests share a single Postgres database and a single test user, so run
+    // Tests share a single MongoDB database and a single test user, so run
     // files serially to avoid cross-file interference.
     fileParallelism: false,
   },

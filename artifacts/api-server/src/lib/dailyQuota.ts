@@ -1,11 +1,12 @@
-import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { getMongoDatabase } from "@workspace/db";
 import { logger } from "./logger";
 
 const DEFAULT_DAILY_LIMIT = 100;
 
 export function getDailyLimit(): number {
-  return parseInt(process.env.DAILY_CHAT_LIMIT || "", 10) || DEFAULT_DAILY_LIMIT;
+  return (
+    parseInt(process.env.DAILY_CHAT_LIMIT || "", 10) || DEFAULT_DAILY_LIMIT
+  );
 }
 
 export async function checkAndIncrementDailyQuota(
@@ -13,29 +14,47 @@ export async function checkAndIncrementDailyQuota(
 ): Promise<{ allowed: boolean; remaining: number }> {
   const limit = getDailyLimit();
   try {
-    const result = await db.execute<{ count: number }>(
-      sql`INSERT INTO daily_usage (user_id, date, count)
-          VALUES (${userId}, CURRENT_DATE, 1)
-          ON CONFLICT (user_id, date)
-          DO UPDATE SET count = daily_usage.count + 1
-          RETURNING count`,
+    const date = new Date().toISOString().split("T")[0];
+    const database = await getMongoDatabase();
+    const usage = database.collection<{
+      _id: string;
+      userId: string;
+      date: string;
+      count: number;
+    }>("daily_usage");
+    await usage.updateOne(
+      { _id: `${userId}:${date}` },
+      { $setOnInsert: { userId, date, count: 0 } },
+      { upsert: true },
     );
-    const count = (result.rows?.[0] as any)?.count ?? 1;
+    const result = await usage.findOneAndUpdate(
+      { _id: `${userId}:${date}`, count: { $lt: limit } },
+      { $inc: { count: 1 } },
+      { returnDocument: "after" },
+    );
+    if (!result) return { allowed: false, remaining: 0 };
+    const count = result.count;
     const remaining = Math.max(0, limit - count);
     return { allowed: count <= limit, remaining };
   } catch (err) {
-    logger.error({ err, userId }, "Daily quota check failed — denying (fail closed)");
+    logger.error(
+      { err, userId },
+      "Daily quota check failed — denying (fail closed)",
+    );
     return { allowed: false, remaining: 0 };
   }
 }
 
 export async function refundDailyQuota(userId: string): Promise<void> {
   try {
-    await db.execute(
-      sql`UPDATE daily_usage
-          SET count = GREATEST(count - 1, 0)
-          WHERE user_id = ${userId} AND date = CURRENT_DATE`,
-    );
+    const date = new Date().toISOString().split("T")[0];
+    const database = await getMongoDatabase();
+    await database
+      .collection<any>("daily_usage")
+      .updateOne(
+        { _id: `${userId}:${date}`, count: { $gt: 0 } },
+        { $inc: { count: -1 } },
+      );
   } catch (err) {
     logger.error({ err, userId }, "Failed to refund daily quota");
   }

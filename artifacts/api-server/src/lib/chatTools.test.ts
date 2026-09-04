@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq } from "@workspace/db";
 import {
   db,
-  pool,
+  closeDatabase,
   usersTable,
   morningLogsTable,
   eveningReportsTable,
@@ -45,10 +45,7 @@ const A = "AAA_only_userA";
 const B = "BBB_only_userB";
 
 beforeAll(async () => {
-  await db.insert(usersTable).values([
-    { id: userAId },
-    { id: userBId },
-  ]);
+  await db.insert(usersTable).values([{ id: userAId }, { id: userBId }]);
 
   const today = todayDateStr();
 
@@ -182,7 +179,7 @@ afterAll(async () => {
   for (const id of [userAId, userBId]) {
     await db.delete(usersTable).where(eq(usersTable.id, id));
   }
-  await pool.end();
+  await closeDatabase();
 });
 
 // A tool's serialized output must never contain a numeric "id" field, and must
@@ -220,11 +217,11 @@ describe("runChatTool scopes every tool to the requesting user", () => {
 
 describe("tool output shapes carry the caller's content, not row IDs", () => {
   it("get_recent_morning_logs returns the caller's mental-load entry", async () => {
-    const rows = (await call(
-      "get_recent_morning_logs",
-      {},
-      userAId,
-    )) as { mentalLoadLevel: string; notes: string; miniGoals: string[] }[];
+    const rows = (await call("get_recent_morning_logs", {}, userAId)) as {
+      mentalLoadLevel: string;
+      notes: string;
+      miniGoals: string[];
+    }[];
     expect(rows).toHaveLength(1);
     expect(rows[0].mentalLoadLevel).toBe("high");
     expect(rows[0].notes).toBe(A);
@@ -234,11 +231,10 @@ describe("tool output shapes carry the caller's content, not row IDs", () => {
   });
 
   it("get_recent_evening_reports returns the caller's reflection", async () => {
-    const rows = (await call(
-      "get_recent_evening_reports",
-      {},
-      userBId,
-    )) as { overallMood: string; medicationEffectiveness: number }[];
+    const rows = (await call("get_recent_evening_reports", {}, userBId)) as {
+      overallMood: string;
+      medicationEffectiveness: number;
+    }[];
     expect(rows).toHaveLength(1);
     expect(rows[0].overallMood).toBe(B);
     expect(rows[0].medicationEffectiveness).toBe(3);

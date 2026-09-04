@@ -40,7 +40,12 @@ export default defineConfig(({ command }) => {
     resolve: {
       alias: {
         "@": path.resolve(import.meta.dirname, "src"),
-        "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
+        "@assets": path.resolve(
+          import.meta.dirname,
+          "..",
+          "..",
+          "attached_assets",
+        ),
         "use-sync-external-store/shim/index.js": path.resolve(
           import.meta.dirname,
           "src/shims/use-sync-external-store-shim.js",
@@ -51,6 +56,7 @@ export default defineConfig(({ command }) => {
     root: path.resolve(import.meta.dirname),
     envDir: path.resolve(import.meta.dirname, "..", ".."),
     build: {
+      sourcemap: false,
       outDir: path.resolve(import.meta.dirname, "dist/public"),
       emptyOutDir: true,
     },

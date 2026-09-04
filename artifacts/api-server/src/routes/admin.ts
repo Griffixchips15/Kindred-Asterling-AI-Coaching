@@ -5,7 +5,7 @@ import {
   type Response,
   type NextFunction,
 } from "express";
-import { eq, and, isNull, sql } from "drizzle-orm";
+import { eq, and, desc, gt, isNull, or } from "@workspace/db";
 import {
   db,
   usersTable,
@@ -81,7 +81,8 @@ router.get("/admin/beta/grants", async (_req, res): Promise<void> => {
       revokedBy: betaGrantsTable.revokedBy,
     })
     .from(betaGrantsTable)
-    .orderBy(sql`${betaGrantsTable.grantedAt} DESC`);
+    .orderBy(desc(betaGrantsTable.grantedAt))
+    .limit(200);
 
   res.json({ grants: rows });
 });
@@ -111,7 +112,10 @@ router.post("/admin/beta/grant", async (req, res): Promise<void> => {
       and(
         eq(betaGrantsTable.userId, userId),
         isNull(betaGrantsTable.revokedAt),
-        sql`(${betaGrantsTable.expiresAt} IS NULL OR ${betaGrantsTable.expiresAt} > NOW())`,
+        or(
+          isNull(betaGrantsTable.expiresAt),
+          gt(betaGrantsTable.expiresAt, new Date()),
+        ),
       ),
     )
     .limit(1);

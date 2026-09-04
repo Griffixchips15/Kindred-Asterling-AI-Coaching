@@ -2,8 +2,8 @@
 // both inside the surrounding transaction so they happen before the save
 // commits:
 //
-//   1. Serializes a freshly written DB row into its plain JSON shape (Drizzle
-//      returns Date objects for timestamp/date columns, which must become
+//   1. Serializes a freshly written DB row into its plain JSON shape (MongoDB
+//      returns Date objects for timestamp columns, which must become
 //      strings before they go out as a JSON response).
 //   2. Validates that serialized row against the matching OpenAPI/Zod response
 //      schema. If the row can't be represented to the client — an extra,
