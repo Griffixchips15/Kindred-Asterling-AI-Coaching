@@ -7,7 +7,8 @@ import {
   type ChatConversationWithMessages,
 } from "@workspace/api-client-react";
 import { format } from "date-fns";
-import { Download, FileText, Loader2, Archive as ArchiveIcon } from "lucide-react";
+import { Link } from "wouter";
+import { Download, FileText, Loader2, Archive as ArchiveIcon, MessagesSquare } from "lucide-react";
 
 function buildTxt(conv: ChatConversationWithMessages): string {
   const lines: string[] = [];
@@ -128,9 +129,19 @@ export default function Archive() {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <header className="pt-4">
-        <h1 className="text-3xl font-serif text-foreground tracking-tight">Archive</h1>
-        <p className="text-muted-foreground">Past coaching conversations</p>
+      <header className="pt-4 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-serif text-foreground tracking-tight">Archive</h1>
+          <p className="text-muted-foreground">Past coaching conversations</p>
+        </div>
+        <Link
+          href="/chat"
+          className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-border px-3 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          data-testid="talk-chat-link"
+        >
+          <MessagesSquare className="w-3.5 h-3.5" strokeWidth={2} />
+          Back to your conversation
+        </Link>
       </header>
 
       {isLoading ? (

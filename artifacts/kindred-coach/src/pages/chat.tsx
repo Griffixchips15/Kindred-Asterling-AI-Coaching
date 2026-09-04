@@ -12,8 +12,8 @@ import {
   type AuthUser,
 } from "@workspace/api-client-react";
 import { useGetCurrentAuthUser } from "@workspace/api-client-react";
-import { Send, Archive, Loader2 } from "lucide-react";
-import { useLocation } from "wouter";
+import { Send, Archive, Loader2, History } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import { SpeakButton } from "@/components/speak-button";
 import { QueryErrorState } from "@/components/query-error-state";
 
@@ -279,20 +279,32 @@ export default function Chat() {
               : "A few questions to get acquainted"}
           </p>
         </div>
-        {onboarded && messages.length > 0 && (
-          <button
-            onClick={handleArchive}
-            disabled={archiving}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
-            data-testid="archive-chat"
-          >
-            {archiving ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Archive className="w-3.5 h-3.5" />
+        {onboarded && (
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/archive"
+              className="flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              data-testid="talk-archive-link"
+            >
+              <History className="w-3.5 h-3.5" strokeWidth={2} />
+              Archived conversations
+            </Link>
+            {messages.length > 0 && (
+              <button
+                onClick={handleArchive}
+                disabled={archiving}
+                className="flex min-h-11 items-center gap-2 px-3 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                data-testid="archive-chat"
+              >
+                {archiving ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Archive className="w-3.5 h-3.5" />
+                )}
+                Archive chat
+              </button>
             )}
-            Archive chat
-          </button>
+          </div>
         )}
       </header>
 
