@@ -6,7 +6,8 @@
 
 const API_BASE = "https://api.clerk.com/v1";
 
-/** Clerk caps list endpoints at 500 per request. */
+/** Clerk caps list endpoints at 500 records per request. */
+const MAX_LIMIT = 500;
 const PAGE_SIZE = 200;
 
 type Json = Record<string, unknown>;
@@ -182,18 +183,39 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  const positional = argv.filter((arg, index) => !arg.startsWith("--") && !(argv[index - 1] ?? "").startsWith("--"));
-  const command = positional[0] ?? "overview";
-  const userId = argv.includes("--user") ? argv[argv.indexOf("--user") + 1] : undefined;
-
-  let limit = 10;
-  if (argv.includes("--limit")) {
-    const limitArg = argv[argv.indexOf("--limit") + 1];
-    if (limitArg === undefined || !/^[0-9]+$/.test(limitArg) || Number.parseInt(limitArg, 10) < 1) {
-      console.error("--limit must be a positive integer");
+  const positional: string[] = [];
+  const options = new Map<string, string>();
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index] ?? "";
+    if (!arg.startsWith("-")) {
+      positional.push(arg);
+      continue;
+    }
+    if (arg !== "--limit" && arg !== "--user") {
+      console.error(`Unknown option "${arg}"\n\n${USAGE}`);
       return 1;
     }
-    limit = Number.parseInt(limitArg, 10);
+    const value = argv[index + 1];
+    if (value === undefined || value.startsWith("-")) {
+      console.error(`${arg} requires a value`);
+      return 1;
+    }
+    options.set(arg, value);
+    index += 1;
+  }
+
+  const command = positional[0] ?? "overview";
+  const userId = options.get("--user");
+
+  let limit = 10;
+  const limitArg = options.get("--limit");
+  if (limitArg !== undefined) {
+    const parsed = Number.parseInt(limitArg, 10);
+    if (!/^[0-9]+$/.test(limitArg) || parsed < 1 || parsed > MAX_LIMIT) {
+      console.error(`--limit must be an integer between 1 and ${MAX_LIMIT}`);
+      return 1;
+    }
+    limit = parsed;
   }
 
   try {
