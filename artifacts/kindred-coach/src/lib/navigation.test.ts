@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   ALL_SIGNED_IN_ROUTES,
+  AREA_SECONDARY_ROUTES,
   PRIMARY_DESTINATIONS,
   ROUTE_TO_PRIMARY_AREA,
   SECONDARY_NAV_ITEMS,
+  areaPrimaryDestination,
+  areaSecondaryDestinations,
   primaryAreaForPath,
 } from "./navigation";
 
@@ -104,5 +107,51 @@ describe("navigation model", () => {
 
   it("returns null for unknown paths", () => {
     expect(primaryAreaForPath("/bogus")).toBeNull();
+  });
+});
+
+describe("area destinations", () => {
+  it("buckets every secondary route under its primary area, without loss", () => {
+    const total = Object.values(AREA_SECONDARY_ROUTES).flat().length;
+    expect(total).toBe(SECONDARY_NAV_ITEMS.length);
+    expect(AREA_SECONDARY_ROUTES.talk.map((i) => i.href)).toEqual(["/archive"]);
+    expect(AREA_SECONDARY_ROUTES.you.map((i) => i.href)).toEqual(["/account"]);
+    expect(AREA_SECONDARY_ROUTES.insights).toEqual([]);
+    expect(AREA_SECONDARY_ROUTES.today.map((i) => i.href)).toEqual([
+      "/morning",
+      "/scans",
+      "/evening",
+      "/habits",
+      "/medications",
+      "/calendar",
+      "/reminders",
+    ]);
+  });
+
+  it("lists a primary area's secondary destinations", () => {
+    expect(areaSecondaryDestinations("talk").map((i) => i.href)).toEqual([
+      "/archive",
+    ]);
+    expect(areaSecondaryDestinations("you").map((i) => i.href)).toEqual([
+      "/account",
+    ]);
+    expect(areaSecondaryDestinations("insights")).toEqual([]);
+  });
+
+  it("excludes the page the visitor is already on", () => {
+    expect(
+      areaSecondaryDestinations("talk", { excludeHref: "/archive" }),
+    ).toEqual([]);
+    expect(
+      areaSecondaryDestinations("you", { excludeHref: "/account" }),
+    ).toEqual([]);
+  });
+
+  it("resolves the primary destination that anchors an area", () => {
+    expect(areaPrimaryDestination("talk").href).toBe("/chat");
+    expect(areaPrimaryDestination("talk").label).toBe("Talk");
+    expect(areaPrimaryDestination("you").href).toBe("/profile");
+    expect(areaPrimaryDestination("insights").href).toBe("/reports");
+    expect(areaPrimaryDestination("today").href).toBe("/");
   });
 });

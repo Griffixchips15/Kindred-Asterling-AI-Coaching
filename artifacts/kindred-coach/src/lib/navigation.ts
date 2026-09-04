@@ -90,3 +90,48 @@ export function primaryAreaForPath(location: string): PrimaryArea | null {
 
 /** Every destination a signed-in member can reach, exactly once. */
 export const ALL_SIGNED_IN_ROUTES: string[] = Object.keys(ROUTE_TO_PRIMARY_AREA);
+
+function bucketSecondaryRoutesByArea(): Record<PrimaryArea, NavigationItem[]> {
+  const buckets: Record<PrimaryArea, NavigationItem[]> = {
+    today: [],
+    talk: [],
+    insights: [],
+    you: [],
+  };
+  for (const item of SECONDARY_NAV_ITEMS) {
+    const area = ROUTE_TO_PRIMARY_AREA[item.href];
+    if (area) buckets[area].push(item);
+  }
+  return buckets;
+}
+
+/**
+ * Secondary routes bucketed by the primary area they belong to (derived from
+ * the same model that drives the navigation shell). Insights currently has no
+ * secondary routes; Talk has Archive; You has Account security.
+ */
+export const AREA_SECONDARY_ROUTES: Record<PrimaryArea, NavigationItem[]> =
+  bucketSecondaryRoutesByArea();
+
+/**
+ * The secondary destinations of a primary area, optionally excluding the page
+ * the visitor is already on. Primary-area pages use this to surface the rest
+ * of their area without duplicating the navigation model.
+ */
+export function areaSecondaryDestinations(
+  area: PrimaryArea,
+  opts: { excludeHref?: string } = {},
+): NavigationItem[] {
+  return AREA_SECONDARY_ROUTES[area].filter(
+    (item) => item.href !== opts?.excludeHref,
+  );
+}
+
+/** The primary destination that anchors an area (e.g. Talk → /chat). */
+export function areaPrimaryDestination(area: PrimaryArea): PrimaryDestination {
+  const destination = PRIMARY_DESTINATIONS.find((d) => d.area === area);
+  if (!destination) {
+    throw new Error(`No primary destination for area: ${area}`);
+  }
+  return destination;
+}
