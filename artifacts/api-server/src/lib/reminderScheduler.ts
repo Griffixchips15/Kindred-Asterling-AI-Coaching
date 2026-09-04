@@ -1,5 +1,5 @@
 import cron, { type ScheduledTask } from "node-cron";
-import { and, eq, isNull, lte, or, gt, inArray } from "drizzle-orm";
+import { and, eq, isNull, lte, or, gt, inArray } from "@workspace/db";
 import {
   db,
   usersTable,
@@ -125,16 +125,9 @@ async function medsDueInWindow(
   localDate: string,
   nowMin: number,
 ): Promise<Array<Dose>> {
-  const rows = await db
-    .select({
-      name: medicationsTable.name,
-      scheduledTime: medicationScheduleEntriesTable.scheduledTime,
-    })
+  const schedules = await db
+    .select()
     .from(medicationScheduleEntriesTable)
-    .innerJoin(
-      medicationsTable,
-      eq(medicationScheduleEntriesTable.medicationId, medicationsTable.id),
-    )
     .where(
       and(
         eq(medicationScheduleEntriesTable.userId, userId),
@@ -145,13 +138,28 @@ async function medsDueInWindow(
         ),
       ),
     );
+  const medicationIds = [...new Set(schedules.map((row) => row.medicationId))];
+  const medications = medicationIds.length
+    ? await db
+        .select()
+        .from(medicationsTable)
+        .where(
+          and(
+            eq(medicationsTable.userId, userId),
+            inArray(medicationsTable.id, medicationIds),
+          ),
+        )
+    : [];
+  const namesById = new Map(medications.map((row) => [row.id, row.name]));
 
   const byTime = new Map<string, Set<string>>();
-  for (const r of rows) {
+  for (const r of schedules) {
+    const name = namesById.get(r.medicationId);
+    if (!name) continue;
     const sMin = hmToMin(r.scheduledTime);
     if (sMin === null || !isDueInWindow(sMin, nowMin)) continue;
     const set = byTime.get(r.scheduledTime) ?? new Set<string>();
-    set.add(r.name);
+    set.add(name);
     byTime.set(r.scheduledTime, set);
   }
   return Array.from(byTime.entries()).map(([doseTime, names]) => ({
@@ -162,8 +170,8 @@ async function medsDueInWindow(
 
 // Try to send one reminder over one channel exactly once. To be atomic against
 // overlapping ticks (or multiple processes), we *reserve* the deliveries-ledger
-// row first via an atomic INSERT ... ON CONFLICT DO NOTHING: if no row comes
-// back we lost the race (already sent/reserved) and bail. Only the winner sends.
+// document first via an atomic unique-key insert: if no row comes back we lost
+// the race (already sent/reserved) and bail. Only the winner sends.
 // If the send fails we release the reservation so a later tick (still inside the
 // catch-up window) can retry instead of marking it permanently done.
 async function deliverOnce(
@@ -183,7 +191,15 @@ async function deliverOnce(
       localDate,
       channel,
     })
-    .onConflictDoNothing()
+    .onConflictDoNothing({
+      target: [
+        reminderDeliveriesTable.userId,
+        reminderDeliveriesTable.type,
+        reminderDeliveriesTable.localDate,
+        reminderDeliveriesTable.doseTime,
+        reminderDeliveriesTable.channel,
+      ],
+    })
     .returning({ id: reminderDeliveriesTable.id });
   if (reserved.length === 0) return; // already sent or reserved by another tick
 
@@ -275,122 +291,149 @@ async function processUser(
   await Promise.allSettled(promises);
 }
 
+const REMINDER_BATCH_SIZE = 100;
+
+async function processSettingsBatch(
+  settings: Array<typeof reminderSettingsTable.$inferSelect>,
+  now: Date,
+): Promise<void> {
+  const userIds = settings.map((row) => row.userId);
+  const users = userIds.length
+    ? await db.select().from(usersTable).where(inArray(usersTable.id, userIds))
+    : [];
+  const usersById = new Map(users.map((row) => [row.id, row]));
+  const rows = settings.flatMap((setting) => {
+    const user = usersById.get(setting.userId);
+    return user
+      ? [
+          {
+            ...setting,
+            timezone: user.timezone,
+            phone: user.phone,
+            preferredName: user.preferredName,
+          },
+        ]
+      : [];
+  });
+
+  const rowsWithIdentity = await Promise.all(
+    rows.map(async (row) => {
+      const identity = await getClerkIdentity(row.userId);
+      return { ...row, email: identity.email, firstName: identity.firstName };
+    }),
+  );
+
+  // Compute local time and catch-up window for each user.
+  // Also batch fetch medication schedules to avoid N+1 queries.
+  const userTimes = new Map<
+    string,
+    { hm: string; date: string; nowMin: number }
+  >();
+  const medUserIds: string[] = [];
+
+  for (const row of rowsWithIdentity) {
+    const { hm, date } = localParts(row.timezone ?? DEFAULT_TZ, now);
+    const nowMin = hmToMin(hm);
+    if (nowMin !== null) {
+      userTimes.set(row.userId, { hm, date, nowMin });
+      if (row.medicationEnabled) {
+        medUserIds.push(row.userId);
+      }
+    }
+  }
+
+  // Batch fetch medications
+  const medsByUser = new Map<string, Array<Dose>>();
+  if (medUserIds.length > 0) {
+    const allSchedules = await db
+      .select()
+      .from(medicationScheduleEntriesTable)
+      .where(inArray(medicationScheduleEntriesTable.userId, medUserIds));
+    const medicationIds = [
+      ...new Set(allSchedules.map((row) => row.medicationId)),
+    ];
+    const allMedications = medicationIds.length
+      ? await db
+          .select()
+          .from(medicationsTable)
+          .where(inArray(medicationsTable.id, medicationIds))
+      : [];
+    const medicationsById = new Map(allMedications.map((row) => [row.id, row]));
+
+    // Group by user and check dates/windows in memory
+    for (const r of allSchedules) {
+      const medication = medicationsById.get(r.medicationId);
+      if (!medication || medication.userId !== r.userId) continue;
+      const uTime = userTimes.get(r.userId);
+      if (!uTime) continue; // Should not happen, but safeguard
+
+      // Apply date bounds check
+      if (r.startDate > uTime.date) continue;
+      if (r.endDate !== null && r.endDate <= uTime.date) continue;
+
+      // Apply window check
+      const sMin = hmToMin(r.scheduledTime);
+      if (sMin === null || !isDueInWindow(sMin, uTime.nowMin)) continue;
+
+      // Valid dose
+      let userMeds = medsByUser.get(r.userId);
+      if (!userMeds) {
+        userMeds = [];
+        medsByUser.set(r.userId, userMeds);
+      }
+
+      let dose = userMeds.find((d) => d.doseTime === r.scheduledTime);
+      if (!dose) {
+        dose = { doseTime: r.scheduledTime, names: [] };
+        userMeds.push(dose);
+      }
+      if (!dose.names.includes(medication.name)) {
+        dose.names.push(medication.name);
+      }
+    }
+  }
+
+  for (const row of rowsWithIdentity) {
+    const uTime = userTimes.get(row.userId);
+    if (!uTime) continue;
+    const userMeds = medsByUser.get(row.userId) ?? [];
+    await processUser(row, now, userMeds);
+  }
+}
+
 let ticking = false;
 
 export async function runReminderTick(now: Date = new Date()): Promise<void> {
   if (ticking) return; // don't overlap if a tick runs long
   ticking = true;
   try {
-    const rows = await db
-      .select({
-        userId: reminderSettingsTable.userId,
-        morningEnabled: reminderSettingsTable.morningEnabled,
-        morningTime: reminderSettingsTable.morningTime,
-        medicationEnabled: reminderSettingsTable.medicationEnabled,
-        eveningEnabled: reminderSettingsTable.eveningEnabled,
-        eveningTime: reminderSettingsTable.eveningTime,
-        smsEnabled: reminderSettingsTable.smsEnabled,
-        emailEnabled: reminderSettingsTable.emailEnabled,
-        timezone: usersTable.timezone,
-        phone: usersTable.phone,
-        preferredName: usersTable.preferredName,
-      })
-      .from(reminderSettingsTable)
-      .innerJoin(usersTable, eq(reminderSettingsTable.userId, usersTable.id))
-      .where(
-        and(
-          or(
-            eq(reminderSettingsTable.morningEnabled, true),
-            eq(reminderSettingsTable.eveningEnabled, true),
-            eq(reminderSettingsTable.medicationEnabled, true),
-          ),
-          or(
-            eq(reminderSettingsTable.smsEnabled, true),
-            eq(reminderSettingsTable.emailEnabled, true),
-          ),
-        ),
-      );
-
-    const rowsWithIdentity = await Promise.all(
-      rows.map(async (row) => {
-        const identity = await getClerkIdentity(row.userId);
-        return { ...row, email: identity.email, firstName: identity.firstName };
-      }),
+    const enabled = and(
+      or(
+        eq(reminderSettingsTable.morningEnabled, true),
+        eq(reminderSettingsTable.eveningEnabled, true),
+        eq(reminderSettingsTable.medicationEnabled, true),
+      ),
+      or(
+        eq(reminderSettingsTable.smsEnabled, true),
+        eq(reminderSettingsTable.emailEnabled, true),
+      ),
     );
-
-    // Compute local time and catch-up window for each user.
-    // Also batch fetch medication schedules to avoid N+1 queries.
-    const userTimes = new Map<
-      string,
-      { hm: string; date: string; nowMin: number }
-    >();
-    const medUserIds: string[] = [];
-
-    for (const row of rowsWithIdentity) {
-      const { hm, date } = localParts(row.timezone ?? DEFAULT_TZ, now);
-      const nowMin = hmToMin(hm);
-      if (nowMin !== null) {
-        userTimes.set(row.userId, { hm, date, nowMin });
-        if (row.medicationEnabled) {
-          medUserIds.push(row.userId);
-        }
-      }
-    }
-
-    // Batch fetch medications
-    const medsByUser = new Map<string, Array<Dose>>();
-    if (medUserIds.length > 0) {
-      const allMedRows = await db
-        .select({
-          userId: medicationScheduleEntriesTable.userId,
-          name: medicationsTable.name,
-          scheduledTime: medicationScheduleEntriesTable.scheduledTime,
-          startDate: medicationScheduleEntriesTable.startDate,
-          endDate: medicationScheduleEntriesTable.endDate,
-        })
-        .from(medicationScheduleEntriesTable)
-        .innerJoin(
-          medicationsTable,
-          eq(medicationScheduleEntriesTable.medicationId, medicationsTable.id),
+    let afterUserId: string | null = null;
+    while (true) {
+      const settings = await db
+        .select()
+        .from(reminderSettingsTable)
+        .where(
+          afterUserId
+            ? and(enabled, gt(reminderSettingsTable.userId, afterUserId))
+            : enabled,
         )
-        .where(inArray(medicationScheduleEntriesTable.userId, medUserIds));
-
-      // Group by user and check dates/windows in memory
-      for (const r of allMedRows) {
-        const uTime = userTimes.get(r.userId);
-        if (!uTime) continue; // Should not happen, but safeguard
-
-        // Apply date bounds check
-        if (r.startDate > uTime.date) continue;
-        if (r.endDate !== null && r.endDate <= uTime.date) continue;
-
-        // Apply window check
-        const sMin = hmToMin(r.scheduledTime);
-        if (sMin === null || !isDueInWindow(sMin, uTime.nowMin)) continue;
-
-        // Valid dose
-        let userMeds = medsByUser.get(r.userId);
-        if (!userMeds) {
-          userMeds = [];
-          medsByUser.set(r.userId, userMeds);
-        }
-
-        let dose = userMeds.find((d) => d.doseTime === r.scheduledTime);
-        if (!dose) {
-          dose = { doseTime: r.scheduledTime, names: [] };
-          userMeds.push(dose);
-        }
-        if (!dose.names.includes(r.name)) {
-          dose.names.push(r.name);
-        }
-      }
-    }
-
-    for (const row of rowsWithIdentity) {
-      const uTime = userTimes.get(row.userId);
-      if (!uTime) continue;
-      const userMeds = medsByUser.get(row.userId) ?? [];
-      await processUser(row, now, userMeds);
+        .orderBy(reminderSettingsTable.userId)
+        .limit(REMINDER_BATCH_SIZE);
+      if (settings.length === 0) break;
+      await processSettingsBatch(settings, now);
+      if (settings.length < REMINDER_BATCH_SIZE) break;
+      afterUserId = settings.at(-1)!.userId;
     }
   } catch (err) {
     logger.error({ err }, "Reminder tick failed");

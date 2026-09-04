@@ -40,7 +40,7 @@ export async function testClerkIdentityAdapter(
     await db
       .insert(usersTable)
       .values({ id: identity.id })
-      .onConflictDoNothing();
+      .onConflictDoNothing({ target: usersTable.id });
     req.user = identity;
   }
   next();

@@ -1,11 +1,9 @@
-import "./instrument";
 import app from "./app";
-import * as Sentry from "@sentry/node";
 import { logger } from "./lib/logger";
 import { startReminderScheduler } from "./lib/reminderScheduler";
 import { stopReminderScheduler } from "./lib/reminderScheduler";
 import { validateRuntimeConfig } from "./lib/validateConfig";
-import { pool } from "@workspace/db";
+import { closeDatabase, initializeDatabase } from "@workspace/db";
 
 validateRuntimeConfig();
 const rawPort = process.env["PORT"];
@@ -21,6 +19,8 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+await initializeDatabase();
 
 const server = app.listen(port, (err) => {
   if (err) {
@@ -46,16 +46,20 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   forceExit.unref();
 
   server.close(async (err) => {
+    let shutdownFailed = Boolean(err);
     try {
-      await pool.end();
       if (err) logger.error({ err }, "HTTP server close failed");
-      else logger.info("HTTP server and PostgreSQL pool closed");
-      process.exitCode = err ? 1 : 0;
-    } catch (poolError) {
-      logger.error({ err: poolError }, "PostgreSQL pool close failed");
-      process.exitCode = 1;
+      try {
+        await closeDatabase();
+      } catch (databaseError) {
+        shutdownFailed = true;
+        logger.error({ err: databaseError }, "MongoDB close failed");
+      }
+      if (!shutdownFailed) {
+        logger.info("HTTP server and MongoDB pool closed");
+      }
+      process.exitCode = shutdownFailed ? 1 : 0;
     } finally {
-      await Sentry.close(2_000);
       clearTimeout(forceExit);
     }
   });

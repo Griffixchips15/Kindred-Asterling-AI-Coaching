@@ -7,10 +7,10 @@ import {
   afterAll,
   afterEach,
 } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, eq } from "@workspace/db";
 import {
   db,
-  pool,
+  closeDatabase,
   usersTable,
   medicationsTable,
   medicationLogsTable,
@@ -62,9 +62,7 @@ async function logsForUser() {
 }
 
 beforeAll(async () => {
-  await db
-    .insert(usersTable)
-    .values({ id: userId });
+  await db.insert(usersTable).values({ id: userId });
 });
 
 afterEach(async () => {
@@ -75,7 +73,7 @@ afterEach(async () => {
 
 afterAll(async () => {
   await db.delete(usersTable).where(eq(usersTable.id, userId));
-  await pool.end();
+  await closeDatabase();
 });
 
 describe("createMedicationTx", () => {

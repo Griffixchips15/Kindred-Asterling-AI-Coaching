@@ -9,14 +9,15 @@ import {
 } from "vitest";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { eq } from "drizzle-orm";
-import { db, pool, usersTable } from "@workspace/db";
+import { eq } from "@workspace/db";
+import { closeDatabase, db, usersTable } from "@workspace/db";
 import app from "../app";
 import {
   registerTestClerkIdentity,
   revokeTestClerkIdentity,
 } from "../middlewares/testClerkIdentityAdapter";
 import {
+  disconnectCalendar,
   fetchUpcomingEvents,
   hasCalendarConnection,
   isCalendarConfigured,
@@ -24,6 +25,7 @@ import {
 
 vi.mock("./googleCalendar", () => ({
   createOAuthState: vi.fn(),
+  disconnectCalendar: vi.fn(),
   fetchUpcomingEvents: vi.fn(),
   googleAuthorizationUrl: vi.fn(),
   hasCalendarConnection: vi.fn(),
@@ -33,6 +35,7 @@ vi.mock("./googleCalendar", () => ({
 }));
 
 const fetchMock = vi.mocked(fetchUpcomingEvents);
+const disconnectMock = vi.mocked(disconnectCalendar);
 const connectedMock = vi.mocked(hasCalendarConnection);
 const configuredMock = vi.mocked(isCalendarConfigured);
 const suffix = Math.random().toString(36).slice(2, 10);
@@ -45,10 +48,11 @@ const tokens: string[] = [];
 async function api(
   path: string,
   authToken?: string,
+  method = "GET",
 ): Promise<{ status: number; body: unknown }> {
   const headers: Record<string, string> = {};
   if (authToken) headers.authorization = `Bearer ${authToken}`;
-  const response = await fetch(`${baseUrl}${path}`, { headers });
+  const response = await fetch(`${baseUrl}${path}`, { headers, method });
   const text = await response.text();
   return { status: response.status, body: text ? JSON.parse(text) : null };
 }
@@ -65,6 +69,7 @@ beforeAll(async () => {
 
 afterEach(() => {
   fetchMock.mockReset();
+  disconnectMock.mockReset();
   connectedMock.mockReset();
   configuredMock.mockReset();
 });
@@ -75,7 +80,25 @@ afterAll(async () => {
   await new Promise<void>((resolve, reject) =>
     server.close((err) => (err ? reject(err) : resolve())),
   );
-  await pool.end();
+  await closeDatabase();
+});
+
+describe("DELETE /calendar/connection", () => {
+  it("rejects anonymous callers", async () => {
+    const response = await api("/calendar/connection", undefined, "DELETE");
+
+    expect(response.status).toBe(401);
+    expect(disconnectMock).not.toHaveBeenCalled();
+  });
+
+  it("disconnects the authenticated user's Google account", async () => {
+    const response = await api("/calendar/connection", token, "DELETE");
+
+    expect(response.status).toBe(204);
+    expect(response.body).toBeNull();
+    expect(disconnectMock).toHaveBeenCalledOnce();
+    expect(disconnectMock).toHaveBeenCalledWith(userId);
+  });
 });
 
 describe("GET /calendar/upcoming", () => {

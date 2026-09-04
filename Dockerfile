@@ -1,11 +1,16 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.10
 FROM node:24-bookworm-slim AS build
 
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     NODE_ENV=development
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends ca-certificates \
+ && update-ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && corepack enable \
+ && corepack prepare pnpm@10.28.1 --activate
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc tsconfig*.json ./
 COPY artifacts/api-server/package.json artifacts/api-server/package.json
@@ -27,15 +32,9 @@ COPY tsconfig.base.json ./
 
 ARG VITE_CLERK_PUBLISHABLE_KEY
 ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
-ARG VITE_SENTRY_DSN
-ARG VITE_SENTRY_ENVIRONMENT=production
-ARG VITE_SENTRY_RELEASE
-ARG VITE_SENTRY_TRACES_SAMPLE_RATE=0.1
-ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN \
-    VITE_SENTRY_ENVIRONMENT=$VITE_SENTRY_ENVIRONMENT \
-    VITE_SENTRY_RELEASE=$VITE_SENTRY_RELEASE \
-    VITE_SENTRY_TRACES_SAMPLE_RATE=$VITE_SENTRY_TRACES_SAMPLE_RATE
-RUN pnpm --filter @workspace/kindred-coach run build \
+RUN --mount=type=secret,id=VITE_CLERK_PUBLISHABLE_KEY,env=VITE_CLERK_PUBLISHABLE_KEY,required=false \
+    export NODE_ENV=production \
+ && pnpm --filter @workspace/kindred-coach run build \
  && pnpm --filter @workspace/api-server run build \
  && pnpm --filter @workspace/api-server deploy --prod --legacy /app/runtime
 

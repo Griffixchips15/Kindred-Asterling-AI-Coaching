@@ -1,5 +1,12 @@
 import { Router, type IRouter, type Request } from "express";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import {
+  DatabaseLeaseUnavailableError,
+  and,
+  eq,
+  getMongoDatabase,
+  isNull,
+  withDatabaseLease,
+} from "@workspace/db";
 import {
   db,
   usersTable,
@@ -98,58 +105,62 @@ router.post(
         ? process.env.HELCIM_YEARLY_CHECKOUT_URL
         : process.env.HELCIM_LIFETIME_CHECKOUT_URL;
     if (!base) {
-      res
-        .status(503)
-        .json({
-          error: `No checkout URL configured for ${parsed.data.planType} plan.`,
-        });
+      res.status(503).json({
+        error: `No checkout URL configured for ${parsed.data.planType} plan.`,
+      });
       return;
     }
 
     try {
-      const customerId = await db.transaction(async (tx) => {
-        // Serializes checkout creation per internal ID, including the provider call.
-        await tx.execute(
-          sql`select pg_advisory_xact_lock(hashtext(${req.user!.id}))`,
-        );
-        const [existing] = await tx
-          .select()
-          .from(subscriptionsTable)
-          .where(eq(subscriptionsTable.userId, req.user!.id))
-          .limit(1);
-        if (existing?.paymentCustomerId) return existing.paymentCustomerId;
-        const created = await createHelcimCustomer({
-          id: req.user!.id,
-          email: req.user!.email ?? null,
-        });
-        await tx
-          .insert(subscriptionsTable)
-          .values({
-            userId: req.user!.id,
-            email: req.user!.email,
-            status: "pending",
-            paymentCustomerId: created,
-            lastCheckedAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: subscriptionsTable.userId,
-            set: {
-              paymentCustomerId: created,
+      const customerId = await withDatabaseLease(
+        "helcim-checkout",
+        req.user!.id,
+        60_000,
+        async () => {
+          const [existing] = await db
+            .select()
+            .from(subscriptionsTable)
+            .where(eq(subscriptionsTable.userId, req.user!.id))
+            .limit(1);
+          if (existing?.paymentCustomerId) return existing.paymentCustomerId;
+          const created = await createHelcimCustomer({
+            id: req.user!.id,
+            email: req.user!.email ?? null,
+          });
+          await db
+            .insert(subscriptionsTable)
+            .values({
+              userId: req.user!.id,
               email: req.user!.email,
               status: "pending",
+              paymentCustomerId: created,
               lastCheckedAt: new Date(),
-            },
-            setWhere: isNull(subscriptionsTable.paymentCustomerId),
-          });
-        const [saved] = await tx
-          .select({ id: subscriptionsTable.paymentCustomerId })
-          .from(subscriptionsTable)
-          .where(eq(subscriptionsTable.userId, req.user!.id));
-        if (!saved?.id) throw new Error("Unable to persist Helcim customer ID");
-        return saved.id;
-      });
+            })
+            .onConflictDoUpdate({
+              target: subscriptionsTable.userId,
+              set: {
+                paymentCustomerId: created,
+                email: req.user!.email,
+                status: "pending",
+                lastCheckedAt: new Date(),
+              },
+              setWhere: isNull(subscriptionsTable.paymentCustomerId),
+            });
+          const [saved] = await db
+            .select({ id: subscriptionsTable.paymentCustomerId })
+            .from(subscriptionsTable)
+            .where(eq(subscriptionsTable.userId, req.user!.id));
+          if (!saved?.id)
+            throw new Error("Unable to persist Helcim customer ID");
+          return saved.id;
+        },
+      );
       res.json({ checkoutUrl: checkoutUrl(base, customerId) });
     } catch (err) {
+      if (err instanceof DatabaseLeaseUnavailableError) {
+        res.status(409).json({ error: "Checkout is already being prepared." });
+        return;
+      }
       logger.error(
         { err, userId: req.user!.id },
         "Helcim checkout initiation failed",
@@ -176,22 +187,33 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
     if (!allowedEvents.has(event.eventType) || !event.customerId)
       throw new Error("Unsupported or uncorrelated Helcim event");
     const customerId = event.customerId;
+    if (
+      !verifyHelcimWebhook(body, {
+        "webhook-id": webhookId,
+        "webhook-timestamp": timestamp,
+        "webhook-signature": signature,
+      })
+    ) {
+      throw new InvalidWebhookSignatureError();
+    }
+    const referencedUser = verifyCustomerReference(customerId);
+    const [knownSubscription] = await db
+      .select({ userId: subscriptionsTable.userId })
+      .from(subscriptionsTable)
+      .where(eq(subscriptionsTable.paymentCustomerId, customerId))
+      .limit(1);
+    const fallbackEmail =
+      !knownSubscription &&
+      !referencedUser &&
+      process.env.HELCIM_EMAIL_MIGRATION_FALLBACK === "true"
+        ? (event.customerEmail ?? (await getHelcimCustomerEmail(customerId)))
+        : null;
     const result = await db.transaction(async (tx) => {
-      // Verification is deliberately inside the same unit of work as the claim and effects.
-      if (
-        !verifyHelcimWebhook(body, {
-          "webhook-id": webhookId,
-          "webhook-timestamp": timestamp,
-          "webhook-signature": signature,
-        })
-      ) {
-        throw new InvalidWebhookSignatureError();
-      }
       // Claim first, but the claim rolls back with every other effect on failure.
       const [claim] = await tx
         .insert(processedWebhooksTable)
         .values({ webhookId, eventType: event.eventType })
-        .onConflictDoNothing()
+        .onConflictDoNothing({ target: processedWebhooksTable.webhookId })
         .returning();
       if (!claim) return "duplicate" as const;
       let [subscription] = await tx
@@ -202,22 +224,25 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
 
       // Controlled migration only: signed customer reference, then explicitly-enabled legacy email matching.
       if (!subscription) {
-        const referencedUser = verifyCustomerReference(customerId);
         let userId = referencedUser;
-        const fallbackEmail =
-          !userId && process.env.HELCIM_EMAIL_MIGRATION_FALLBACK === "true"
-            ? (event.customerEmail ??
-              (await getHelcimCustomerEmail(customerId)))
-            : null;
         if (fallbackEmail) {
-          const [legacyUser] = await tx
-            .select({ id: usersTable.id })
-            .from(usersTable)
-            .where(
-              sql`lower(${usersTable.email}) = ${fallbackEmail.trim().toLowerCase()}`,
+          const database = await getMongoDatabase();
+          const legacyUsers = await database
+            .collection("users")
+            .find(
+              { email: fallbackEmail.trim() },
+              {
+                projection: { id: 1 },
+                collation: { locale: "en", strength: 2 },
+                session: tx.session,
+              },
             )
-            .limit(1);
-          userId = legacyUser?.id ?? null;
+            .limit(2)
+            .toArray();
+          userId =
+            legacyUsers.length === 1 && typeof legacyUsers[0]?.id === "string"
+              ? legacyUsers[0].id
+              : null;
         }
         if (!userId) throw new Error("No internal user for Helcim customer");
         const [user] = await tx

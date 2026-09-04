@@ -1,6 +1,13 @@
 import { Router, type IRouter } from "express";
-import { eq, and, sql, desc, gte, inArray } from "drizzle-orm";
-import { db, morningLogsTable, eveningReportsTable, bodyScansTable, habitsTable, habitEntriesTable } from "@workspace/db";
+import { eq, and, desc, gte, inArray, lt, lte } from "@workspace/db";
+import {
+  db,
+  morningLogsTable,
+  eveningReportsTable,
+  bodyScansTable,
+  habitsTable,
+  habitEntriesTable,
+} from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
@@ -8,23 +15,40 @@ const router: IRouter = Router();
 router.get("/dashboard/today", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
   const today = new Date().toISOString().split("T")[0];
+  const todayStart = new Date(`${today}T00:00:00.000Z`);
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
 
   const [morningLog] = await db
     .select()
     .from(morningLogsTable)
-    .where(and(eq(morningLogsTable.userId, userId), eq(morningLogsTable.date, today)))
+    .where(
+      and(
+        eq(morningLogsTable.userId, userId),
+        eq(morningLogsTable.date, today),
+      ),
+    )
     .limit(1);
 
   const [eveningReport] = await db
     .select()
     .from(eveningReportsTable)
-    .where(and(eq(eveningReportsTable.userId, userId), eq(eveningReportsTable.date, today)))
+    .where(
+      and(
+        eq(eveningReportsTable.userId, userId),
+        eq(eveningReportsTable.date, today),
+      ),
+    )
     .limit(1);
 
-  const scansToday = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(bodyScansTable)
-    .where(and(eq(bodyScansTable.userId, userId), sql`DATE(scanned_at) = ${today}::date`));
+  const scansToday = await db.count(
+    bodyScansTable,
+    and(
+      eq(bodyScansTable.userId, userId),
+      gte(bodyScansTable.scannedAt, todayStart),
+      lt(bodyScansTable.scannedAt, tomorrowStart),
+    ),
+  );
 
   const allHabits = await db
     .select()
@@ -35,23 +59,23 @@ router.get("/dashboard/today", requireAuth, async (req, res): Promise<void> => {
   const completedToday =
     habitIds.length > 0
       ? await db
-          .select({ count: sql<number>`count(*)::int` })
+          .select()
           .from(habitEntriesTable)
           .where(
             and(
               eq(habitEntriesTable.date, today),
               eq(habitEntriesTable.completed, true),
-              inArray(habitEntriesTable.habitId, habitIds)
-            )
+              inArray(habitEntriesTable.habitId, habitIds),
+            ),
           )
-      : [{ count: 0 }];
+      : [];
 
   res.json({
     date: today,
     morningDone: !!morningLog,
     eveningDone: !!eveningReport,
-    bodyScansCount: scansToday[0]?.count ?? 0,
-    habitsCompletedToday: completedToday[0]?.count ?? 0,
+    bodyScansCount: scansToday,
+    habitsCompletedToday: completedToday.length,
     totalHabits: allHabits.length,
     currentMentalLoad: morningLog?.mentalLoadLevel ?? null,
   });
@@ -62,39 +86,48 @@ router.get("/dashboard/today", requireAuth, async (req, res): Promise<void> => {
 const STREAK_LOOKBACK_DAYS = 90;
 const MAX_DASHBOARD_HABITS = 50;
 
-router.get("/dashboard/streaks", requireAuth, async (req, res): Promise<void> => {
-  const userId = req.user!.id;
-  const habits = await db
-    .select()
-    .from(habitsTable)
-    .where(eq(habitsTable.userId, userId))
-    .limit(MAX_DASHBOARD_HABITS);
+router.get(
+  "/dashboard/streaks",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const userId = req.user!.id;
+    const habits = await db
+      .select()
+      .from(habitsTable)
+      .where(eq(habitsTable.userId, userId))
+      .limit(MAX_DASHBOARD_HABITS);
 
-  const today = new Date();
-  const cutoff = new Date(today);
-  cutoff.setDate(cutoff.getDate() - STREAK_LOOKBACK_DAYS);
-  const cutoffStr = cutoff.toISOString().split("T")[0];
+    const today = new Date();
+    const cutoff = new Date(today);
+    cutoff.setDate(cutoff.getDate() - STREAK_LOOKBACK_DAYS);
+    const cutoffStr = cutoff.toISOString().split("T")[0];
 
-  const allEntries = await db
-    .select()
-    .from(habitEntriesTable)
-    .where(
-      and(
-        eq(habitEntriesTable.userId, userId),
-        eq(habitEntriesTable.completed, true),
-        gte(habitEntriesTable.date, cutoffStr)
+    const allEntries = await db
+      .select()
+      .from(habitEntriesTable)
+      .where(
+        and(
+          eq(habitEntriesTable.userId, userId),
+          eq(habitEntriesTable.completed, true),
+          gte(habitEntriesTable.date, cutoffStr),
+        ),
       )
-    )
-    .orderBy(desc(habitEntriesTable.date));
+      .orderBy(desc(habitEntriesTable.date));
 
-  const entriesByHabit = allEntries.reduce((acc, entry) => {
-    if (!acc[entry.habitId]) acc[entry.habitId] = [];
-    acc[entry.habitId].push(entry);
-    return acc;
-  }, {} as Record<number, typeof allEntries>);
+    const entriesByHabit = allEntries.reduce(
+      (acc, entry) => {
+        if (!acc[entry.habitId]) acc[entry.habitId] = [];
+        acc[entry.habitId].push(entry);
+        return acc;
+      },
+      {} as Record<number, typeof allEntries>,
+    );
 
-  const streaks = habits.map((habit) => {
-      const entries = (entriesByHabit[habit.id] || []).slice(0, STREAK_LOOKBACK_DAYS);
+    const streaks = habits.map((habit) => {
+      const entries = (entriesByHabit[habit.id] || []).slice(
+        0,
+        STREAK_LOOKBACK_DAYS,
+      );
 
       let currentStreak = 0;
       let longestStreak = 0;
@@ -125,78 +158,90 @@ router.get("/dashboard/streaks", requireAuth, async (req, res): Promise<void> =>
       };
     });
 
-  res.json(streaks);
-});
+    res.json(streaks);
+  },
+);
 
-router.get("/dashboard/mood-trend", requireAuth, async (req, res): Promise<void> => {
-  const userId = req.user!.id;
+router.get(
+  "/dashboard/mood-trend",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const userId = req.user!.id;
 
-  const today = new Date();
-  const days: string[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    days.push(d.toISOString().split("T")[0]);
-  }
+    const today = new Date();
+    const days: string[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      days.push(d.toISOString().split("T")[0]);
+    }
 
-  const startDate = days[0];
-  const endDate = days[days.length - 1];
+    const startDate = days[0];
+    const endDate = days[days.length - 1];
+    const afterEndDate = new Date(`${endDate}T00:00:00.000Z`);
+    afterEndDate.setUTCDate(afterEndDate.getUTCDate() + 1);
 
-  const [morningLogs, bodyScans, eveningReports] = await Promise.all([
-    db
-      .select()
-      .from(morningLogsTable)
-      .where(
-        and(
-          eq(morningLogsTable.userId, userId),
-          gte(morningLogsTable.date, startDate),
-          sql`${morningLogsTable.date} <= ${endDate}`
-        )
-      ),
-    db
-      .select({
-        date: sql<string>`DATE(${bodyScansTable.scannedAt})::text`,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(bodyScansTable)
-      .where(
-        and(
-          eq(bodyScansTable.userId, userId),
-          sql`DATE(${bodyScansTable.scannedAt}) >= ${startDate}::date`,
-          sql`DATE(${bodyScansTable.scannedAt}) <= ${endDate}::date`
-        )
-      )
-      .groupBy(sql`DATE(${bodyScansTable.scannedAt})`),
-    db
-      .select()
-      .from(eveningReportsTable)
-      .where(
-        and(
-          eq(eveningReportsTable.userId, userId),
-          gte(eveningReportsTable.date, startDate),
-          sql`${eveningReportsTable.date} <= ${endDate}`
-        )
-      ),
-  ]);
+    const [morningLogs, bodyScans, eveningReports] = await Promise.all([
+      db
+        .select()
+        .from(morningLogsTable)
+        .where(
+          and(
+            eq(morningLogsTable.userId, userId),
+            gte(morningLogsTable.date, startDate),
+            lte(morningLogsTable.date, endDate),
+          ),
+        ),
+      db
+        .select()
+        .from(bodyScansTable)
+        .where(
+          and(
+            eq(bodyScansTable.userId, userId),
+            gte(
+              bodyScansTable.scannedAt,
+              new Date(`${startDate}T00:00:00.000Z`),
+            ),
+            lt(bodyScansTable.scannedAt, afterEndDate),
+          ),
+        ),
+      db
+        .select()
+        .from(eveningReportsTable)
+        .where(
+          and(
+            eq(eveningReportsTable.userId, userId),
+            gte(eveningReportsTable.date, startDate),
+            lte(eveningReportsTable.date, endDate),
+          ),
+        ),
+    ]);
 
-  const morningLogMap = new Map(morningLogs.map((log) => [log.date, log]));
-  const bodyScanMap = new Map(bodyScans.map((scan) => [scan.date, scan.count]));
-  const eveningReportMap = new Map(eveningReports.map((report) => [report.date, report]));
+    const morningLogMap = new Map(morningLogs.map((log) => [log.date, log]));
+    const bodyScanMap = new Map<string, number>();
+    for (const scan of bodyScans) {
+      const date = scan.scannedAt.toISOString().split("T")[0];
+      bodyScanMap.set(date, (bodyScanMap.get(date) ?? 0) + 1);
+    }
+    const eveningReportMap = new Map(
+      eveningReports.map((report) => [report.date, report]),
+    );
 
-  const results = days.map((ds) => {
-    const morningLog = morningLogMap.get(ds);
-    const scansCount = bodyScanMap.get(ds);
-    const eveningReport = eveningReportMap.get(ds);
+    const results = days.map((ds) => {
+      const morningLog = morningLogMap.get(ds);
+      const scansCount = bodyScanMap.get(ds);
+      const eveningReport = eveningReportMap.get(ds);
 
-    return {
-      date: ds,
-      mentalLoadLevel: morningLog?.mentalLoadLevel ?? null,
-      bodyScansCount: scansCount ?? 0,
-      medicationEffectiveness: eveningReport?.medicationEffectiveness ?? null,
-    };
-  });
+      return {
+        date: ds,
+        mentalLoadLevel: morningLog?.mentalLoadLevel ?? null,
+        bodyScansCount: scansCount ?? 0,
+        medicationEffectiveness: eveningReport?.medicationEffectiveness ?? null,
+      };
+    });
 
-  res.json(results);
-});
+    res.json(results);
+  },
+);
 
 export default router;

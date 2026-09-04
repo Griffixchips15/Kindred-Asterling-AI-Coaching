@@ -8,5 +8,10 @@
     "rootDir": "src",
     "types": ["node"]
   },
-  "include": ["src"]
+  "include": [
+    "src/index.ts",
+    "src/migrationSupport.ts",
+    "src/mongoDb.ts",
+    "src/mongoSchema.ts"
+  ]
 }

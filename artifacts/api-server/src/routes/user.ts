@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ownerIds } from "../lib/subscriptionService";
 

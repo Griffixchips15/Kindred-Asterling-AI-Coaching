@@ -9,7 +9,7 @@ import {
 } from "vitest";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { eq } from "drizzle-orm";
+import { eq } from "@workspace/db";
 import { db, usersTable } from "@workspace/db";
 
 import app from "../app";
@@ -72,7 +72,10 @@ async function api(
 }
 
 beforeAll(async () => {
-  await db.insert(usersTable).values({ id: userId }).onConflictDoNothing();
+  await db
+    .insert(usersTable)
+    .values({ id: userId })
+    .onConflictDoNothing({ target: usersTable.id });
   token = await makeSession(userId);
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => {
@@ -134,7 +137,8 @@ describe("POST /api/subscription/checkout", () => {
     });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
-      checkoutUrl: "https://subscriptions.helcim.com/subscribe/test123?customerCode=9999",
+      checkoutUrl:
+        "https://subscriptions.helcim.com/subscribe/test123?customerCode=9999",
     });
   });
 
@@ -153,7 +157,8 @@ describe("POST /api/subscription/checkout", () => {
     });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
-      checkoutUrl: "https://subscriptions.helcim.com/subscribe/test456?customerCode=9999",
+      checkoutUrl:
+        "https://subscriptions.helcim.com/subscribe/test456?customerCode=9999",
     });
   });
 });

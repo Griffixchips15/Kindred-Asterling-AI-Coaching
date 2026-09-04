@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq, inArray } from "@workspace/db";
 import {
   db,
   usersTable,
@@ -37,7 +37,6 @@ export async function exportAccount(userId: string) {
     habits,
     habitEntries,
     chats,
-    chatMessages,
     medications,
     medicationLogs,
     medicationSchedules,
@@ -73,24 +72,6 @@ export async function exportAccount(userId: string) {
     ),
     owned(
       db.select().from(conversations).where(eq(conversations.userId, userId)),
-    ),
-    owned(
-      db
-        .select({
-          id: messages.id,
-          conversationId: messages.conversationId,
-          role: messages.role,
-          content: messages.content,
-          createdAt: messages.createdAt,
-        })
-        .from(messages)
-        .innerJoin(
-          conversations,
-          and(
-            eq(messages.conversationId, conversations.id),
-            eq(conversations.userId, userId),
-          ),
-        ),
     ),
     owned(
       db
@@ -153,6 +134,14 @@ export async function exportAccount(userId: string) {
         .where(eq(betaGrantsTable.userId, userId)),
     ),
   ]);
+  const conversationIds = chats.map((chat) => chat.id);
+  const chatMessages =
+    conversationIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(messages)
+          .where(inArray(messages.conversationId, conversationIds));
   return {
     exportedAt: new Date().toISOString(),
     formatVersion: 1,

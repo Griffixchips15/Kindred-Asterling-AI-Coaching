@@ -71,6 +71,7 @@ export async function createHelcimCustomer(user: {
       customerCode,
       contactName: user.email ?? `Kindred user ${user.id}`,
     }),
+    signal: AbortSignal.timeout(20_000),
   });
   if (!response.ok)
     throw new Error(`Helcim customer creation failed (${response.status})`);

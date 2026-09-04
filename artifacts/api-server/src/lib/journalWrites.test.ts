@@ -7,10 +7,10 @@ import {
   afterAll,
   afterEach,
 } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq } from "@workspace/db";
 import {
   db,
-  pool,
+  closeDatabase,
   usersTable,
   habitsTable,
   habitEntriesTable,
@@ -43,9 +43,8 @@ const finalizeSpy = vi.mocked(writeContract.finalizeWrite);
 
 // The genuine finalizeWrite implementation, used by the contract-validation
 // tests below to run the real response-schema check against a tampered row.
-const { finalizeWrite: realFinalizeWrite } = await vi.importActual<
-  typeof import("./writeContract")
->("./writeContract");
+const { finalizeWrite: realFinalizeWrite } =
+  await vi.importActual<typeof import("./writeContract")>("./writeContract");
 
 const userId = `test-journal-tx-${Math.random().toString(36).slice(2, 10)}`;
 const TODAY = "2026-05-29";
@@ -89,9 +88,7 @@ async function eveningReportsForUser() {
 }
 
 beforeAll(async () => {
-  await db
-    .insert(usersTable)
-    .values({ id: userId });
+  await db.insert(usersTable).values({ id: userId });
 });
 
 afterEach(async () => {
@@ -112,7 +109,7 @@ afterEach(async () => {
 
 afterAll(async () => {
   await db.delete(usersTable).where(eq(usersTable.id, userId));
-  await pool.end();
+  await closeDatabase();
 });
 
 describe("createHabitTx", () => {
@@ -297,7 +294,10 @@ describe("response-contract validation rolls the save back", () => {
   // proving an un-serializable record never commits.
   it("rolls back a body scan whose row violates the response schema", async () => {
     finalizeSpy.mockImplementationOnce((row, schema) =>
-      realFinalizeWrite({ ...(row as object), energyLevel: "not-a-number" }, schema),
+      realFinalizeWrite(
+        { ...(row as object), energyLevel: "not-a-number" },
+        schema,
+      ),
     );
 
     await expect(

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq } from "@workspace/db";
 import { db, reminderSettingsTable, usersTable } from "@workspace/db";
 import {
   GetReminderSettingsResponse,
@@ -20,7 +20,7 @@ async function getOrCreateSettings(userId: string) {
   const [created] = await db
     .insert(reminderSettingsTable)
     .values({ userId })
-    .onConflictDoNothing()
+    .onConflictDoNothing({ target: reminderSettingsTable.userId })
     .returning();
   if (created) return created;
   // Lost the insert race — read the row the other request created.
@@ -31,53 +31,69 @@ async function getOrCreateSettings(userId: string) {
   return row;
 }
 
-router.get("/reminder-settings", requireAuth, async (req, res): Promise<void> => {
-  const row = await getOrCreateSettings(req.user!.id);
-  res.json(GetReminderSettingsResponse.parse(JSON.parse(JSON.stringify(row))));
-});
+router.get(
+  "/reminder-settings",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const row = await getOrCreateSettings(req.user!.id);
+    res.json(
+      GetReminderSettingsResponse.parse(JSON.parse(JSON.stringify(row))),
+    );
+  },
+);
 
-router.patch("/reminder-settings", requireAuth, async (req, res): Promise<void> => {
-  const parsed = UpdateReminderSettingsBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid reminder settings" });
-    return;
-  }
-  const userId = req.user!.id;
-  await getOrCreateSettings(userId);
-
-  const data = parsed.data;
-  const updates: Record<string, unknown> = { updatedAt: new Date() };
-  if (data.morningEnabled !== undefined) updates.morningEnabled = data.morningEnabled;
-  if (data.morningTime !== undefined) updates.morningTime = data.morningTime;
-  if (data.medicationEnabled !== undefined) updates.medicationEnabled = data.medicationEnabled;
-  if (data.eveningEnabled !== undefined) updates.eveningEnabled = data.eveningEnabled;
-  if (data.eveningTime !== undefined) updates.eveningTime = data.eveningTime;
-  if (data.smsEnabled !== undefined) updates.smsEnabled = data.smsEnabled;
-  if (data.emailEnabled !== undefined) updates.emailEnabled = data.emailEnabled;
-
-  // phone + timezone live on the user profile but are edited from the same
-  // Reminders form, so we persist all of it in one transaction — either the
-  // whole save succeeds or none of it does (no partial saved state).
-  const userUpdates: Record<string, unknown> = {};
-  if (data.phone !== undefined) userUpdates.phone = data.phone;
-  if (data.timezone !== undefined) userUpdates.timezone = data.timezone;
-
-  const updated = await db.transaction(async (tx) => {
-    if (Object.keys(userUpdates).length > 0) {
-      await tx
-        .update(usersTable)
-        .set(userUpdates)
-        .where(eq(usersTable.id, userId));
+router.patch(
+  "/reminder-settings",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const parsed = UpdateReminderSettingsBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid reminder settings" });
+      return;
     }
-    const [row] = await tx
-      .update(reminderSettingsTable)
-      .set(updates)
-      .where(eq(reminderSettingsTable.userId, userId))
-      .returning();
-    return row;
-  });
+    const userId = req.user!.id;
+    await getOrCreateSettings(userId);
 
-  res.json(GetReminderSettingsResponse.parse(JSON.parse(JSON.stringify(updated))));
-});
+    const data = parsed.data;
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (data.morningEnabled !== undefined)
+      updates.morningEnabled = data.morningEnabled;
+    if (data.morningTime !== undefined) updates.morningTime = data.morningTime;
+    if (data.medicationEnabled !== undefined)
+      updates.medicationEnabled = data.medicationEnabled;
+    if (data.eveningEnabled !== undefined)
+      updates.eveningEnabled = data.eveningEnabled;
+    if (data.eveningTime !== undefined) updates.eveningTime = data.eveningTime;
+    if (data.smsEnabled !== undefined) updates.smsEnabled = data.smsEnabled;
+    if (data.emailEnabled !== undefined)
+      updates.emailEnabled = data.emailEnabled;
+
+    // phone + timezone live on the user profile but are edited from the same
+    // Reminders form, so we persist all of it in one transaction — either the
+    // whole save succeeds or none of it does (no partial saved state).
+    const userUpdates: Record<string, unknown> = {};
+    if (data.phone !== undefined) userUpdates.phone = data.phone;
+    if (data.timezone !== undefined) userUpdates.timezone = data.timezone;
+
+    const updated = await db.transaction(async (tx) => {
+      if (Object.keys(userUpdates).length > 0) {
+        await tx
+          .update(usersTable)
+          .set(userUpdates)
+          .where(eq(usersTable.id, userId));
+      }
+      const [row] = await tx
+        .update(reminderSettingsTable)
+        .set(updates)
+        .where(eq(reminderSettingsTable.userId, userId))
+        .returning();
+      return row;
+    });
+
+    res.json(
+      GetReminderSettingsResponse.parse(JSON.parse(JSON.stringify(updated))),
+    );
+  },
+);
 
 export default router;
