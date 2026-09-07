@@ -4,7 +4,11 @@
  * Usage: CLERK_SECRET_KEY=sk_... pnpm --filter @workspace/scripts run clerk:admin <command> [options]
  */
 
-const API_BASE = process.env.CLERK_API_URL ?? "https://api.clerk.com/v1";
+const API_BASE = "https://api.clerk.com/v1";
+
+/** Clerk caps list endpoints at 500 records per request. */
+const MAX_LIMIT = 500;
+const PAGE_SIZE = 200;
 
 type Json = Record<string, unknown>;
 
@@ -41,6 +45,17 @@ function items(payload: unknown): Json[] {
 function totalCount(payload: unknown, fallback: number): number {
   const count = (payload as { total_count?: unknown } | null)?.total_count;
   return typeof count === "number" ? count : fallback;
+}
+
+/** Walks a list endpoint until a short page is returned. `path` must already carry its query prefix. */
+async function paginate(path: string, secretKey: string): Promise<Json[]> {
+  const separator = path.includes("?") ? "&" : "?";
+  const collected: Json[] = [];
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const page = items(await api(`${path}${separator}limit=${PAGE_SIZE}&offset=${offset}`, secretKey));
+    collected.push(...page);
+    if (page.length < PAGE_SIZE) return collected;
+  }
 }
 
 function str(value: unknown): string | undefined {
@@ -82,7 +97,7 @@ async function overview(secretKey: string): Promise<void> {
     api("/users/count", secretKey),
     api("/users?limit=5&order_by=-created_at", secretKey),
     api("/organizations?limit=10", secretKey),
-    api("/invitations?limit=100", secretKey),
+    paginate("/invitations", secretKey),
     api("/waitlist_entries?limit=1", secretKey),
   ]);
 
@@ -95,9 +110,8 @@ async function overview(secretKey: string): Promise<void> {
   console.log(`Organizations: ${totalCount(orgs, orgList.length)}`);
   for (const org of orgList) console.log(`  ${describeOrg(org)}`);
 
-  const invitationList = items(invitations);
-  const pending = invitationList.filter((i) => i["status"] === "pending").length;
-  console.log(`Invitations: ${invitationList.length} (${pending} pending)`);
+  const pending = invitations.filter((i) => i["status"] === "pending").length;
+  console.log(`Invitations: ${invitations.length} (${pending} pending)`);
   console.log(`Waitlist entries: ${totalCount(waitlist, items(waitlist).length)}`);
 }
 
@@ -120,7 +134,7 @@ async function listOrgs(secretKey: string, limit: number): Promise<void> {
 
 /** The Clerk API rejects session listing without a user or client filter, so a user id is required. */
 async function listSessions(secretKey: string, userId: string | undefined, limit: number): Promise<void> {
-  const ids = userId !== undefined ? [userId] : items(await api("/users?limit=50", secretKey)).map((u) => str(u["id"]));
+  const ids = userId !== undefined ? [userId] : (await paginate("/users", secretKey)).map((u) => str(u["id"]));
   for (const id of ids) {
     if (id === undefined) continue;
     console.log(id);
@@ -169,14 +183,39 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  const command = argv.find((arg) => !arg.startsWith("--")) ?? "overview";
-  const limitArg = argv[argv.indexOf("--limit") + 1];
-  const limit = argv.includes("--limit") && limitArg !== undefined ? Number.parseInt(limitArg, 10) : 10;
-  const userId = argv.includes("--user") ? argv[argv.indexOf("--user") + 1] : undefined;
+  const positional: string[] = [];
+  const options = new Map<string, string>();
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index] ?? "";
+    if (!arg.startsWith("-")) {
+      positional.push(arg);
+      continue;
+    }
+    if (arg !== "--limit" && arg !== "--user") {
+      console.error(`Unknown option "${arg}"\n\n${USAGE}`);
+      return 1;
+    }
+    const value = argv[index + 1];
+    if (value === undefined || value.startsWith("-")) {
+      console.error(`${arg} requires a value`);
+      return 1;
+    }
+    options.set(arg, value);
+    index += 1;
+  }
 
-  if (Number.isNaN(limit) || limit < 1) {
-    console.error("--limit must be a positive integer");
-    return 1;
+  const command = positional[0] ?? "overview";
+  const userId = options.get("--user");
+
+  let limit = 10;
+  const limitArg = options.get("--limit");
+  if (limitArg !== undefined) {
+    const parsed = Number.parseInt(limitArg, 10);
+    if (!/^[0-9]+$/.test(limitArg) || parsed < 1 || parsed > MAX_LIMIT) {
+      console.error(`--limit must be an integer between 1 and ${MAX_LIMIT}`);
+      return 1;
+    }
+    limit = parsed;
   }
 
   try {
