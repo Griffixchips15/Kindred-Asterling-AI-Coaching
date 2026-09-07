@@ -15,6 +15,7 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { ownerIds } from "../lib/subscriptionService";
 import { findClerkIdentitiesByEmail } from "../middlewares/authMiddleware";
+import { syncClerkIdentity } from "../lib/clerkIdentity";
 
 function ownerEmails(): Set<string> {
   return new Set(
@@ -48,9 +49,9 @@ function requireOwner(req: Request, res: Response, next: NextFunction): void {
 
 const router: IRouter = Router();
 
-router.use("/admin", requireAuth, requireOwner);
+router.use(requireAuth, requireOwner);
 
-router.get("/admin/users", async (req, res): Promise<void> => {
+router.get("/users", async (req, res): Promise<void> => {
   const rawQ = ((req.query.q as string) || "").trim().toLowerCase();
   if (!rawQ) {
     res.json({ users: [] });
@@ -58,18 +59,26 @@ router.get("/admin/users", async (req, res): Promise<void> => {
   }
 
   const identities = await findClerkIdentitiesByEmail(rawQ);
-  const users = identities.slice(0, 20).map((identity) => ({
-    id: identity.id,
-    email: identity.email,
-    firstName: identity.firstName,
-    lastName: identity.lastName,
-    emailVerifiedAt: identity.emailVerified ? new Date().toISOString() : null,
-  }));
+  const users = await Promise.all(
+    identities.slice(0, 20).map(async (identity) => {
+      const user = await syncClerkIdentity({
+        ...identity,
+        imageUrl: identity.profileImageUrl,
+      });
+      return {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
+      };
+    }),
+  );
 
   res.json({ users });
 });
 
-router.get("/admin/beta/grants", async (_req, res): Promise<void> => {
+router.get("/beta/grants", async (_req, res): Promise<void> => {
   const rows = await db
     .select({
       id: betaGrantsTable.id,
@@ -87,7 +96,7 @@ router.get("/admin/beta/grants", async (_req, res): Promise<void> => {
   res.json({ grants: rows });
 });
 
-router.post("/admin/beta/grant", async (req, res): Promise<void> => {
+router.post("/beta/grant", async (req, res): Promise<void> => {
   const { userId } = req.body as { userId?: string };
   if (!userId || typeof userId !== "string") {
     res.status(400).json({ error: "userId is required" });
@@ -143,7 +152,7 @@ router.post("/admin/beta/grant", async (req, res): Promise<void> => {
   res.status(201).json({ grant });
 });
 
-router.post("/admin/beta/revoke", async (req, res): Promise<void> => {
+router.post("/beta/revoke", async (req, res): Promise<void> => {
   const { userId } = req.body as { userId?: string };
   if (!userId || typeof userId !== "string") {
     res.status(400).json({ error: "userId is required" });

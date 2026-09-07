@@ -41,7 +41,9 @@ import Science from "@/pages/public/science";
 import Pricing from "@/pages/public/pricing";
 import PaymentSuccess from "@/pages/public/payment-success";
 import Login from "@/pages/public/login";
+import Signup from "@/pages/public/signup";
 import Account from "@/pages/account";
+import AdminBeta from "@/pages/admin-beta";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { protectedRouteLoginTarget } from "@/lib/routing";
 import {
@@ -99,6 +101,7 @@ function PublicRoutes() {
         <Route path="/pricing" component={Pricing} />
         <Route path="/payment-success" component={PaymentSuccess} />
         <Route path="/login" component={Login} />
+        <Route path="/signup" component={Signup} />
         <Route component={NotFound} />
       </Switch>
     </PublicLayout>
@@ -143,6 +146,7 @@ function PrivateRoutes() {
         <Route path="/reports" component={Reports} />
         <Route path="/profile" component={Profile} />
         <Route path="/account" component={Account} />
+        <Route path="/admin/beta" component={AdminBeta} />
         <Route path="/calendar" component={CalendarPage} />
         <Route path="/chat" component={Chat} />
         <Route path="/archive" component={Archive} />
@@ -256,6 +260,7 @@ function App() {
                   <Route path="/pricing" component={PublicRoutes} />
                   <Route path="/payment-success" component={PublicRoutes} />
                   <Route path="/login" component={PublicRoutes} />
+                  <Route path="/signup" component={PublicRoutes} />
                   <Route
                     path="/app/session-tasks/choose-organization"
                     component={ChooseOrganizationTask}
