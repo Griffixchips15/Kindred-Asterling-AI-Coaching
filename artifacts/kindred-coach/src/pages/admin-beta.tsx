@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useAuth } from "@clerk/clerk-react";
 import { Search, UserCheck, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,21 +24,29 @@ interface BetaGrant {
   revokedAt: string | null;
 }
 
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
+async function api<T>(
+  path: string,
+  getToken: () => Promise<string | null>,
+  init?: RequestInit,
+): Promise<T> {
+  const token = await getToken();
   const response = await fetch(path, {
     ...init,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
   const data = (await response.json()) as T & { error?: string };
-  if (!response.ok) throw new Error(data.error ?? `Request failed (${response.status})`);
+  if (!response.ok)
+    throw new Error(data.error ?? `Request failed (${response.status})`);
   return data;
 }
 
 export default function AdminBeta() {
+  const { getToken } = useAuth();
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<BetaUser[]>([]);
   const [grants, setGrants] = useState<BetaGrant[]>([]);
@@ -45,9 +54,12 @@ export default function AdminBeta() {
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
 
   const loadGrants = useCallback(async () => {
-    const data = await api<{ grants: BetaGrant[] }>("/api/admin/beta/grants");
+    const data = await api<{ grants: BetaGrant[] }>(
+      "/api/admin/beta/grants",
+      getToken,
+    );
     setGrants(data.grants);
-  }, []);
+  }, [getToken]);
 
   useEffect(() => {
     loadGrants().catch((error: Error) => setMessage(error.message));
@@ -63,6 +75,7 @@ export default function AdminBeta() {
     try {
       const data = await api<{ users: BetaUser[] }>(
         `/api/admin/users?q=${encodeURIComponent(query.trim())}`,
+        getToken,
       );
       setUsers(data.users);
     } catch (error) {
@@ -74,7 +87,7 @@ export default function AdminBeta() {
     setBusyUserId(userId);
     setMessage(null);
     try {
-      await api("/api/admin/beta/grant", {
+      await api("/api/admin/beta/grant", getToken, {
         method: "POST",
         body: JSON.stringify({ userId }),
       });
@@ -91,7 +104,7 @@ export default function AdminBeta() {
     setBusyUserId(userId);
     setMessage(null);
     try {
-      await api("/api/admin/beta/revoke", {
+      await api("/api/admin/beta/revoke", getToken, {
         method: "POST",
         body: JSON.stringify({ userId }),
       });
@@ -136,7 +149,9 @@ export default function AdminBeta() {
         </Button>
       </form>
 
-      {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
+      {message ? (
+        <p className="text-sm text-muted-foreground">{message}</p>
+      ) : null}
 
       {users.length > 0 ? (
         <section>
@@ -197,7 +212,8 @@ export default function AdminBeta() {
                   <span className="text-xs text-muted-foreground">
                     {grant.revokedAt
                       ? "Revoked"
-                      : grant.expiresAt && new Date(grant.expiresAt) <= new Date()
+                      : grant.expiresAt &&
+                          new Date(grant.expiresAt) <= new Date()
                         ? "Expired"
                         : "Active"}
                   </span>

@@ -1,14 +1,14 @@
-import { SignIn, useUser } from "@clerk/clerk-react";
+import { SignUp, useUser } from "@clerk/clerk-react";
 import { useEffect } from "react";
 import { useSearch } from "wouter";
 import logoPoster from "@/assets/brand/logo-poster.jpg";
 import { resolveReturnDestination } from "@/lib/routing";
 
-export default function Login() {
+export default function Signup() {
   const { isSignedIn, isLoaded } = useUser();
   const params = new URLSearchParams(useSearch());
   const returnTo = resolveReturnDestination(params.get("returnTo"));
-  const signUpUrl = `/signup?returnTo=${encodeURIComponent(returnTo)}`;
+  const signInUrl = `/login?returnTo=${encodeURIComponent(returnTo)}`;
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {
@@ -26,9 +26,9 @@ export default function Login() {
         className="hidden w-48 rounded-2xl shadow-2xl ring-1 ring-border/40 lg:block"
       />
       <div className="w-full max-w-md">
-        <SignIn
+        <SignUp
           routing="hash"
-          signUpUrl={signUpUrl}
+          signInUrl={signInUrl}
           fallbackRedirectUrl={returnTo}
         />
       </div>

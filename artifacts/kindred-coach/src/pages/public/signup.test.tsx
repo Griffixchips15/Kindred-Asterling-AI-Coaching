@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   search: "",
   assign: vi.fn(),
   fallbackRedirectUrl: "",
-  signUpUrl: "",
+  signInUrl: "",
 }));
 
 vi.mock("@clerk/clerk-react", () => ({
@@ -15,9 +15,9 @@ vi.mock("@clerk/clerk-react", () => ({
     isLoaded: mocks.authState.isLoaded,
     isSignedIn: mocks.authState.isSignedIn,
   }),
-  SignIn: (props: { fallbackRedirectUrl?: string; signUpUrl?: string }) => {
+  SignUp: (props: { fallbackRedirectUrl?: string; signInUrl?: string }) => {
     mocks.fallbackRedirectUrl = props.fallbackRedirectUrl ?? "";
-    mocks.signUpUrl = props.signUpUrl ?? "";
+    mocks.signInUrl = props.signInUrl ?? "";
     return null;
   },
 }));
@@ -28,9 +28,9 @@ vi.mock("wouter", () => ({
 
 vi.mock("@/assets/brand/logo-poster.jpg", () => ({ default: "poster.jpg" }));
 
-import Login from "./login";
+import Signup from "./signup";
 
-describe("Login returnTo validation", () => {
+describe("Signup returnTo validation", () => {
   let container: HTMLDivElement;
   let root: Root;
   let originalLocation: Location;
@@ -41,12 +41,11 @@ describe("Login returnTo validation", () => {
     mocks.authState.isSignedIn = false;
     mocks.search = "";
     mocks.fallbackRedirectUrl = "";
-    mocks.signUpUrl = "";
+    mocks.signInUrl = "";
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
 
-    // jsdom does not implement navigation; capture `window.location.assign`.
     originalLocation = window.location;
     Object.defineProperty(window, "location", {
       configurable: true,
@@ -63,49 +62,36 @@ describe("Login returnTo validation", () => {
     });
   });
 
-  it("passes a validated safe return destination to Clerk's fallbackRedirectUrl", async () => {
-    mocks.search = "returnTo=%2Fpricing";
+  it("passes a validated destination to Clerk and back to sign in", async () => {
+    mocks.search = "returnTo=%2Fapp%2Fcalendar";
 
     await act(async () => {
-      root.render(createElement(Login));
+      root.render(createElement(Signup));
     });
 
-    expect(mocks.fallbackRedirectUrl).toBe("/pricing");
-    expect(mocks.signUpUrl).toBe("/signup?returnTo=%2Fpricing");
+    expect(mocks.fallbackRedirectUrl).toBe("/app/calendar");
+    expect(mocks.signInUrl).toBe("/login?returnTo=%2Fapp%2Fcalendar");
   });
 
-  it("collapses an unsafe return destination to /app in fallbackRedirectUrl", async () => {
+  it("collapses unsafe destinations to /app", async () => {
     mocks.search = "returnTo=https%3A%2F%2Fevil.example.com";
 
     await act(async () => {
-      root.render(createElement(Login));
+      root.render(createElement(Signup));
     });
 
     expect(mocks.fallbackRedirectUrl).toBe("/app");
+    expect(mocks.signInUrl).toBe("/login?returnTo=%2Fapp");
   });
 
-  it("navigates a signed-in visitor to a safe return destination", async () => {
+  it("redirects an already signed-in visitor safely", async () => {
     mocks.authState.isSignedIn = true;
-    mocks.search = "returnTo=%2Fpricing";
+    mocks.search = "returnTo=%2Fapp%2Fcalendar";
 
     await act(async () => {
-      root.render(createElement(Login));
+      root.render(createElement(Signup));
     });
 
-    expect(mocks.assign).toHaveBeenCalledWith("/pricing");
-  });
-
-  it("never navigates a signed-in visitor to an unsafe external URL", async () => {
-    mocks.authState.isSignedIn = true;
-    mocks.search = "returnTo=https%3A%2F%2Fevil.example.com";
-
-    await act(async () => {
-      root.render(createElement(Login));
-    });
-
-    expect(mocks.assign).toHaveBeenCalledWith("/app");
-    expect(mocks.assign).not.toHaveBeenCalledWith(
-      expect.stringContaining("evil.example.com"),
-    );
+    expect(mocks.assign).toHaveBeenCalledWith("/app/calendar");
   });
 });
