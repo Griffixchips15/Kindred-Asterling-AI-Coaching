@@ -19,9 +19,9 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "@types/pg": "^8.20.0",
+    "@types/pg": "^8.23.1",
     "mongodb-memory-server": "10.4.3",
-    "pg": "^8.20.0",
+    "pg": "^8.23.0",
     "tsx": "catalog:"
   }
 }
