@@ -4,7 +4,8 @@
 // These are deliberately pure (no `window`/`document` access) so they can be
 // unit-tested without a browser environment and remain SSR-safe.
 
-const DEFAULT_APP_PATH = "/app";
+const APP_BASE_PATH = "/app";
+const DEFAULT_APP_PATH = `${APP_BASE_PATH}/today`;
 const DEFAULT_PRICING_PATH = "/pricing";
 
 /**
@@ -40,7 +41,7 @@ export function resolveReturnDestination(
  * Build the public `/login` URL that a signed-out visitor is routed through,
  * carrying an encoded return destination so they land back where they came
  * from (e.g. `/pricing` → `/login?returnTo=%2Fpricing`). The destination is
- * validated first — unsafe values collapse to `/app`.
+ * validated first — unsafe values collapse to `/app/today`.
  */
 export function buildLoginUrl(returnTo: string | null | undefined): string {
   const destination = resolveReturnDestination(returnTo);
@@ -53,14 +54,17 @@ export const PRICING_RETURN_PATH = DEFAULT_PRICING_PATH;
 /**
  * Given a location expressed relative to the `/app` router (e.g. `/morning`,
  * `/`, or `/chat`), return the absolute protected destination a signed-out
- * visitor was trying to reach. The bare root collapses to `/app`.
+ * visitor was trying to reach. The bare root collapses to the canonical
+ * `/app/today` destination.
  */
-export function protectedDestination(appRelativePath: string | undefined): string {
+export function protectedDestination(
+  appRelativePath: string | undefined,
+): string {
   if (typeof appRelativePath !== "string") return DEFAULT_APP_PATH;
   const clean = appRelativePath.startsWith("/")
     ? appRelativePath
     : `/${appRelativePath}`;
-  return clean === "/" ? DEFAULT_APP_PATH : `${DEFAULT_APP_PATH}${clean}`;
+  return clean === "/" ? DEFAULT_APP_PATH : `${APP_BASE_PATH}${clean}`;
 }
 
 /**

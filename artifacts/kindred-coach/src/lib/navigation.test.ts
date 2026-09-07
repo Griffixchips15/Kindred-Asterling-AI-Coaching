@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ALL_SIGNED_IN_ROUTES,
   AREA_SECONDARY_ROUTES,
+  LEGACY_PRIMARY_ROUTE_REDIRECTS,
   PRIMARY_DESTINATIONS,
   ROUTE_TO_PRIMARY_AREA,
   SECONDARY_NAV_ITEMS,
@@ -19,12 +20,11 @@ describe("navigation model", () => {
       "you",
     ]);
 
-    // Canonical hrefs are deliberately NOT migrated in Phase 2A.
     expect(PRIMARY_DESTINATIONS.map((d) => d.href)).toEqual([
-      "/",
-      "/chat",
-      "/reports",
-      "/profile",
+      "/today",
+      "/talk",
+      "/insights",
+      "/you",
     ]);
     expect(PRIMARY_DESTINATIONS.map((d) => d.label)).toEqual([
       "Today",
@@ -47,19 +47,19 @@ describe("navigation model", () => {
     expect(secondaryHrefs).toContain("/archive");
   });
 
-  it("keeps every legacy signed-in route reachable exactly once", () => {
+  it("presents every signed-in destination exactly once", () => {
     const expected = [
-      "/",
+      "/today",
       "/morning",
       "/scans",
       "/evening",
       "/habits",
       "/medications",
-      "/reports",
-      "/profile",
+      "/insights",
+      "/you",
       "/account",
       "/calendar",
-      "/chat",
+      "/talk",
       "/archive",
       "/reminders",
     ];
@@ -77,7 +77,7 @@ describe("navigation model", () => {
 
   it("maps daily-routine routes to the Today primary area", () => {
     for (const href of [
-      "/",
+      "/today",
       "/morning",
       "/scans",
       "/evening",
@@ -91,18 +91,31 @@ describe("navigation model", () => {
   });
 
   it("groups Talk, Insights, and You routes correctly", () => {
-    expect(ROUTE_TO_PRIMARY_AREA["/chat"]).toBe("talk");
+    expect(ROUTE_TO_PRIMARY_AREA["/talk"]).toBe("talk");
     expect(ROUTE_TO_PRIMARY_AREA["/archive"]).toBe("talk");
-    expect(ROUTE_TO_PRIMARY_AREA["/reports"]).toBe("insights");
-    expect(ROUTE_TO_PRIMARY_AREA["/profile"]).toBe("you");
+    expect(ROUTE_TO_PRIMARY_AREA["/insights"]).toBe("insights");
+    expect(ROUTE_TO_PRIMARY_AREA["/you"]).toBe("you");
     expect(ROUTE_TO_PRIMARY_AREA["/account"]).toBe("you");
+  });
+
+  it("keeps the previous primary URLs as redirect aliases", () => {
+    expect(LEGACY_PRIMARY_ROUTE_REDIRECTS).toEqual({
+      "/": "/today",
+      "/chat": "/talk",
+      "/reports": "/insights",
+      "/profile": "/you",
+    });
+    expect(primaryAreaForPath("/")).toBe("today");
+    expect(primaryAreaForPath("/chat")).toBe("talk");
+    expect(primaryAreaForPath("/reports")).toBe("insights");
+    expect(primaryAreaForPath("/profile")).toBe("you");
   });
 
   it("resolves a location path to its primary area", () => {
     expect(primaryAreaForPath("/morning")).toBe("today");
     expect(primaryAreaForPath("/archive")).toBe("talk");
-    expect(primaryAreaForPath("/reports")).toBe("insights");
-    expect(primaryAreaForPath("/")).toBe("today");
+    expect(primaryAreaForPath("/insights")).toBe("insights");
+    expect(primaryAreaForPath("/today")).toBe("today");
   });
 
   it("returns null for unknown paths", () => {
@@ -148,10 +161,10 @@ describe("area destinations", () => {
   });
 
   it("resolves the primary destination that anchors an area", () => {
-    expect(areaPrimaryDestination("talk").href).toBe("/chat");
+    expect(areaPrimaryDestination("talk").href).toBe("/talk");
     expect(areaPrimaryDestination("talk").label).toBe("Talk");
-    expect(areaPrimaryDestination("you").href).toBe("/profile");
-    expect(areaPrimaryDestination("insights").href).toBe("/reports");
-    expect(areaPrimaryDestination("today").href).toBe("/");
+    expect(areaPrimaryDestination("you").href).toBe("/you");
+    expect(areaPrimaryDestination("insights").href).toBe("/insights");
+    expect(areaPrimaryDestination("today").href).toBe("/today");
   });
 });

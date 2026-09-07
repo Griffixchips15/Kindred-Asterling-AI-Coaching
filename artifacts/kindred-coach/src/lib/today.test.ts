@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  deriveNextStep,
-  deriveDailyJourney,
-  type TodayInputs,
-} from "./today";
+import { deriveNextStep, deriveDailyJourney, type TodayInputs } from "./today";
 
 function base(overrides: Partial<TodayInputs> = {}): TodayInputs {
   return {
@@ -62,7 +58,9 @@ describe("deriveNextStep", () => {
     const step = deriveNextStep(
       base({
         bodyScansCount: 0,
-        doses: [{ scheduledTime: "08:00", takenAt: "2026-01-15T08:05:00.000Z" }],
+        doses: [
+          { scheduledTime: "08:00", takenAt: "2026-01-15T08:05:00.000Z" },
+        ],
       }),
       at(12),
     );
@@ -108,6 +106,7 @@ describe("deriveNextStep", () => {
   it("shows on-track when everything actionable is complete", () => {
     const step = deriveNextStep(base(), at(12));
     expect(step.kind).toBe("on-track");
+    expect(step.href).toBe("/today");
   });
 
   it("skips the medication step when medication data is unavailable", () => {
@@ -124,10 +123,7 @@ describe("deriveNextStep", () => {
   });
 
   it("treats an empty dose list as having no medication to prompt", () => {
-    const step = deriveNextStep(
-      base({ bodyScansCount: 0, doses: [] }),
-      at(12),
-    );
+    const step = deriveNextStep(base({ bodyScansCount: 0, doses: [] }), at(12));
     expect(step.kind).toBe("body-scan");
   });
 

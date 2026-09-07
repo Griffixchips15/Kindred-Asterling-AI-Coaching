@@ -77,7 +77,7 @@ describe("Login returnTo validation", () => {
       root.render(createElement(Login));
     });
 
-    expect(mocks.fallbackRedirectUrl).toBe("/app");
+    expect(mocks.fallbackRedirectUrl).toBe("/app/today");
   });
 
   it("navigates a signed-in visitor to a safe return destination", async () => {
@@ -99,7 +99,7 @@ describe("Login returnTo validation", () => {
       root.render(createElement(Login));
     });
 
-    expect(mocks.assign).toHaveBeenCalledWith("/app");
+    expect(mocks.assign).toHaveBeenCalledWith("/app/today");
     expect(mocks.assign).not.toHaveBeenCalledWith(
       expect.stringContaining("evil.example.com"),
     );

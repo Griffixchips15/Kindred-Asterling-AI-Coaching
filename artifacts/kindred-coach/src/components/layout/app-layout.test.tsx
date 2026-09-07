@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  location: "/",
+  location: "/today",
   getToken: vi.fn(),
   authUser: null,
 }));
@@ -37,7 +37,9 @@ vi.mock("@workspace/api-client-react", () => ({
 
 vi.mock("@/hooks/use-theme", () => ({
   useTheme: () => ({ theme: "quiet-sage", setTheme: vi.fn() }),
-  THEME_OPTIONS: [{ value: "quiet-sage", label: "Quiet Sage", swatches: ["#000"] }],
+  THEME_OPTIONS: [
+    { value: "quiet-sage", label: "Quiet Sage", swatches: ["#000"] },
+  ],
 }));
 
 vi.mock("@/assets/brand/logo-mark.png", () => ({ default: "logo.png" }));
@@ -50,7 +52,9 @@ function renderAppLayout() {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   const tree = createElement(
     QueryClientProvider,
     { client: queryClient },
@@ -68,7 +72,7 @@ describe("AppLayout", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.location = "/";
+    mocks.location = "/today";
     mocks.authUser = null;
     render = renderAppLayout();
   });
@@ -86,8 +90,9 @@ describe("AppLayout", () => {
 
     const container = render.container;
     for (const area of ["today", "talk", "insights", "you"]) {
-      expect(container.querySelector(`[data-testid="nav-primary-${area}"]`))
-        .not.toBeNull();
+      expect(
+        container.querySelector(`[data-testid="nav-primary-${area}"]`),
+      ).not.toBeNull();
     }
     expect(
       container.querySelectorAll('[data-testid^="nav-primary-"]'),
@@ -95,7 +100,7 @@ describe("AppLayout", () => {
   });
 
   it("marks the active primary destination with aria-current", async () => {
-    mocks.location = "/chat";
+    mocks.location = "/talk";
     await act(async () => {
       render.root.render(render.tree);
     });

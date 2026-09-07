@@ -35,7 +35,7 @@ describe("primary-area destination coherence", () => {
 
   it("Talk: the archive page links back to the conversation", () => {
     const archive = read("archive.tsx");
-    expect(archive).toContain('href="/chat"');
+    expect(archive).toContain('href="/talk"');
     expect(archive).toContain('data-testid="talk-chat-link"');
     expectTouchTargetAndFocusRing(archive, "talk-chat-link");
   });
@@ -50,7 +50,7 @@ describe("primary-area destination coherence", () => {
 
   it("You: the account security page links back to the profile", () => {
     const account = read("account.tsx");
-    expect(account).toContain('href="/profile"');
+    expect(account).toContain('href="/you"');
     expect(account).toContain('data-testid="you-profile-link"');
     expectTouchTargetAndFocusRing(account, "you-profile-link");
   });
