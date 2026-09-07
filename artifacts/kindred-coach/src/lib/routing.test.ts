@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canonicalPathname,
   isSafeReturnDestination,
   resolveReturnDestination,
   buildLoginUrl,
@@ -11,6 +12,19 @@ import {
 // Pure unit tests for the same-origin return-destination helpers. No DOM,
 // router, or browser environment is involved — these assertions describe the
 // exact strings the signed-out auth flow and the pricing checkout CTA produce.
+
+describe("canonicalPathname", () => {
+  it("removes trailing slashes from public and protected routes", () => {
+    expect(canonicalPathname("/legal/privacy/")).toBe("/legal/privacy");
+    expect(canonicalPathname("/legal/terms///")).toBe("/legal/terms");
+    expect(canonicalPathname("/app/calendar/")).toBe("/app/calendar");
+  });
+
+  it("preserves the root and already-canonical paths", () => {
+    expect(canonicalPathname("/")).toBe("/");
+    expect(canonicalPathname("/legal/privacy")).toBe("/legal/privacy");
+  });
+});
 
 describe("isSafeReturnDestination", () => {
   it("accepts clean same-origin absolute paths", () => {
