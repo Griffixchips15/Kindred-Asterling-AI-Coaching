@@ -8,6 +8,16 @@ const DEFAULT_APP_PATH = "/app";
 const DEFAULT_PRICING_PATH = "/pricing";
 
 /**
+ * Keep client-side route matching stable when the static file server resolves
+ * prerendered directories with a trailing slash. The root path is already
+ * canonical and must stay `/`.
+ */
+export function canonicalPathname(pathname: string): string {
+  if (pathname === "/") return pathname;
+  return pathname.replace(/\/+$/, "") || "/";
+}
+
+/**
  * A post-login destination is only trusted when it is a clean, absolute path
  * *within this site*. Anything that could take the browser off-site — a full
  * URL, a scheme-relative `//host`, a `javascript:`/`data:` scheme, backslashes,
