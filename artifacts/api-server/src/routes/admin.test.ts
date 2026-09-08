@@ -5,20 +5,8 @@ import express, {
 } from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { findClerkIdentitiesByEmail } from "../middlewares/authMiddleware";
-import { syncClerkIdentity } from "../lib/clerkIdentity";
+import { db, eq, usersTable } from "@workspace/db";
 import adminRouter from "./admin";
-
-vi.mock("../middlewares/authMiddleware", () => ({
-  findClerkIdentitiesByEmail: vi.fn(),
-}));
-
-vi.mock("../lib/clerkIdentity", () => ({
-  syncClerkIdentity: vi.fn(),
-}));
-
-const findUsersMock = vi.mocked(findClerkIdentitiesByEmail);
-const syncUserMock = vi.mocked(syncClerkIdentity);
 
 function testApp(authenticated: boolean) {
   const app = express();
@@ -47,8 +35,7 @@ describe("admin route mounting", () => {
 
   beforeEach(() => {
     process.env.SUBSCRIPTION_OWNER_EMAILS = "owner@example.com";
-    findUsersMock.mockReset();
-    syncUserMock.mockReset();
+
   });
 
   afterEach(() => {
@@ -60,17 +47,8 @@ describe("admin route mounting", () => {
   });
 
   it("serves the documented /api/admin/users path to an owner", async () => {
-    findUsersMock.mockResolvedValue([
-      {
-        id: "clerk-user-id",
-        email: "reviewer@example.com",
-        firstName: "OAuth",
-        lastName: "Reviewer",
-        profileImageUrl: null,
-        emailVerified: true,
-      },
-    ]);
-    syncUserMock.mockResolvedValue({
+    await db.delete(usersTable).where(eq(usersTable.id, "app-user-id"));
+    await db.insert(usersTable).values({
       id: "app-user-id",
       clerkUserId: "clerk-user-id",
       clerkDeletedAt: null,
@@ -106,10 +84,7 @@ describe("admin route mounting", () => {
         emailVerifiedAt: "2026-09-07T00:00:00.000Z",
       }),
     ]);
-    expect(findUsersMock).toHaveBeenCalledWith("reviewer@example.com");
-    expect(syncUserMock).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "clerk-user-id", imageUrl: null }),
-    );
+
   });
 
   it("rejects anonymous callers on the corrected path", async () => {
@@ -118,6 +93,5 @@ describe("admin route mounting", () => {
     );
 
     expect(response.status).toBe(401);
-    expect(findUsersMock).not.toHaveBeenCalled();
   });
 });

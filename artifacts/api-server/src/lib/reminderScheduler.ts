@@ -9,7 +9,6 @@ import {
   medicationScheduleEntriesTable,
 } from "@workspace/db";
 import { logger } from "./logger";
-import { getClerkIdentity } from "../middlewares/authMiddleware";
 import { isSmsConfigured, sendSms } from "./twilio";
 import { isEmailConfigured, sendEmail } from "./resend";
 
@@ -311,17 +310,14 @@ async function processSettingsBatch(
             timezone: user.timezone,
             phone: user.phone,
             preferredName: user.preferredName,
+            email: user.email,
+            firstName: user.firstName,
           },
         ]
       : [];
   });
 
-  const rowsWithIdentity = await Promise.all(
-    rows.map(async (row) => {
-      const identity = await getClerkIdentity(row.userId);
-      return { ...row, email: identity.email, firstName: identity.firstName };
-    }),
-  );
+  const rowsWithIdentity = rows;
 
   // Compute local time and catch-up window for each user.
   // Also batch fetch medication schedules to avoid N+1 queries.

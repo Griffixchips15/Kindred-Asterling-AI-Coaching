@@ -48,6 +48,7 @@ function table<Row extends Record<string, unknown>>(
 
 export interface User extends Record<string, unknown> {
   id: string;
+  auth0UserId: string | null;
   clerkUserId: string | null;
   clerkDeletedAt: Date | null;
   email: string | null;
@@ -74,6 +75,7 @@ export const usersTable = table<User>(
   "users",
   [
     "id",
+    "auth0UserId",
     "clerkUserId",
     "clerkDeletedAt",
     "email",
@@ -100,6 +102,7 @@ export const usersTable = table<User>(
     uuidField: "id",
     updatedAtField: "updatedAt",
     defaults: {
+      auth0UserId: null,
       clerkUserId: null,
       clerkDeletedAt: null,
       email: null,

@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
@@ -11,7 +11,7 @@ import path from "path";
 const rawPort = process.env.PORT;
 const basePath = process.env.BASE_PATH;
 
-export default defineConfig(({ command }) => {
+export default defineConfig(({ command, mode }) => {
   const isServe = command === "serve";
 
   if (isServe) {
@@ -34,7 +34,16 @@ export default defineConfig(({ command }) => {
   const port = rawPort ? Number(rawPort) : 5173;
   const resolvedBase = basePath ?? "/";
 
+  // Onboarding writes this package's Auth0 public configuration locally.
+  // Other environment variables keep the existing workspace-root precedence.
+  const auth0Env = loadEnv(mode, import.meta.dirname, "VITE_AUTH0_");
   return {
+    define: Object.fromEntries(
+      Object.entries(auth0Env).map(([key, value]) => [
+        `import.meta.env.${key}`,
+        JSON.stringify(process.env[key] ?? value),
+      ]),
+    ),
     base: resolvedBase,
     plugins: [react(), tailwindcss()],
     resolve: {

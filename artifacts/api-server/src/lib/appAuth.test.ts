@@ -1,41 +1,178 @@
-import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { generateKeyPairSync, sign } from "node:crypto";
+import type { Server } from "node:http";
+import express from "express";
+import request from "supertest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { createAuth0Middleware } from "../middlewares/authMiddleware";
+import { IdentityLinkRequiredError } from "./auth0Identity";
 
-describe("app.ts authentication wiring", () => {
-  const app = readFileSync(new URL("../app.ts", import.meta.url), "utf8");
-
-  it("removed the temporary Clerk diagnostics middleware", () => {
-    expect(app).not.toContain("TEMPORARY DEBUG");
-    expect(app).not.toContain("authenticateRequest");
-    expect(app).not.toContain("createClerkClient");
-    expect(app).not.toContain("@clerk/backend");
+const { publicKey, privateKey } = generateKeyPairSync("rsa", {
+  modulusLength: 2048,
+});
+const audience = "https://kindred.test/api";
+let issuer: string;
+let server: Server;
+const syncIdentity = vi.fn();
+const profileFetch = vi.fn();
+let app: ReturnType<typeof express>;
+function token(claims: Record<string, unknown> = {}) {
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(
+    JSON.stringify({ alg: "RS256", typ: "JWT", kid: "test-key" }),
+  ).toString("base64url");
+  const body = Buffer.from(
+    JSON.stringify({
+      iss: issuer,
+      aud: audience,
+      sub: "auth0|user-1",
+      iat: now,
+      exp: now + 300,
+      ...claims,
+    }),
+  ).toString("base64url");
+  const input = `${header}.${body}`;
+  return `${input}.${sign("RSA-SHA256", Buffer.from(input), privateKey).toString("base64url")}`;
+}
+beforeAll(async () => {
+  const discovery = express();
+  discovery.get("/.well-known/openid-configuration", (_req, res) =>
+    res.json({
+      issuer,
+      jwks_uri: `${issuer}.well-known/jwks.json`,
+      id_token_signing_alg_values_supported: ["RS256"],
+    }),
+  );
+  discovery.get("/.well-known/jwks.json", (_req, res) =>
+    res.json({
+      keys: [
+        {
+          ...publicKey.export({ format: "jwk" }),
+          kid: "test-key",
+          alg: "RS256",
+          use: "sig",
+        },
+      ],
+    }),
+  );
+  server = await new Promise<Server>((resolve) => {
+    const running = discovery.listen(0, "127.0.0.1", () => resolve(running));
   });
-
-  it("authenticates through the single production Clerk path", () => {
-    expect(app).toContain('import { clerkMiddleware } from "@clerk/express"');
-    expect(app).toContain("clerkMiddleware({");
-    expect(app).toContain("app.use(authMiddleware)");
-    expect(app).toContain("app.use(testClerkIdentityAdapter)");
+  const address = server.address();
+  if (!address || typeof address === "string")
+    throw new Error("Missing test server address");
+  issuer = `http://127.0.0.1:${address.port}/`;
+  app = express();
+  app.use(
+    createAuth0Middleware({
+      issuerBaseURL: issuer,
+      audience,
+      syncIdentity,
+      profileFetch,
+    }),
+  );
+  app.get("/public", (_req, res) => res.sendStatus(200));
+  app.get("/private", (req, res) =>
+    req.isAuthenticated()
+      ? res.json({ id: req.user!.id })
+      : res.sendStatus(401),
+  );
+});
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) =>
+    server.close((err) => (err ? reject(err) : resolve())),
+  );
+});
+beforeEach(() => {
+  vi.clearAllMocks();
+  profileFetch.mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        sub: "auth0|user-1",
+        email: "person@example.test",
+        email_verified: true,
+      }),
+      { status: 200 },
+    ),
+  );
+  syncIdentity.mockResolvedValue({
+    id: "stable-kindred-id",
+    email: "person@example.test",
+    firstName: null,
+    lastName: null,
+    profileImageUrl: null,
+    emailVerifiedAt: new Date(),
   });
-
-  it("keeps health routes public and ahead of Clerk", () => {
-    const healthIndex = app.indexOf('app.use("/api", healthRouter)');
-    const clerkIndex = app.indexOf("clerkMiddleware({");
-    expect(healthIndex).toBeGreaterThanOrEqual(0);
-    expect(clerkIndex).toBeGreaterThan(0);
-    expect(healthIndex).toBeLessThan(clerkIndex);
+});
+describe("Auth0 API authentication", () => {
+  it("keeps public routes open while protecting user routes", async () => {
+    expect((await request(app).get("/public")).status).toBe(200);
+    expect((await request(app).get("/private")).status).toBe(401);
+    expect(profileFetch).not.toHaveBeenCalled();
   });
-
-  it("does not log tokens, authorization headers, or raw Clerk state", () => {
-    const auth = readFileSync(
-      new URL("../middlewares/authMiddleware.ts", import.meta.url),
-      "utf8",
+  it("validates a signed access token and uses the stable application identity", async () => {
+    const response = await request(app)
+      .get("/private")
+      .auth(token(), { type: "bearer" });
+    expect(response.status).toBe(200);
+    expect(response.body.id).toBe("stable-kindred-id");
+    expect(syncIdentity).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "auth0|user-1", emailVerified: true }),
     );
-
-    // The removed debug middleware was the only place that serialised the full
-    // Clerk request state; the remaining auth logging uses abstract fields only.
-    expect(app).not.toContain("logger.warn({ state }");
-    expect(auth).not.toMatch(/req\.headers/);
-    expect(auth).not.toMatch(/authorization/i);
+  });
+  it.each([
+    ["wrong issuer", { iss: "https://attacker.invalid/" }],
+    ["wrong audience", { aud: "other-api" }],
+    ["ID token audience", { aud: "spa-client-id" }],
+    ["expired token", { exp: 1 }],
+    ["missing subject", { sub: undefined }],
+    ["machine identity", { sub: "client@clients" }],
+  ])("rejects %s before fetching a profile", async (_name, claims) => {
+    expect(
+      (
+        await request(app)
+          .get("/private")
+          .auth(token(claims), { type: "bearer" })
+      ).status,
+    ).toBe(401);
+    expect(profileFetch).not.toHaveBeenCalled();
+    expect(syncIdentity).not.toHaveBeenCalled();
+  });
+  it("rejects a forged signature", async () => {
+    const signed = token().split(".");
+    signed[2] = Buffer.alloc(256).toString("base64url");
+    expect(
+      (
+        await request(app)
+          .get("/private")
+          .auth(signed.join("."), { type: "bearer" })
+      ).status,
+    ).toBe(401);
+    expect(syncIdentity).not.toHaveBeenCalled();
+  });
+  it("rejects a profile belonging to another subject", async () => {
+    profileFetch.mockResolvedValue(
+      new Response(JSON.stringify({ sub: "auth0|other" })),
+    );
+    expect(
+      (await request(app).get("/private").auth(token(), { type: "bearer" }))
+        .status,
+    ).toBe(503);
+    expect(syncIdentity).not.toHaveBeenCalled();
+  });
+  it("returns an actionable conflict when the existing account needs migration", async () => {
+    syncIdentity.mockRejectedValueOnce(new IdentityLinkRequiredError());
+    const response = await request(app)
+      .get("/private")
+      .auth(token(), { type: "bearer" });
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe("account_link_required");
   });
 });

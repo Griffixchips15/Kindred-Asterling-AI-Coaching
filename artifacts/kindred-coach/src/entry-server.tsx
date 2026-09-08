@@ -1,7 +1,7 @@
 import { renderToString } from "react-dom/server";
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ClerkProvider } from "@clerk/clerk-react";
+import { PublicAuthProvider } from "@/lib/auth";
 import { Router } from "wouter";
 import { PublicLayout } from "@/components/layout/public-layout";
 import Landing from "@/pages/public/landing";
@@ -80,19 +80,11 @@ export function render(url: string): string {
 
   return renderToString(
     <QueryClientProvider client={queryClient}>
-      <ClerkProvider
-        publishableKey={
-          // Public SSR still needs Clerk context for the pricing CTA. This is a
-          // syntactically valid, non-secret test key used only when no real
-          // frontend key is supplied to the build.
-          import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ||
-          "pk_test_Y2xlcmsuZGV2JA=="
-        }
-      >
+      <PublicAuthProvider>
         <Router hook={hook}>
           <PublicLayout>{pageContent}</PublicLayout>
         </Router>
-      </ClerkProvider>
+      </PublicAuthProvider>
     </QueryClientProvider>,
   );
 }

@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { useAuth } from "@clerk/clerk-react";
+import { useAuth } from "@/lib/auth";
 
 // Helcim redirects here after a successful payment. Entitlement is granted
 // asynchronously (Helcim webhook → cached subscription row), so we give the user

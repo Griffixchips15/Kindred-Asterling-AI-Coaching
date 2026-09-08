@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getGetUpcomingCalendarEventsQueryKey } from "@workspace/api-client-react";
 
 const auth = vi.hoisted(() => ({ getToken: vi.fn(async () => "test-token") }));
-vi.mock("@clerk/clerk-react", () => ({ useAuth: () => auth }));
+vi.mock("@/lib/auth", () => ({ useAuth: () => auth }));
 import CalendarPage from "./calendar";
 
 let root: Root;

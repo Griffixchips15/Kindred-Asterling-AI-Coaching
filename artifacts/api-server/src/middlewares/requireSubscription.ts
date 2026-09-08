@@ -27,7 +27,7 @@ export function requireSubscription(
     return;
   }
 
-  resolveSubscription({ id: user.id, email: user.email })
+  resolveSubscription({ id: user.id, email: user.email, emailVerified: user.emailVerified })
     .then((status) => {
       if (status.active) {
         next();

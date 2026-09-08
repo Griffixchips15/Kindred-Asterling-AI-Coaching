@@ -25,14 +25,6 @@ vi.mock("./resend", () => ({
   isEmailConfigured: vi.fn(() => true),
   sendEmail: vi.fn(async () => true),
 }));
-vi.mock("../middlewares/authMiddleware", () => ({
-  getClerkIdentity: vi.fn(async () => ({
-    email: "test@example.com",
-    firstName: "Test",
-    profileImageUrl: null,
-    emailVerified: true,
-  })),
-}));
 
 import * as twilio from "./twilio";
 import * as resend from "./resend";
@@ -68,7 +60,7 @@ async function deliveryCount(): Promise<number> {
 beforeAll(async () => {
   await db
     .insert(usersTable)
-    .values({ id: userId, phone: "+15551234567", timezone: TZ })
+    .values({ id: userId, email, firstName: "Test", phone: "+15551234567", timezone: TZ })
     .onConflictDoNothing({ target: usersTable.id });
 });
 

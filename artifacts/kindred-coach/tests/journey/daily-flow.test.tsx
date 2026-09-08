@@ -11,19 +11,20 @@ import {
 import api from "../../../api-server/src/app";
 
 const auth = vi.hoisted(() => {
-  vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "pk_test_Y2xlcmsuZGV2JA==");
   return { token: "", getToken: async () => auth.token };
 });
-vi.mock("@clerk/clerk-react", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@clerk/clerk-react")>()),
-  ClerkProvider: ({ children }: any) => children,
+vi.mock("@/lib/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/auth")>()),
+  AuthProvider: ({ children }: { children: import("react").ReactNode }) => children,
   useAuth: () => ({
     isLoaded: true,
     isSignedIn: true,
+    user: { id: "journey-test", firstName: null, email: "journey@example.test" },
+    error: undefined,
     getToken: auth.getToken,
     signOut: vi.fn(),
+    login: vi.fn(),
   }),
-  useSession: () => ({ isLoaded: true, session: { status: "active" } }),
 }));
 import App from "../../src/App";
 

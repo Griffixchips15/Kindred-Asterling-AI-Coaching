@@ -73,41 +73,4 @@ describe("explicit Clerk identity mapping", () => {
     expect(source).not.toMatch(/delete\(usersTable\)/);
   });
 
-  it("uses the same transactional sync when auth beats the creation webhook", () => {
-    const auth = readFileSync(
-      new URL("../middlewares/authMiddleware.ts", import.meta.url),
-      "utf8",
-    );
-    const webhook = readFileSync(
-      new URL("../routes/clerk-webhook.ts", import.meta.url),
-      "utf8",
-    );
-    expect(auth).toContain("await syncClerkIdentity(clerkUser)");
-    expect(webhook).toContain("await syncClerkIdentity({");
-  });
-
-  it("uses Clerk's supported Express middleware for production sessions", () => {
-    const app = readFileSync(new URL("../app.ts", import.meta.url), "utf8");
-    const auth = readFileSync(
-      new URL("../middlewares/authMiddleware.ts", import.meta.url),
-      "utf8",
-    );
-
-    expect(app).toContain('import { clerkMiddleware } from "@clerk/express"');
-    expect(app).toContain("clerkMiddleware({");
-    expect(app.indexOf("clerkMiddleware({")).toBeLessThan(
-      app.indexOf("app.use(\n  helmet({"),
-    );
-    expect(app).not.toContain("expressWithAuth");
-    expect(auth).toContain('import { getAuth } from "@clerk/express"');
-    expect(auth).toContain("const auth = getAuth(req)");
-    expect(auth).toContain("const { userId } = auth");
-    expect(auth).toContain('typeof debug.reason === "string"');
-    expect(auth).toContain("treatPendingAsSignedOut: false");
-    expect(auth).toContain(
-      "pendingSessionHasUser: Boolean(pendingAuth.userId)",
-    );
-    expect(auth).not.toContain("...auth.debug()");
-    expect(auth).not.toContain("WithAuthProp");
-  });
 });

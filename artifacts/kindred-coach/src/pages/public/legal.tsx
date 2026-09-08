@@ -217,7 +217,7 @@ const privacySections: LegalSection[] = [
       ),
       list(
         [
-          "Account & Authentication Data: Email address, user identification tokens, account verification status, and name provided through our authentication partner, Clerk.",
+          "Account & Authentication Data: Email address, user identification tokens, account verification status, and name provided through our authentication partner, Auth0.",
           "Wellness, Reflection & Coaching Data: Self-submitted morning check-ins, evening reflections, mood scores, body scan notes, habit records, medication logs, personal goals, and chat interactions with the coaching AI.",
           "Retired Calendar Integration: Kindred no longer connects to Google Calendar or retrieves event information. Previously saved encrypted connection tokens remain available for user-initiated disconnection pending a connection audit.",
           "Subscription & Transaction Data: Payment references, plan tiers (Yearly or Lifetime Access), and transaction IDs processed securely through Helcim. We do not store or process raw credit card numbers.",
@@ -253,7 +253,7 @@ const privacySections: LegalSection[] = [
       list([
         "AI Inference Engine: Amazon Web Services (AWS) Bedrock (USA / Canada) - zero-retention enterprise inference for model execution.",
         "Cloud Hosting & Infrastructure: Contabo GmbH (Munich, Germany) - secure VPS infrastructure and database management.",
-        "Authentication & Identity: Clerk (USA / Global) - secure session management.",
+        "Authentication & Identity: Auth0 (USA / Global) - secure session management.",
         "Payment Processing: Helcim (Calgary, AB, Canada) - PCI-DSS compliant checkout and subscription billing.",
         "Communications: Resend (transactional email), Twilio (SMS reminders, where enabled), and ElevenLabs (voice synthesis, where enabled).",
       ]),
@@ -591,7 +591,7 @@ const cookieSections: LegalSection[] = [
         "These technologies are essential for the operation, integrity, and security of the platform. The platform cannot function securely without them.",
       ),
       list([
-        "Clerk Authentication: Session cookies and local storage tokens utilized to maintain authenticated user sessions, verify identity, and defend against cross-site request forgery (CSRF).",
+        "Auth0 Authentication: Session cookies and local storage tokens utilized to maintain authenticated user sessions, verify identity, and defend against cross-site request forgery (CSRF).",
         "Hosting & Infrastructure Security: Technical routing, SSL termination, and DDoS protection headers set by our hosting and edge infrastructure (Contabo GmbH / Cloudflare).",
       ]),
       subheading("B. Functional & Interface Preference Storage"),
@@ -891,7 +891,7 @@ export function CookieNotice() {
         {
           heading: "Essential technologies",
           content: list([
-            "Clerk authentication/session technologies used to keep users signed in and protect account requests.",
+            "Auth0 authentication/session technologies used to keep users signed in and protect account requests.",
             "Browser storage used for interface preferences such as theme, where supported.",
             "Security, load-balancing, or hosting cookies that may be set by the production platform and must be inventoried before launch.",
           ]),
@@ -932,7 +932,7 @@ export function CookieNotice() {
           content: (
             <Confirmation>
               Inspect production response headers and browser storage, identify
-              cookie names, providers, and lifetimes, confirm Clerk and hosting
+              cookie names, providers, and lifetimes, confirm Auth0 and hosting
               behavior, and determine whether a consent manager is required in
               each supported launch location.
             </Confirmation>

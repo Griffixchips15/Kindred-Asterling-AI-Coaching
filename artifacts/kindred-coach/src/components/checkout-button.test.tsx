@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   authState: { isLoaded: true, isSignedIn: true },
 }));
 
-vi.mock("@clerk/clerk-react", () => ({
+vi.mock("@/lib/auth", () => ({
   useAuth: () => ({
     getToken: mocks.getToken,
     isLoaded: mocks.authState.isLoaded,

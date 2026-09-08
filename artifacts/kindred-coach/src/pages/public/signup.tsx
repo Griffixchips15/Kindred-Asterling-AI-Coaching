@@ -1,11 +1,11 @@
-import { SignUp, useUser } from "@clerk/clerk-react";
+import { useAuth } from "@/lib/auth";
 import { useEffect } from "react";
 import { useSearch } from "wouter";
 import logoPoster from "@/assets/brand/logo-poster.jpg";
 import { resolveReturnDestination } from "@/lib/routing";
 
 export default function Signup() {
-  const { isSignedIn, isLoaded } = useUser();
+  const { isSignedIn, isLoaded, login, error } = useAuth();
   const params = new URLSearchParams(useSearch());
   const returnTo = resolveReturnDestination(params.get("returnTo"));
   const signInUrl = `/login?returnTo=${encodeURIComponent(returnTo)}`;
@@ -26,11 +26,13 @@ export default function Signup() {
         className="hidden w-48 rounded-2xl shadow-2xl ring-1 ring-border/40 lg:block"
       />
       <div className="w-full max-w-md">
-        <SignUp
-          routing="hash"
-          signInUrl={signInUrl}
-          fallbackRedirectUrl={returnTo}
-        />
+        <h1 className="mb-4 text-2xl font-serif">Create your account</h1>
+        <p className="mb-6 text-muted-foreground">Continue securely with Auth0.</p>
+        {error && <p role="alert" className="mb-4 text-destructive">Sign-in could not be completed. Please try again.</p>}
+        <button className="w-full rounded-lg bg-primary px-4 py-3 text-primary-foreground" onClick={() => void login(returnTo, true)}>
+          Create your account
+        </button>
+        <a className="mt-4 block underline" href={signInUrl}> Already have an account? Sign in</a>
       </div>
     </div>
   );
