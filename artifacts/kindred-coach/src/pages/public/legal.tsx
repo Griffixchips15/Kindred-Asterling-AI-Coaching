@@ -17,7 +17,6 @@ interface LegalPageProps {
   summary: string;
   governingLaw?: string;
   pdfHref?: string;
-  published?: boolean;
   sections: LegalSection[];
 }
 
@@ -118,7 +117,6 @@ function LegalPage({
   summary,
   governingLaw,
   pdfHref,
-  published = false,
   sections,
 }: LegalPageProps) {
   const metadata = [
