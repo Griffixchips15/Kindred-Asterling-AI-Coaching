@@ -1,4 +1,5 @@
 import {
+  getGetTodaySummaryQueryKey,
   useListHabits,
   useCreateHabit,
   useDeleteHabit,
@@ -60,6 +61,7 @@ function HabitCard({ habit, streaks }: { habit: any; streaks: any[] }) {
           queryClient.invalidateQueries({ queryKey: getListHabitEntriesQueryKey(habit.id) });
           queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetStreaksQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetTodaySummaryQueryKey() });
         },
       }
     );
@@ -73,6 +75,7 @@ function HabitCard({ habit, streaks }: { habit: any; streaks: any[] }) {
           toast({ title: "Habit removed" });
           queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetStreaksQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetTodaySummaryQueryKey() });
         },
       }
     );
@@ -181,6 +184,7 @@ export default function Habits() {
           toast({ title: "Habit created", description: `${newName} added to your tracker.` });
           queryClient.invalidateQueries({ queryKey: getListHabitsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetStreaksQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetTodaySummaryQueryKey() });
           setNewName("");
           setNewDescription("");
           setTargetDays("90");

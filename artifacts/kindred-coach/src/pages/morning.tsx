@@ -72,7 +72,7 @@ export default function Morning() {
     createLog.mutate(
       {
         data: {
-          date: new Date().toISOString(),
+          date: today,
           mentalLoadLevel: data.mentalLoadLevel,
           miniGoals,
           notes: data.notes,

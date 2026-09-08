@@ -14,10 +14,23 @@ const router: IRouter = Router();
 
 router.get("/dashboard/today", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
-  const today = new Date().toISOString().split("T")[0];
+  // Match the device-local day used by journal forms and medication status.
+  const rawOffset = Number(req.query.tzOffset ?? 0);
+  const offset = Number.isFinite(rawOffset)
+    ? Math.max(-840, Math.min(840, Math.trunc(rawOffset)))
+    : 0;
+  const today = new Date(Date.now() - offset * 60_000)
+    .toISOString()
+    .split("T")[0];
   const todayStart = new Date(`${today}T00:00:00.000Z`);
   const tomorrowStart = new Date(todayStart);
   tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
+
+  const tomorrow = tomorrowStart.toISOString().split("T")[0];
+  // Date fields historically contain both YYYY-MM-DD and ISO timestamps.
+  // Match either representation without rewriting existing journal records.
+  const scanStart = new Date(todayStart.getTime() + offset * 60_000);
+  const scanEnd = new Date(tomorrowStart.getTime() + offset * 60_000);
 
   const [morningLog] = await db
     .select()
@@ -25,7 +38,8 @@ router.get("/dashboard/today", requireAuth, async (req, res): Promise<void> => {
     .where(
       and(
         eq(morningLogsTable.userId, userId),
-        eq(morningLogsTable.date, today),
+        gte(morningLogsTable.date, today),
+        lt(morningLogsTable.date, tomorrow),
       ),
     )
     .limit(1);
@@ -36,7 +50,8 @@ router.get("/dashboard/today", requireAuth, async (req, res): Promise<void> => {
     .where(
       and(
         eq(eveningReportsTable.userId, userId),
-        eq(eveningReportsTable.date, today),
+        gte(eveningReportsTable.date, today),
+        lt(eveningReportsTable.date, tomorrow),
       ),
     )
     .limit(1);
@@ -45,8 +60,8 @@ router.get("/dashboard/today", requireAuth, async (req, res): Promise<void> => {
     bodyScansTable,
     and(
       eq(bodyScansTable.userId, userId),
-      gte(bodyScansTable.scannedAt, todayStart),
-      lt(bodyScansTable.scannedAt, tomorrowStart),
+      gte(bodyScansTable.scannedAt, scanStart),
+      lt(bodyScansTable.scannedAt, scanEnd),
     ),
   );
 
@@ -63,7 +78,8 @@ router.get("/dashboard/today", requireAuth, async (req, res): Promise<void> => {
           .from(habitEntriesTable)
           .where(
             and(
-              eq(habitEntriesTable.date, today),
+              gte(habitEntriesTable.date, today),
+              lt(habitEntriesTable.date, tomorrow),
               eq(habitEntriesTable.completed, true),
               inArray(habitEntriesTable.habitId, habitIds),
             ),

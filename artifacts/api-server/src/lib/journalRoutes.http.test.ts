@@ -433,3 +433,101 @@ describe("PATCH /profile", () => {
     expect(row.bio).toBe("first");
   });
 });
+
+describe("Today progression after journal saves", () => {
+  it.each(["2026-09-08", "2026-09-08T09:30:00.000Z"])(
+    "recognizes a saved morning check-in with date %s",
+    async (date) => {
+      const clock = vi
+        .spyOn(Date, "now")
+        .mockReturnValue(Date.parse("2026-09-08T12:00:00Z"));
+      try {
+        const before = await api("GET", "/dashboard/today", { token: tokenA });
+        expect(before.body).toMatchObject({ morningDone: false });
+        const saved = await api("POST", "/morning-logs", {
+          token: tokenA,
+          body: { date, mentalLoadLevel: "clear", miniGoals: ["test goal"] },
+        });
+        expect(saved.status).toBe(201);
+        const after = await api("GET", "/dashboard/today", { token: tokenA });
+        expect(after.status).toBe(200);
+        expect(after.body).toMatchObject({
+          morningDone: true,
+          currentMentalLoad: "clear",
+        });
+        const otherUser = await api("GET", "/dashboard/today", {
+          token: tokenB,
+        });
+        expect(otherUser.body).toMatchObject({ morningDone: false });
+      } finally {
+        clock.mockRestore();
+      }
+    },
+  );
+
+  it.each([
+    [360, "2026-09-09T02:00:00Z", "2026-09-08", "2026-09-08T06:00:00Z"],
+    [-600, "2026-09-08T18:00:00Z", "2026-09-09", "2026-09-08T14:00:00Z"],
+  ])(
+    "uses the local day with offset %s for the entire journey",
+    async (offset, now, day, start) => {
+      const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse(now));
+      try {
+        await api("POST", "/morning-logs", {
+          token: tokenA,
+          body: { date: day, mentalLoadLevel: "mild", miniGoals: [] },
+        });
+        await api("POST", "/evening-reports", {
+          token: tokenA,
+          body: { date: day, medicationEffectiveness: 5 },
+        });
+        const habit = await api("POST", "/habits", {
+          token: tokenA,
+          body: { name: "test habit", targetDays: 7, startDate: day },
+        });
+        expect(habit.status).toBe(201);
+        await api(
+          "POST",
+          `/habits/${(habit.body as { id: number }).id}/entries`,
+          { token: tokenA, body: { date: day, completed: true } },
+        );
+        const startMs = Date.parse(start);
+        await db.insert(bodyScansTable).values(
+          [
+            startMs - 1,
+            startMs,
+            startMs + 86400000 - 1,
+            startMs + 86400000,
+          ].map((ms) => ({
+            userId: userAId,
+            scannedAt: new Date(ms),
+            feelings: [],
+            energyLevel: 5,
+          })),
+        );
+        const summary = await api(
+          "GET",
+          `/dashboard/today?tzOffset=${offset}`,
+          { token: tokenA },
+        );
+        expect(summary.status).toBe(200);
+        expect(summary.body).toMatchObject({
+          date: day,
+          morningDone: true,
+          eveningDone: true,
+          bodyScansCount: 2,
+          habitsCompletedToday: 1,
+          totalHabits: 1,
+        });
+        const utc = await api("GET", "/dashboard/today", { token: tokenA });
+        expect(utc.body).toMatchObject({
+          morningDone: false,
+          eveningDone: false,
+          habitsCompletedToday: 0,
+        });
+      } finally {
+        clock.mockRestore();
+      }
+    },
+  );
+});

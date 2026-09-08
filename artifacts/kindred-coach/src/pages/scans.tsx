@@ -1,4 +1,5 @@
 import {
+  getGetTodaySummaryQueryKey,
   useCreateBodyScan,
   useListBodyScans,
   getListBodyScansQueryKey,
@@ -85,6 +86,7 @@ export default function Scans() {
           queryClient.invalidateQueries({
             queryKey: getListBodyScansQueryKey(),
           });
+          queryClient.invalidateQueries({ queryKey: getGetTodaySummaryQueryKey() });
           setSelectedFeelings([]);
           setQuery("");
           setEnergyLevel(5);

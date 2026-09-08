@@ -50,12 +50,13 @@ import {
 } from "@/lib/today";
 
 export default function Dashboard() {
+  const todayParams = { tzOffset: new Date().getTimezoneOffset() };
   const {
     data: summary,
     isLoading: isLoadingSummary,
     isError: summaryError,
     refetch: refetchSummary,
-  } = useGetTodaySummary({ query: { queryKey: getGetTodaySummaryQueryKey() } });
+  } = useGetTodaySummary(todayParams, { query: { queryKey: getGetTodaySummaryQueryKey(todayParams) } });
   const {
     data: streaks,
     isLoading: isLoadingStreaks,
