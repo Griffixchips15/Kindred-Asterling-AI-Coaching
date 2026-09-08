@@ -12,6 +12,7 @@ import {
   Route,
   Router as WouterRouter,
   useLocation,
+  useSearch,
 } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -51,7 +52,12 @@ import Signup from "@/pages/public/signup";
 import Account from "@/pages/account";
 import AdminBeta from "@/pages/admin-beta";
 import { ThemeProvider } from "@/hooks/use-theme";
-import { protectedRouteLoginTarget } from "@/lib/routing";
+import {
+  canonicalPathname,
+  protectedRouteLoginTarget,
+  PRIVATE_ROUTE_PATTERN,
+} from "@/lib/routing";
+import { SignedInMetadata } from "@/components/signed-in-metadata";
 import { LEGACY_PRIMARY_ROUTE_REDIRECTS } from "@/lib/navigation";
 import {
   AIUseDisclosure,
@@ -121,16 +127,20 @@ function PrivateRoutes() {
   const sessionStatus = session?.status;
   const tokenBridgeReady = useContext(AuthTokenReadyContext);
   const [location, setLocation] = useLocation();
+  const search = useSearch();
 
   useEffect(() => {
     if (isLoaded && sessionStatus !== "pending" && !isSignedIn) {
-      // `location` is relative to the enclosing `/app` router, so the intended
-      // protected destination is `/app` + `location`. The `~` escape navigates
-      // to the *top-level* public `/login` route (not the non-existent
-      // `/app/login`) while preserving the destination as a validated returnTo.
-      setLocation(`~${protectedRouteLoginTarget(location)}`, { replace: true });
+      setLocation(
+        protectedRouteLoginTarget(
+          window.location.pathname +
+            window.location.search +
+            window.location.hash,
+        ),
+        { replace: true },
+      );
     }
-  }, [isLoaded, isSignedIn, sessionStatus, location, setLocation]);
+  }, [isLoaded, isSignedIn, sessionStatus, location, search, setLocation]);
 
   if (sessionStatus === "pending") return <RedirectToTasks />;
 
@@ -141,6 +151,17 @@ function PrivateRoutes() {
     return null;
   }
 
+  const canonical = LEGACY_PRIMARY_ROUTE_REDIRECTS[canonicalPathname(location)];
+  if (canonical) {
+    return (
+      <Redirect
+        to={`${canonical}${window.location.search}${window.location.hash}`}
+        replace
+        state={window.history.state}
+      />
+    );
+  }
+
   return (
     <AppLayout>
       <Switch>
@@ -148,23 +169,16 @@ function PrivateRoutes() {
         <Route path="/talk" component={Chat} />
         <Route path="/insights" component={Reports} />
         <Route path="/you" component={Profile} />
-        <Route path="/morning" component={Morning} />
-        <Route path="/scans" component={Scans} />
-        <Route path="/evening" component={Evening} />
-        <Route path="/habits" component={Habits} />
-        <Route path="/medications" component={Medications} />
-        <Route path="/account" component={Account} />
-        <Route path="/admin/beta" component={AdminBeta} />
-        <Route path="/calendar" component={CalendarPage} />
-        <Route path="/archive" component={Archive} />
-        <Route path="/reminders" component={Reminders} />
-        {Object.entries(LEGACY_PRIMARY_ROUTE_REDIRECTS).map(
-          ([legacyPath, canonicalPath]) => (
-            <Route key={legacyPath} path={legacyPath}>
-              <Redirect to={canonicalPath} replace />
-            </Route>
-          ),
-        )}
+        <Route path="/app/morning" component={Morning} />
+        <Route path="/app/scans" component={Scans} />
+        <Route path="/app/evening" component={Evening} />
+        <Route path="/app/habits" component={Habits} />
+        <Route path="/app/medications" component={Medications} />
+        <Route path="/app/account" component={Account} />
+        <Route path="/app/admin/beta" component={AdminBeta} />
+        <Route path="/app/calendar" component={CalendarPage} />
+        <Route path="/app/archive" component={Archive} />
+        <Route path="/app/reminders" component={Reminders} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
@@ -182,7 +196,7 @@ function SessionTaskShell({ children }: { children: ReactNode }) {
 function ChooseOrganizationTask() {
   return (
     <SessionTaskShell>
-      <TaskChooseOrganization redirectUrlComplete="/app/today" />
+      <TaskChooseOrganization redirectUrlComplete="/today" />
     </SessionTaskShell>
   );
 }
@@ -190,7 +204,7 @@ function ChooseOrganizationTask() {
 function ResetPasswordTask() {
   return (
     <SessionTaskShell>
-      <TaskResetPassword redirectUrlComplete="/app/today" />
+      <TaskResetPassword redirectUrlComplete="/today" />
     </SessionTaskShell>
   );
 }
@@ -198,7 +212,7 @@ function ResetPasswordTask() {
 function SetupMfaTask() {
   return (
     <SessionTaskShell>
-      <TaskSetupMFA redirectUrlComplete="/app/today" />
+      <TaskSetupMFA redirectUrlComplete="/today" />
     </SessionTaskShell>
   );
 }
@@ -267,6 +281,7 @@ function App() {
           <ThemeProvider>
             <TooltipProvider>
               <WouterRouter base={base}>
+                <SignedInMetadata />
                 <Switch>
                   <Route path="/" component={PublicRoutes} />
                   <Route path="/about" component={PublicRoutes} />
@@ -287,7 +302,10 @@ function App() {
                     path="/app/session-tasks/setup-mfa"
                     component={SetupMfaTask}
                   />
-                  <Route path="/app" nest component={PrivateRoutes} />
+                  <Route
+                    path={PRIVATE_ROUTE_PATTERN}
+                    component={PrivateRoutes}
+                  />
                   <Route component={NotFound} />
                 </Switch>
               </WouterRouter>

@@ -62,12 +62,10 @@ describe("isSafeReturnDestination", () => {
 });
 
 describe("resolveReturnDestination", () => {
-  it("falls back to canonical /app/today when no safe destination is supplied", () => {
-    expect(resolveReturnDestination(null)).toBe("/app/today");
-    expect(resolveReturnDestination("https://evil.example.com")).toBe(
-      "/app/today",
-    );
-    expect(resolveReturnDestination("//evil.example.com")).toBe("/app/today");
+  it("falls back to canonical /today when no safe destination is supplied", () => {
+    expect(resolveReturnDestination(null)).toBe("/today");
+    expect(resolveReturnDestination("https://evil.example.com")).toBe("/today");
+    expect(resolveReturnDestination("//evil.example.com")).toBe("/today");
   });
 
   it("preserves a validated same-origin return destination", () => {
@@ -88,50 +86,42 @@ describe("buildLoginUrl", () => {
   });
 
   it("keeps the target on the public /login route (not /app/login)", () => {
-    const url = buildLoginUrl("/app/today");
+    const url = buildLoginUrl("/today");
     expect(url.startsWith("/login?")).toBe(true);
     expect(url).not.toMatch(/^\/app\/login/);
   });
 
-  it("rejects an external return destination and falls back to /app/today", () => {
+  it("rejects an external return destination and falls back to /today", () => {
     expect(buildLoginUrl("https://evil.example.com/pricing")).toBe(
-      "/login?returnTo=%2Fapp%2Ftoday",
+      "/login?returnTo=%2Ftoday",
     );
     expect(buildLoginUrl("//evil.example.com")).toBe(
-      "/login?returnTo=%2Fapp%2Ftoday",
+      "/login?returnTo=%2Ftoday",
     );
   });
 });
 
-describe("protectedDestination", () => {
-  it("maps the app root to canonical /app/today", () => {
-    expect(protectedDestination("/")).toBe("/app/today");
-    expect(protectedDestination(undefined)).toBe("/app/today");
-  });
-
-  it("maps a relative app route to its absolute protected path", () => {
-    expect(protectedDestination("/morning")).toBe("/app/morning");
-    expect(protectedDestination("/chat")).toBe("/app/chat");
-  });
-
-  it("tolerates a missing leading slash", () => {
-    expect(protectedDestination("morning")).toBe("/app/morning");
-  });
-});
-
-describe("protectedRouteLoginTarget", () => {
-  it("sends a signed-out protected-route visitor to public /login", () => {
-    const target = protectedRouteLoginTarget("/morning");
-    expect(target.startsWith("/login?")).toBe(true);
-    expect(target).not.toMatch(/^\/app\/login/);
-  });
-
-  it("preserves the requested protected destination as returnTo", () => {
-    expect(protectedRouteLoginTarget("/morning")).toBe(
-      "/login?returnTo=%2Fapp%2Fmorning",
+describe("protected destinations", () => {
+  it.each([
+    "/today",
+    "/talk?session=abc#reply",
+    "/insights",
+    "/you",
+    "/app",
+    "/app/chat?session=abc#reply",
+    "/app/calendar?connected=true",
+    "/app/account#security",
+  ])("preserves %s through login", (path) => {
+    expect(protectedDestination(path)).toBe(path);
+    expect(protectedRouteLoginTarget(path)).toBe(
+      `/login?returnTo=${encodeURIComponent(path)}`,
     );
-    expect(protectedRouteLoginTarget("/")).toBe(
-      "/login?returnTo=%2Fapp%2Ftoday",
+  });
+
+  it("defaults missing destinations to Today", () => {
+    expect(protectedDestination(undefined)).toBe("/today");
+    expect(protectedRouteLoginTarget(undefined)).toBe(
+      "/login?returnTo=%2Ftoday",
     );
   });
 });

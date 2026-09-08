@@ -1,22 +1,19 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  getGetUpcomingCalendarEventsQueryKey,
   useGetCurrentAuthUser,
   getGetCurrentAuthUserQueryKey,
   updateProfile,
   useGetTodayAffirmation,
   getGetTodayAffirmationQueryKey,
 } from "@workspace/api-client-react";
-import { useAuth, useUser } from "@clerk/clerk-react";
+import { useUser } from "@clerk/clerk-react";
 import {
   User,
   Save,
   Quote,
   Sparkles,
   AlertCircle,
-  CalendarDays,
-  CheckCircle2,
   ShieldCheck,
 } from "lucide-react";
 import { Link } from "wouter";
@@ -55,7 +52,6 @@ function safeFormatDate(s: string | null | undefined): string | null {
 
 export default function Profile() {
   const qc = useQueryClient();
-  const { getToken } = useAuth();
   const { user: clerkUser } = useUser();
   const { data, isLoading, isError, refetch } = useGetCurrentAuthUser({
     query: { queryKey: getGetCurrentAuthUserQueryKey() },
@@ -70,80 +66,6 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const [calendarConfigured, setCalendarConfigured] = useState(false);
-  const [calendarConnected, setCalendarConnected] = useState(false);
-  const [statusLoaded, setStatusLoaded] = useState(false);
-  const [disconnectingCalendar, setDisconnectingCalendar] = useState(false);
-  const [calendarMessage, setCalendarMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const token = await getToken();
-        const response = await fetch("/api/calendar/status", {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
-        const status = response.ok
-          ? ((await response.json()) as {
-              configured?: boolean;
-              connected?: boolean;
-            })
-          : null;
-        if (!cancelled) {
-          setCalendarConfigured(Boolean(status?.configured));
-          setCalendarConnected(Boolean(status?.connected));
-        }
-      } catch {
-        if (!cancelled) {
-          setCalendarConfigured(false);
-          setCalendarConnected(false);
-        }
-      } finally {
-        if (!cancelled) setStatusLoaded(true);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [getToken]);
-
-  async function handleCalendarDisconnect() {
-    if (
-      !window.confirm(
-        "Disconnect Google Calendar? Kindred will revoke access and delete the stored token.",
-      )
-    ) {
-      return;
-    }
-
-    setDisconnectingCalendar(true);
-    setCalendarMessage(null);
-    try {
-      const token = await getToken();
-      const response = await fetch("/api/calendar/connection", {
-        method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-      if (!response.ok) {
-        throw new Error(`Calendar disconnect failed (${response.status})`);
-      }
-      setCalendarConnected(false);
-      qc.removeQueries({ queryKey: getGetUpcomingCalendarEventsQueryKey() });
-      setCalendarMessage(
-        "Google Calendar disconnected. Kindred deleted the stored token.",
-      );
-    } catch {
-      setCalendarMessage(
-        "Google Calendar could not be disconnected. Please try again.",
-      );
-    } finally {
-      setDisconnectingCalendar(false);
-    }
-  }
 
   useEffect(() => {
     if (!user) return;
@@ -237,7 +159,7 @@ export default function Profile() {
           </p>
         </div>
         <Link
-          href="/account"
+          href="/app/account"
           className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-border px-3 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           data-testid="you-account-link"
         >
@@ -370,86 +292,17 @@ export default function Profile() {
         </div>
       </section>
 
-      {/* Integrations */}
-      <section className="rounded-lg border border-border bg-card p-5 space-y-5">
-        <div>
-          <h2 className="text-sm font-medium">Integrations</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Connect external services to give Kindred more context.
-          </p>
-        </div>
-
-        <div className="rounded-md border border-border bg-muted/40 p-4">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 p-1.5 rounded-md bg-background border border-border shrink-0 text-muted-foreground">
-              <CalendarDays className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium">Google Calendar</p>
-                {statusLoaded && (
-                  <span
-                    className={cn(
-                      "text-[10px] font-medium px-2 py-0.5 rounded-full",
-                      calendarConnected
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : "bg-muted-foreground/10 text-muted-foreground"
-                    )}
-                  >
-                    {calendarConnected ? "Connected" : "Not connected"}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Allow Kindred to see your upcoming events to make planning
-                suggestions and help you prepare for your day.
-              </p>
-
-              {statusLoaded && (
-                <div className="mt-4">
-                  {calendarConfigured && !calendarConnected ? (
-                    <a
-                      href="/api/calendar/connect"
-                      className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-                    >
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      Connect Calendar
-                    </a>
-                  ) : calendarConnected ? (
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Syncing actively
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleCalendarDisconnect}
-                        disabled={disconnectingCalendar}
-                        className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
-                      >
-                        {disconnectingCalendar
-                          ? "Disconnecting…"
-                          : "Disconnect Calendar"}
-                      </button>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground italic">
-                      Calendar setup is not complete on the server yet.
-                    </p>
-                  )}
-                  {calendarMessage && (
-                    <p
-                      className="mt-3 text-xs text-muted-foreground"
-                      role="status"
-                    >
-                      {calendarMessage}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+      <section className="rounded-lg border border-border bg-card p-5 space-y-2">
+        <h2 className="text-sm font-medium">Google Calendar retired</h2>
+        <p className="text-sm text-muted-foreground">
+          Kindred no longer connects to Google Calendar or uses calendar events.
+        </p>
+        <Link
+          href="/app/calendar"
+          className="text-sm text-primary underline underline-offset-2"
+        >
+          Manage previously saved calendar access
+        </Link>
       </section>
 
       {/* Reflection fields */}

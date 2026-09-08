@@ -58,36 +58,8 @@ export function validateRuntimeConfig(): void {
     }
   }
 
-  const calendarValues = [
-    "GOOGLE_CLIENT_ID",
-    "GOOGLE_CLIENT_SECRET",
-    "GOOGLE_CALENDAR_REDIRECT_URI",
-    "CALENDAR_OAUTH_STATE_SECRET",
-    "CALENDAR_TOKEN_ENCRYPTION_KEY",
-  ];
-  if (calendarValues.some((name) => process.env[name]?.trim())) {
-    calendarValues.forEach(requireValue);
-    const redirect = process.env.GOOGLE_CALENDAR_REDIRECT_URI?.trim();
-    if (redirect) {
-      try {
-        const url = new URL(redirect);
-        const isLocal = ["localhost", "127.0.0.1"].includes(url.hostname);
-        if (
-          url.protocol !== "https:" &&
-          !(isLocal && url.protocol === "http:")
-        ) {
-          throw new Error("invalid protocol");
-        }
-        if (url.pathname !== "/api/calendar/callback") {
-          throw new Error("invalid path");
-        }
-      } catch {
-        throw new Error(
-          "GOOGLE_CALENDAR_REDIRECT_URI must be an absolute HTTPS URL ending in /api/calendar/callback (HTTP is allowed only for localhost)",
-        );
-      }
-    }
-  }
+  // Calendar OAuth is retired. Retain CALENDAR_TOKEN_ENCRYPTION_KEY only
+  // for best-effort revocation of existing connections; it is not a startup gate.
 
   if (missing.length > 0) {
     throw new Error(

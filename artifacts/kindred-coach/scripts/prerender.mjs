@@ -15,6 +15,12 @@ import { execSync } from "child_process";
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import {
+  PRIMARY_PAGES,
+  SECONDARY_PAGES,
+  LEGACY_PRIMARY_ROUTE_REDIRECTS,
+  signedInPage,
+} from "../src/lib/routing.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -26,6 +32,25 @@ const root = resolve(__dirname, "..");
 const SITE_NAME = "Kindred Asterling";
 
 const ROUTES = [
+  // Private routes receive metadata and an empty SPA shell, never member data.
+  ...Object.keys({
+    ...PRIMARY_PAGES,
+    ...SECONDARY_PAGES,
+    ...LEGACY_PRIMARY_ROUTE_REDIRECTS,
+  }).map((path) => {
+    const page = signedInPage(path);
+    return {
+      path,
+      canonicalPath: page.canonicalPath,
+      outputFile: `${path.slice(1)}/index.html`,
+      title: `${page.title} | ${SITE_NAME}`,
+      description: "Sign in to access your Kindred workspace.",
+      ogTitle: `${page.title} | ${SITE_NAME}`,
+      ogDescription: "Your private Kindred workspace.",
+      robots: "noindex, nofollow",
+      private: true,
+    };
+  }),
   {
     path: "/",
     outputFile: "index.html",
@@ -224,8 +249,9 @@ function serializeJsonLd(schema) {
 }
 
 function buildHead(route, origin) {
+  const canonicalPath = route.canonicalPath ?? route.path;
   const canonical = origin
-    ? `${origin}${route.path === "/" ? "" : route.path}`
+    ? `${origin}${canonicalPath === "/" ? "" : canonicalPath}`
     : "";
   const ogImage = origin ? `${origin}/opengraph.jpg` : "/opengraph.jpg";
 
@@ -336,7 +362,7 @@ for (const route of ROUTES) {
 
   let bodyHtml = "";
   try {
-    bodyHtml = render(route.path);
+    bodyHtml = route.private ? "" : render(route.path);
   } catch (err) {
     console.warn(`\n  ⚠ SSR render failed for ${route.path}: ${err.message}`);
   }

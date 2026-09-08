@@ -73,15 +73,15 @@ describe("Signup returnTo validation", () => {
     expect(mocks.signInUrl).toBe("/login?returnTo=%2Fapp%2Fcalendar");
   });
 
-  it("collapses unsafe destinations to canonical /app/today", async () => {
+  it("collapses unsafe destinations to canonical /today", async () => {
     mocks.search = "returnTo=https%3A%2F%2Fevil.example.com";
 
     await act(async () => {
       root.render(createElement(Signup));
     });
 
-    expect(mocks.fallbackRedirectUrl).toBe("/app/today");
-    expect(mocks.signInUrl).toBe("/login?returnTo=%2Fapp%2Ftoday");
+    expect(mocks.fallbackRedirectUrl).toBe("/today");
+    expect(mocks.signInUrl).toBe("/login?returnTo=%2Ftoday");
   });
 
   it("redirects an already signed-in visitor safely", async () => {

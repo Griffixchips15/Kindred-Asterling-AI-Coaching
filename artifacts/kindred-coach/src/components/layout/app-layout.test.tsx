@@ -4,26 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  location: "/today",
   getToken: vi.fn(),
   authUser: null,
-}));
-
-vi.mock("wouter", () => ({
-  Link: ({ href, children, onClick, ...rest }: any) =>
-    createElement(
-      "a",
-      {
-        href,
-        ...rest,
-        onClick: (event: MouseEvent) => {
-          event.preventDefault();
-          onClick?.(event);
-        },
-      },
-      children,
-    ),
-  useLocation: () => [mocks.location],
 }));
 
 vi.mock("@clerk/clerk-react", () => ({
@@ -72,7 +54,7 @@ describe("AppLayout", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.location = "/today";
+    window.history.replaceState(null, "", "/today");
     mocks.authUser = null;
     render = renderAppLayout();
   });
@@ -93,6 +75,11 @@ describe("AppLayout", () => {
       expect(
         container.querySelector(`[data-testid="nav-primary-${area}"]`),
       ).not.toBeNull();
+      expect(
+        container
+          .querySelector(`[data-testid="nav-primary-${area}"]`)
+          ?.getAttribute("href"),
+      ).toBe(`/${area}`);
     }
     expect(
       container.querySelectorAll('[data-testid^="nav-primary-"]'),
@@ -100,7 +87,7 @@ describe("AppLayout", () => {
   });
 
   it("marks the active primary destination with aria-current", async () => {
-    mocks.location = "/talk";
+    window.history.replaceState(null, "", "/talk");
     await act(async () => {
       render.root.render(render.tree);
     });
@@ -118,7 +105,7 @@ describe("AppLayout", () => {
   });
 
   it("groups a daily-routine route under the Today primary area", async () => {
-    mocks.location = "/morning";
+    window.history.replaceState(null, "", "/app/morning");
     await act(async () => {
       render.root.render(render.tree);
     });
@@ -147,6 +134,12 @@ describe("AppLayout", () => {
     expect(links).toHaveLength(4);
     const labels = Array.from(links).map((a) => a.textContent);
     expect(labels).toEqual(["Today", "Talk", "Insights", "You"]);
+    expect(Array.from(links).map((link) => link.getAttribute("href"))).toEqual([
+      "/today",
+      "/talk",
+      "/insights",
+      "/you",
+    ]);
   });
 
   it("hides the desktop sidebar on small screens and shows it on large screens", async () => {
@@ -189,6 +182,7 @@ describe("AppLayout", () => {
       (link) => link.textContent === "Morning",
     );
     expect(morningLink).not.toBeUndefined();
+    expect(morningLink!.getAttribute("href")).toBe("/app/morning");
 
     await act(async () => {
       morningLink!.click();
@@ -197,5 +191,6 @@ describe("AppLayout", () => {
     expect(
       document.querySelector('[role="dialog"][data-state="open"]'),
     ).toBeNull();
+    expect(window.location.pathname).toBe("/app/morning");
   });
 });

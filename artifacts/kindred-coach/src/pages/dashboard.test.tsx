@@ -55,9 +55,6 @@ vi.mock("@/components/dashboard/positive-affirmations", () => ({
 vi.mock("@/components/charts/weekly-habit-completion", () => ({
   WeeklyHabitCompletion: () => null,
 }));
-vi.mock("@/components/dashboard/today-calendar-summary", () => ({
-  TodayCalendarSummary: () => null,
-}));
 
 import { default as Dashboard } from "./dashboard";
 
@@ -153,7 +150,7 @@ describe("Dashboard (Today experience)", () => {
 
     const action = container.querySelector('[data-testid="next-step-action"]');
     expect(action).not.toBeNull();
-    expect(action!.getAttribute("href")).toBe("/morning");
+    expect(action!.getAttribute("href")).toBe("/app/morning");
   });
 
   it("renders the calm completed state when everything is done", async () => {

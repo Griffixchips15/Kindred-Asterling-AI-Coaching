@@ -42,7 +42,6 @@ import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { WeeklyHabitCompletion } from "@/components/charts/weekly-habit-completion";
 import { PositiveAffirmations } from "@/components/dashboard/positive-affirmations";
-import { TodayCalendarSummary } from "@/components/dashboard/today-calendar-summary";
 import { QueryErrorState } from "@/components/query-error-state";
 import {
   deriveNextStep,
@@ -148,9 +147,6 @@ export default function Dashboard() {
         isError={Boolean(medicationsError)}
         onRetry={() => void refetchMedications()}
       />
-
-      {/* Privacy-preserving calendar summary (no titles on Today). */}
-      <TodayCalendarSummary />
 
       {/* Secondary "Recent patterns" analytics. */}
       <section aria-label="Recent patterns" className="space-y-8">
@@ -317,7 +313,7 @@ function MedicationTiming({
             className="min-h-11 md:min-h-8"
             data-testid="medications-today-link"
           >
-            <Link href="/medications">Open medications</Link>
+            <Link href="/app/medications">Open medications</Link>
           </Button>
         </div>
         <CardDescription>Scheduled times and whether each dose is recorded</CardDescription>

@@ -1,62 +1,46 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
-  deriveCalendarLoadSignal,
+  assembleKindredContext,
   selectKindredContextSources,
 } from "./kindredContext";
+import { runChatTool } from "./chatTools";
 
-describe("selectKindredContextSources", () => {
-  it("selects only relevant source groups", () => {
+vi.mock("./chatTools", () => ({ runChatTool: vi.fn(async () => "[]") }));
+
+describe("Kindred context after Calendar retirement", () => {
+  it("selects the remaining relevant sources", () => {
     expect(
       selectKindredContextSources("How have my habit streaks been?"),
     ).toEqual(["habit_tracking"]);
     expect(selectKindredContextSources("hello there")).toEqual([]);
-  });
-
-  it("uses several load-related signals when the user describes overload", () => {
     expect(selectKindredContextSources("This week feels overwhelming")).toEqual(
-      expect.arrayContaining([
-        "morning_assessments",
-        "evening_assessments",
-        "body_scans",
-        "calendar_load",
-      ]),
+      ["morning_assessments", "evening_assessments", "body_scans"],
     );
   });
-});
 
-describe("deriveCalendarLoadSignal", () => {
-  it("derives counts without exposing event titles", () => {
-    const signal = deriveCalendarLoadSignal(
-      [
-        { date: "2026-08-19", time: "9:00 AM", title: "Private title" },
-        { date: "2026-08-19", time: "All day", title: "Another title" },
-      ],
-      2,
-      new Date("2026-08-19T12:00:00"),
-    );
-    expect(signal.days[0]).toMatchObject({
-      timedEventCount: 1,
-      allDayEventCount: 1,
-      totalEventCount: 2,
-      level: "light",
-    });
-    expect(JSON.stringify(signal)).not.toContain("Private title");
+  it.each([
+    "What is on my calendar?",
+    "My schedule is packed with meetings",
+    "I am overwhelmed and drained",
+  ])("does not fetch calendar data for %s", async (message) => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const context = await assembleKindredContext("user-123", message);
+      expect(context.selection.sources).not.toContain("calendar_load");
+      expect(context).not.toHaveProperty("calendarLoad");
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
-  it("marks consecutive busy days as sustained scheduling load", () => {
-    const events = ["2026-08-19", "2026-08-20"].flatMap((date) =>
-      Array.from({ length: 4 }, (_, index) => ({
-        date,
-        time: `${index + 9}:00 AM`,
-        title: `event ${index}`,
-      })),
+  it("still assembles habitual coaching context", async () => {
+    await assembleKindredContext("user-123", "How are my habits?");
+    expect(runChatTool).toHaveBeenCalledWith(
+      "get_habits_with_streaks",
+      { limit: 7 },
+      "user-123",
     );
-    const signal = deriveCalendarLoadSignal(
-      events,
-      2,
-      new Date("2026-08-19T12:00:00"),
-    );
-    expect(signal.sustainedSchedulingLoad).toBe(true);
-    expect(signal.interpretation).toBe("elevated_scheduled_load");
   });
 });

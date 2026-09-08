@@ -240,7 +240,7 @@ export default function Chat() {
     try {
       await archiveActiveChat();
       await qc.invalidateQueries({ queryKey: getGetActiveChatQueryKey() });
-      setLocation("/archive");
+      setLocation("/app/archive");
     } finally {
       setArchiving(false);
     }
@@ -282,7 +282,7 @@ export default function Chat() {
         {onboarded && (
           <div className="flex items-center gap-2 shrink-0">
             <Link
-              href="/archive"
+              href="/app/archive"
               className="flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               data-testid="talk-archive-link"
             >
