@@ -47,7 +47,7 @@ function failFinalizeOnce() {
   });
 }
 
-const suffix = Math.random().toString(36).slice(2, 10);
+const suffix = crypto.randomUUID();
 const userAId = `test-http-a-${suffix}`;
 const userBId = `test-http-b-${suffix}`;
 const TODAY = "2026-05-29";

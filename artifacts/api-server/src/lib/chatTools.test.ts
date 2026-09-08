@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { eq } from "@workspace/db";
 import {
@@ -23,7 +24,7 @@ import { runChatTool } from "./chatTools";
 // caller's rows and never the other user's, and that internal row IDs are never
 // surfaced (existence of other records must not leak).
 
-const suffix = Math.random().toString(36).slice(2, 10);
+const suffix = randomUUID();
 const userAId = `test-chattool-a-${suffix}`;
 const userBId = `test-chattool-b-${suffix}`;
 

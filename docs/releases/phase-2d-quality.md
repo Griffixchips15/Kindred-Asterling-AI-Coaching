@@ -3,6 +3,37 @@
 Prepared September 8, 2026 on `codex/phase-2d-quality`, based on GitLab
 `origin/main` commit `057a2050198d3f222c131647637b7ade97685c54`.
 
+## Current acceptance status
+
+MR !118 was merged by the owner on September 8, 2026 at 08:47 MDT as
+`f7ddedc8015f00bb0446f7bc734329d894181117`. The source pipeline #2829940216
+and main pipeline #2830009230 passed. The owner confirmed successful local review
+including native browser zoom at 200%. The historical sections below retain the
+validation evidence from before the merge.
+
+The follow-up acceptance review passed `pnpm run typecheck` (including DB scripts,
+both production apps, workspace libraries/scripts and the experimental frontend)
+and `pnpm --filter @workspace/api-server run build`. The merged main tree was
+identical to the already-tested conflict-resolution tree.
+
+GitLab's MR security report identified three test-fixture findings: a sample
+password-bearing MongoDB URI in `validateConfig.test.ts` and non-cryptographic
+random test IDs in `chatTools.test.ts` and `journalRoutes.http.test.ts`. The
+follow-up replaces the URI with a credential-free loopback URI and uses UUIDs
+for those two ID generators. These fixtures do not issue production credentials
+or connect to the example database. No scan rules or GitLab finding statuses
+were changed; a new pipeline is required to confirm the scanner outcome.
+
+After the fixture edits, `pnpm --filter @workspace/api-server run typecheck`
+passed, and `LOG_LEVEL=silent pnpm --filter @workspace/db run test:api` passed
+all 292 tests in 36 files. `git diff --check` also passed. Frontend tests/build
+and the full-stack journey were not repeated in this follow-up because no
+frontend or runtime code changed; their combined-version results appear below.
+
+Human screen-reader testing, hosted Auth0 sign-in verification on the combined
+version, and the five-user pilot remain open. See [the acceptance checklist](phase-2d-acceptance.md).
+No deployment or production verification is established by the merge or green CI.
+
 ## Changes
 
 - Add a keyboard skip link, route-change focus handoff, accessible collapsed
