@@ -6,20 +6,13 @@ const mocks = vi.hoisted(() => ({
   authState: { isLoaded: true, isSignedIn: false },
   search: "",
   assign: vi.fn(),
+  login: vi.fn(),
   fallbackRedirectUrl: "",
   signInUrl: "",
 }));
 
-vi.mock("@clerk/clerk-react", () => ({
-  useUser: () => ({
-    isLoaded: mocks.authState.isLoaded,
-    isSignedIn: mocks.authState.isSignedIn,
-  }),
-  SignUp: (props: { fallbackRedirectUrl?: string; signInUrl?: string }) => {
-    mocks.fallbackRedirectUrl = props.fallbackRedirectUrl ?? "";
-    mocks.signInUrl = props.signInUrl ?? "";
-    return null;
-  },
+vi.mock("@/lib/auth", () => ({
+  useAuth: () => ({ ...mocks.authState, login: mocks.login }),
 }));
 
 vi.mock("wouter", () => ({
@@ -62,15 +55,16 @@ describe("Signup returnTo validation", () => {
     });
   });
 
-  it("passes a validated destination to Clerk and back to sign in", async () => {
+  it("passes a validated destination to Auth0 and back to sign in", async () => {
     mocks.search = "returnTo=%2Fapp%2Fcalendar";
 
     await act(async () => {
       root.render(createElement(Signup));
     });
 
-    expect(mocks.fallbackRedirectUrl).toBe("/app/calendar");
-    expect(mocks.signInUrl).toBe("/login?returnTo=%2Fapp%2Fcalendar");
+    await act(async () => container.querySelector("button")!.click());
+    expect(mocks.login).toHaveBeenCalledWith("/app/calendar", true);
+    expect(container.querySelector("a")?.getAttribute("href")).toBe("/login?returnTo=%2Fapp%2Fcalendar");
   });
 
   it("collapses unsafe destinations to canonical /today", async () => {
@@ -80,8 +74,9 @@ describe("Signup returnTo validation", () => {
       root.render(createElement(Signup));
     });
 
-    expect(mocks.fallbackRedirectUrl).toBe("/today");
-    expect(mocks.signInUrl).toBe("/login?returnTo=%2Ftoday");
+    await act(async () => container.querySelector("button")!.click());
+    expect(mocks.login).toHaveBeenCalledWith("/today", true);
+    expect(container.querySelector("a")?.getAttribute("href")).toBe("/login?returnTo=%2Ftoday");
   });
 
   it("redirects an already signed-in visitor safely", async () => {

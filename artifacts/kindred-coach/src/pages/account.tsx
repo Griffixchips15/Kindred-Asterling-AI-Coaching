@@ -1,4 +1,4 @@
-import { UserProfile } from "@clerk/clerk-react";
+import { AccountSecurity } from "@/components/account-security";
 import { Link } from "wouter";
 import { ShieldCheck } from "lucide-react";
 
@@ -24,7 +24,7 @@ export default function AccountPage() {
           Back to your profile
         </Link>
       </header>
-      <UserProfile routing="hash" />
+      <AccountSecurity />
     </div>
   );
 }

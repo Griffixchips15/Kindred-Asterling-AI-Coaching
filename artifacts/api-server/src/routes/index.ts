@@ -21,7 +21,6 @@ import voiceRouter from "./voice";
 import remindersRouter from "./reminders";
 import adminRouter from "./admin";
 import userRouter from "./user";
-import clerkWebhookRouter from "./clerk-webhook";
 import accountRouter from "./account";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -32,9 +31,8 @@ function noStore(_req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
-// Open routes: clerk webhook, and subscription endpoints.
-// NOTE: health routes are mounted before clerkMiddleware in app.ts.
-router.use(clerkWebhookRouter);
+// Public account and subscription endpoints.
+// NOTE: health routes are mounted before authentication in app.ts.
 router.use(userRouter);
 router.use(subscriptionRouter);
 

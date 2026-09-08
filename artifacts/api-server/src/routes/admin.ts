@@ -14,8 +14,6 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ownerIds } from "../lib/subscriptionService";
-import { findClerkIdentitiesByEmail } from "../middlewares/authMiddleware";
-import { syncClerkIdentity } from "../lib/clerkIdentity";
 
 function ownerEmails(): Set<string> {
   return new Set(
@@ -37,6 +35,7 @@ function requireOwner(req: Request, res: Response, next: NextFunction): void {
     return;
   }
   if (
+    req.user.emailVerified &&
     req.user.email &&
     ownerEmails().has(req.user.email.trim().toLowerCase())
   ) {
@@ -58,22 +57,11 @@ router.get("/users", async (req, res): Promise<void> => {
     return;
   }
 
-  const identities = await findClerkIdentitiesByEmail(rawQ);
-  const users = await Promise.all(
-    identities.slice(0, 20).map(async (identity) => {
-      const user = await syncClerkIdentity({
-        ...identity,
-        imageUrl: identity.profileImageUrl,
-      });
-      return {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
-      };
-    }),
-  );
+  const matches = await db.select().from(usersTable).where(eq(usersTable.email, rawQ)).limit(20);
+  const users = matches.map((user) => ({
+    id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName,
+    emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
+  }));
 
   res.json({ users });
 });

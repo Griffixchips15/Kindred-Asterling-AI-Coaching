@@ -21,7 +21,6 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { resolveSubscription } from "../lib/subscriptionService";
 import { logger } from "../lib/logger";
-import { findClerkIdentitiesByEmail } from "../middlewares/authMiddleware";
 import {
   checkoutUrl,
   createHelcimCustomer,
@@ -78,7 +77,7 @@ router.get(
   async (req, res): Promise<void> => {
     const user = req.user!;
     const status = await resolveSubscription(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, emailVerified: user.emailVerified },
       { forceRefresh: true },
     );
     res.json(

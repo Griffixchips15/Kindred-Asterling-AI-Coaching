@@ -4,31 +4,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LEGACY_PRIMARY_ROUTE_REDIRECTS, PRIMARY_PAGES } from "./routing";
 
 const auth = vi.hoisted(() => {
-  vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "pk_test_Y2xlcmsuZGV2JA==");
+
   return {
     isLoaded: true,
     isSignedIn: true,
     sessionLoaded: true,
     status: "active",
     getToken: vi.fn(),
+    accountError: null as { status: number } | null,
   };
 });
-vi.mock("@clerk/clerk-react", () => ({
-  ClerkProvider: ({ children }: any) => children,
+vi.mock("@/lib/auth", () => ({
+  AuthProvider: ({ children }: any) => children,
   useAuth: () => auth,
-  useSession: () => ({
-    isLoaded: auth.sessionLoaded,
-    session: { status: auth.status },
-  }),
-  RedirectToTasks: () => createElement("div", null, "Pending tasks"),
-  TaskChooseOrganization: ({ redirectUrlComplete }: any) =>
-    createElement("a", { href: redirectUrlComplete }, "Choose organization"),
-  TaskResetPassword: ({ redirectUrlComplete }: any) =>
-    createElement("a", { href: redirectUrlComplete }, "Reset password"),
-  TaskSetupMFA: ({ redirectUrlComplete }: any) =>
-    createElement("a", { href: redirectUrlComplete }, "Set up MFA"),
 }));
-vi.mock("@workspace/api-client-react", () => ({ setAuthTokenGetter: vi.fn() }));
+
+vi.mock("@workspace/api-client-react", () => ({ setAuthTokenGetter: vi.fn(), getGetCurrentAuthUserQueryKey: () => ["auth-user"], useGetCurrentAuthUser: () => ({ error: auth.accountError, isLoading: false, refetch: vi.fn() }) }));
 vi.mock("@/hooks/use-theme", () => ({
   ThemeProvider: ({ children }: any) => children,
 }));
@@ -217,33 +208,29 @@ describe("canonical signed-in routing through App", () => {
     );
   });
 
-  it("keeps pending sessions on the Clerk task flow", async () => {
-    auth.status = "pending";
-    auth.isSignedIn = false;
-    await renderAt("/talk?session=one");
-    expect(container.textContent).toBe("Pending tasks");
-    expect(currentUrl()).toBe("/talk?session=one");
+  it("explains an identity migration conflict without showing private pages", async () => {
+    auth.accountError = { status: 409 };
+    await renderAt("/today");
+    expect(container.textContent).toContain("Link your existing Kindred account");
+    expect(container.querySelector('[data-page="Today"]')).toBeNull();
+    auth.accountError = null;
   });
 
-  it("waits for auth and session readiness before mounting a page", async () => {
+  it("waits for Auth0 readiness before mounting a page", async () => {
     auth.isLoaded = false;
-    auth.sessionLoaded = false;
     await renderAt("/today");
     expect(container.textContent).toBe("");
-    expect(currentUrl()).toBe("/today");
     auth.isLoaded = true;
-    await act(async () => root.render(createElement(App)));
-    expect(container.textContent).toBe("");
-    auth.sessionLoaded = true;
     await act(async () => root.render(createElement(App)));
     expectPage("Today");
   });
 
   it.each(["choose-organization", "reset-password", "setup-mfa"])(
-    "retains Clerk task URL %s with Today completion",
+    "redirects legacy task URL %s to account security",
     async (task) => {
       await renderAt(`/app/session-tasks/${task}`);
-      expect(container.querySelector("a")?.getAttribute("href")).toBe("/today");
+      expect(currentUrl()).toBe("/app/account");
+      expectPage("Account");
     },
   );
 
