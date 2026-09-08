@@ -70,7 +70,7 @@ describe("MongoDB runtime configuration", () => {
 
   it("accepts a complete configuration", () => {
     baseEnv();
-    process.env.MONGODB_URI = "mongodb://app-user:secret@mongo:27017";
+    process.env.MONGODB_URI = "mongodb://127.0.0.1:27017";
     process.env.MONGODB_DATABASE = "kindred";
     expect(validateRuntimeConfig).not.toThrow();
   });
