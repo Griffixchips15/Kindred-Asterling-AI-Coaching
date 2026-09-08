@@ -1,3 +1,4 @@
+import * as RadioGroup from "@radix-ui/react-radio-group";
 import {
   useCreateEveningReport,
   useListEveningReports,
@@ -153,6 +154,7 @@ export default function Evening() {
                         max={10}
                         step={1}
                         className="w-full"
+                        aria-label="Medication effectiveness"
                         data-testid="slider-medication"
                       />
                     </FormControl>
@@ -172,18 +174,18 @@ export default function Evening() {
                     <FormLabel className="text-base font-medium">
                       Overall, how was your day?
                     </FormLabel>
-                    <div
+                    <RadioGroup.Root
                       className="flex gap-2 flex-wrap"
-                      role="radiogroup"
+                      value={selectedMood}
+                      onValueChange={field.onChange}
                       aria-label="Overall mood"
                     >
                       {MOODS.map((mood) => (
-                        <button
+                        <RadioGroup.Item
                           key={mood}
                           type="button"
-                          role="radio"
+                          value={mood}
                           aria-checked={selectedMood === mood}
-                          onClick={() => field.onChange(mood)}
                           data-testid={`mood-${mood.toLowerCase()}`}
                           className={cn(
                             "px-4 py-2 rounded-full text-sm font-medium border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
@@ -193,9 +195,9 @@ export default function Evening() {
                           )}
                         >
                           {mood}
-                        </button>
+                        </RadioGroup.Item>
                       ))}
-                    </div>
+                    </RadioGroup.Root>
                   </FormItem>
                 )}
               />

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoMark from "@/assets/brand/logo-mark.png";
-import { ReactNode, useCallback, useEffect, useState } from "react";
+import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { format, parseISO } from "date-fns";
 import { useTheme, THEME_OPTIONS, type ThemeName } from "@/hooks/use-theme";
@@ -239,6 +239,7 @@ function DesktopNavLink({
   const link = (
     <Link
       href={href}
+      aria-label={label}
       aria-current={isActive ? "page" : undefined}
       className={cn(
         "flex items-center rounded-lg transition-colors text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
@@ -352,6 +353,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const user = authData?.user ?? null;
   const [collapsed, setCollapsed] = useSidebarCollapsed();
   const [moreOpen, setMoreOpen] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
+  const previousLocation = useRef(location);
+  const navigatingFromSheet = useRef(false);
+
+  useEffect(() => {
+    if (previousLocation.current === location) return;
+    previousLocation.current = location;
+    mainRef.current?.scrollTo?.(0, 0);
+    mainRef.current?.focus();
+  }, [location]);
 
   const logout = useCallback(async () => {
     queryClient.clear();
@@ -361,12 +372,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const activeArea = primaryAreaForPath(location);
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden">
+    <div className="signed-in-shell flex h-screen h-dvh bg-background text-foreground overflow-hidden">
+      <a href="#main-content" className="skip-link" onClick={(event) => {
+        event.preventDefault();
+        mainRef.current?.focus();
+      }}>Skip to main content</a>
       {/* Desktop sidebar (hidden on small screens). */}
       <aside
         aria-label="Primary navigation"
         className={cn(
-          "hidden md:flex flex-col border-r bg-sidebar border-border transition-[width] duration-200 ease-in-out motion-reduce:transition-none",
+          "hidden md:flex shrink-0 overflow-y-auto flex-col border-r bg-sidebar border-border transition-[width] duration-200 ease-in-out motion-reduce:transition-none",
           collapsed ? "w-16" : "w-64",
         )}
       >
@@ -385,9 +400,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 className="w-10 h-10 rounded-lg object-cover shrink-0 ring-1 ring-border/50"
               />
               <div className="min-w-0">
-                <h1 className="text-lg font-serif text-primary tracking-tight font-medium leading-tight truncate">
+                <p className="text-lg font-serif text-primary tracking-tight font-medium leading-tight truncate">
                   Kindred Asterling
-                </h1>
+                </p>
                 <p className="text-xs text-muted-foreground mt-0.5 tracking-wide">
                   AI Coaching
                 </p>
@@ -407,6 +422,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 data-testid="sidebar-toggle"
                 aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                aria-expanded={!collapsed}
               >
                 {collapsed ? (
                   <PanelLeftOpen className="w-5 h-5" strokeWidth={2} />
@@ -424,7 +440,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         {/* Primary destinations */}
         <nav
           aria-label="Primary destinations"
-          className={cn("mt-2", collapsed ? "px-2" : "px-4")}
+          className={cn("mt-2 shrink-0", collapsed ? "px-2" : "px-4")}
         >
           <ul className="space-y-1.5">
             {PRIMARY_DESTINATIONS.map((item) => (
@@ -446,7 +462,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <nav
           aria-label="All destinations"
           className={cn(
-            "flex-1 min-h-0 overflow-y-auto mt-2 pb-2",
+            "shrink-0 mt-2 pb-2",
             collapsed ? "px-2" : "px-4",
           )}
         >
@@ -513,8 +529,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto relative">
-        <div className="mx-auto max-w-2xl p-4 md:p-8 min-h-full pb-24 md:pb-8">
+      <main id="main-content" ref={mainRef} tabIndex={-1} aria-label="Main content" className="min-w-0 flex-1 overflow-y-auto relative">
+        <div className="mx-auto max-w-2xl p-4 md:p-8 min-h-full pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-8">
           {children}
         </div>
       </main>
@@ -551,7 +567,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <span>More</span>
             </button>
           </SheetTrigger>
-          <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+          <SheetContent side="bottom" className="signed-in-sheet max-h-[85dvh] overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]" onCloseAutoFocus={(event) => {
+            if (navigatingFromSheet.current) {
+              event.preventDefault();
+              navigatingFromSheet.current = false;
+              mainRef.current?.focus();
+            }
+          }}>
             <SheetHeader className="text-left">
               <SheetTitle>More destinations</SheetTitle>
               <SheetDescription>
@@ -562,7 +584,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <SecondaryNavList
                 items={SECONDARY_NAV_ITEMS}
                 activeHref={location}
-                onNavigate={() => setMoreOpen(false)}
+                onNavigate={() => { navigatingFromSheet.current = true; setMoreOpen(false); }}
               />
               <div className="border-t border-border pt-4 flex flex-col gap-2">
                 <ProfilePanel user={user} collapsed={false} />

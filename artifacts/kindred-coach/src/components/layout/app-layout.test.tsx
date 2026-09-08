@@ -54,6 +54,7 @@ describe("AppLayout", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     window.history.replaceState(null, "", "/today");
     mocks.authUser = null;
     render = renderAppLayout();
@@ -192,5 +193,31 @@ describe("AppLayout", () => {
       document.querySelector('[role="dialog"][data-state="open"]'),
     ).toBeNull();
     expect(window.location.pathname).toBe("/app/morning");
+  });
+
+  it("offers a keyboard skip link to the main landmark", async () => {
+    await act(async () => render.root.render(render.tree));
+    const skip = render.container.querySelector<HTMLAnchorElement>('a[href="#main-content"]')!;
+    expect(skip.textContent).toBe("Skip to main content");
+    await act(async () => skip.click());
+    expect(document.activeElement).toBe(render.container.querySelector("main"));
+    expect(render.container.querySelectorAll("main")).toHaveLength(1);
+    expect(render.container.querySelector("aside h1")).toBeNull();
+  });
+
+  it("keeps every collapsed destination named for screen readers", async () => {
+    await act(async () => render.root.render(render.tree));
+    await act(async () => render.container.querySelector<HTMLButtonElement>('[data-testid="sidebar-toggle"]')!.click());
+    for (const link of render.container.querySelectorAll("aside a")) {
+      expect(link.getAttribute("aria-label")?.length).toBeGreaterThan(0);
+    }
+    expect(render.container.querySelector('[data-testid="sidebar-toggle"]')?.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("moves focus into content after navigation", async () => {
+    await act(async () => render.root.render(render.tree));
+    await act(async () => render.container.querySelector<HTMLAnchorElement>('[data-testid="nav-primary-talk"]')!.click());
+    expect(window.location.pathname).toBe("/talk");
+    expect(document.activeElement).toBe(render.container.querySelector("main"));
   });
 });

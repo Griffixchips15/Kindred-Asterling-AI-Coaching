@@ -176,7 +176,8 @@ export default function Scans() {
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search feelings (e.g. anxious, hopeful, numb)…"
                 className="pl-9 bg-background"
-                data-testid="input-feeling-search"
+                aria-label="Search feelings"
+                  data-testid="input-feeling-search"
               />
               {query && (
                 <button
@@ -257,6 +258,7 @@ export default function Scans() {
               max={10}
               step={1}
               className="w-full"
+              aria-label="Energy level"
               data-testid="slider-energy"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
@@ -266,7 +268,7 @@ export default function Scans() {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-base font-medium">
+            <Label htmlFor="scan-physical" className="text-base font-medium">
               Physical sensations (optional)
             </Label>
             <Textarea
@@ -274,12 +276,13 @@ export default function Scans() {
               className="resize-none bg-background min-h-[80px]"
               value={physicalSensations}
               onChange={(e) => setPhysicalSensations(e.target.value)}
+              id="scan-physical"
               data-testid="textarea-physical"
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-base font-medium">
+            <Label htmlFor="scan-notes" className="text-base font-medium">
               Any additional notes? (optional)
             </Label>
             <Textarea
@@ -287,6 +290,7 @@ export default function Scans() {
               className="resize-none bg-background min-h-[80px]"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+              id="scan-notes"
               data-testid="textarea-notes"
             />
           </div>

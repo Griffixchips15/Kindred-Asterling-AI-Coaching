@@ -212,38 +212,38 @@ export default function Habits() {
               New Habit
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="signed-in-sheet sm:max-w-md" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle>Add a New Habit</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="space-y-1.5">
-                <Label>Habit name</Label>
+                <Label htmlFor="habit-name">Habit name</Label>
                 <Input
                   placeholder="E.g., Morning reflection, Hydrate, Evening walk"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  data-testid="input-habit-name"
+                  id="habit-name" data-testid="input-habit-name"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Description (optional)</Label>
+                <Label htmlFor="habit-description">Description (optional)</Label>
                 <Input
                   placeholder="A short note about why it matters"
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
-                  data-testid="input-habit-description"
+                  id="habit-description" data-testid="input-habit-description"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Target days</Label>
+                <Label htmlFor="target-days">Target days</Label>
                 <Input
                   type="number"
                   min="1"
                   max="365"
                   value={targetDays}
                   onChange={(e) => setTargetDays(e.target.value)}
-                  data-testid="input-target-days"
+                  id="target-days" data-testid="input-target-days"
                 />
               </div>
               <Button

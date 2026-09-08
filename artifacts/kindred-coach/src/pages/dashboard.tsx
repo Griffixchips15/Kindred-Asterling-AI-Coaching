@@ -216,11 +216,11 @@ function NextStepPanel({ step }: { step: ReturnType<typeof deriveNextStep> }) {
             </div>
           </div>
           {!onTrack && (
-            <div className="pl-[3.25rem]">
+            <div className="sm:pl-[3.25rem]">
               <Button
                 asChild
                 size="lg"
-                className="min-h-11"
+                className="min-h-11 h-auto max-w-full whitespace-normal px-4 py-3 text-center"
                 data-testid="next-step-action"
               >
                 <Link href={step.href}>{step.cta}</Link>
