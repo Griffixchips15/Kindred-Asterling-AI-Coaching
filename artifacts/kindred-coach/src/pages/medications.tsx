@@ -1,4 +1,5 @@
-import { useState } from "react";
+import * as RadioGroup from "@radix-ui/react-radio-group";
+import { useId, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListMedications,
@@ -339,7 +340,7 @@ function MedRow({
             onClick={onEdit}
             disabled={busy}
             className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            aria-label="Edit"
+            aria-label={`Edit ${med.name}`}
             data-testid={`edit-med-${med.id}`}
           >
             <Pencil className="w-4 h-4" />
@@ -349,7 +350,7 @@ function MedRow({
               <button
                 disabled={busy}
                 className="p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                aria-label="Delete"
+                aria-label={`Delete ${med.name}`}
                 data-testid={`delete-med-${med.id}`}
               >
                 <Trash2 className="w-4 h-4" />
@@ -451,19 +452,20 @@ function DoseControl({
             </span>
           )}
         </div>
-        <div
+        <RadioGroup.Root
           className="flex flex-wrap gap-1"
-          role="radiogroup"
+          value={todayScore === null ? "" : String(todayScore)}
+          onValueChange={(value) => onRate(Number(value))}
+          disabled={busy}
           aria-label="Effectiveness 1 to 10"
         >
           {RATING_VALUES.map((n) => {
             const selected = todayScore === n;
             return (
-              <button
+              <RadioGroup.Item
                 key={n}
-                onClick={() => onRate(n)}
                 disabled={busy}
-                role="radio"
+                value={String(n)}
                 aria-checked={selected}
                 aria-label={`Rate ${n} out of 10`}
                 data-testid={`rate-dose-${med.id}-${dose.scheduledTime}-${n}`}
@@ -475,10 +477,10 @@ function DoseControl({
                 )}
               >
                 {n}
-              </button>
+              </RadioGroup.Item>
             );
           })}
-        </div>
+        </RadioGroup.Root>
       </div>
     </div>
   );
@@ -499,12 +501,14 @@ function FormInput({
   testId: string;
   containerClassName?: string;
 }) {
+  const id = useId();
   return (
     <div className={containerClassName}>
-      <label className="block text-xs text-muted-foreground mb-1">
+      <label htmlFor={id} className="block text-xs text-muted-foreground mb-1">
         {label}
       </label>
       <input
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={INPUT_CLASS}
@@ -547,6 +551,7 @@ function ScheduledTimesInput({
           <div key={idx} className="flex items-center gap-2">
             <input
               type="time"
+              aria-label={`Scheduled time ${idx + 1}`}
               value={t}
               onChange={(e) => setTime(idx, e.target.value)}
               className={cn(INPUT_CLASS, "max-w-[10rem]")}
@@ -556,7 +561,7 @@ function ScheduledTimesInput({
               onClick={() => removeTime(idx)}
               disabled={times.length <= 1}
               className="p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 transition-colors"
-              aria-label="Remove time"
+              aria-label={`Remove scheduled time ${idx + 1}`}
               data-testid={`remove-time-${idx}`}
             >
               <Trash2 className="w-4 h-4" />

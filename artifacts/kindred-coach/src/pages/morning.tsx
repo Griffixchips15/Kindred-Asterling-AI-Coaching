@@ -185,6 +185,7 @@ export default function Morning() {
                   name="goal1"
                   render={({ field }) => (
                     <FormItem>
+                      <FormLabel className="sr-only">Goal 1 (required)</FormLabel>
                       <FormControl>
                         <Input
                           placeholder="1. E.g., Drink a glass of water"
@@ -201,6 +202,7 @@ export default function Morning() {
                   name="goal2"
                   render={({ field }) => (
                     <FormItem>
+                      <FormLabel className="sr-only">Goal 2 (optional)</FormLabel>
                       <FormControl>
                         <Input
                           placeholder="2. (Optional)"
@@ -216,6 +218,7 @@ export default function Morning() {
                   name="goal3"
                   render={({ field }) => (
                     <FormItem>
+                      <FormLabel className="sr-only">Goal 3 (optional)</FormLabel>
                       <FormControl>
                         <Input
                           placeholder="3. (Optional)"

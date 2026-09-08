@@ -1,3 +1,4 @@
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { useEffect, useState } from "react";
 import {
   useListAffirmations,
@@ -15,6 +16,7 @@ export function PositiveAffirmations() {
   });
 
   const affirmations = data ?? [];
+  const reducedMotion = useReducedMotion();
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [fadeKey, setFadeKey] = useState(0);
@@ -26,13 +28,13 @@ export function PositiveAffirmations() {
   }, [affirmations.length, index]);
 
   useEffect(() => {
-    if (paused || affirmations.length < 2) return;
+    if (paused || reducedMotion || affirmations.length < 2) return;
     const id = window.setInterval(() => {
       setIndex((i) => (i + 1) % affirmations.length);
       setFadeKey((k) => k + 1);
     }, ROTATION_MS);
     return () => window.clearInterval(id);
-  }, [paused, affirmations.length]);
+  }, [paused, reducedMotion, affirmations.length]);
 
   const goPrev = () => {
     if (affirmations.length === 0) return;
@@ -97,8 +99,8 @@ export function PositiveAffirmations() {
         </div>
 
         {affirmations.length > 1 && (
-          <div className="mt-4 flex items-center justify-between">
-            <div className="flex gap-1">
+          <div className="mt-4 flex flex-wrap gap-3 items-center justify-between">
+            <div aria-hidden="true" className="flex flex-wrap gap-1">
               {affirmations.map((_, i) => (
                 <span
                   key={i}
@@ -120,7 +122,7 @@ export function PositiveAffirmations() {
               >
                 <ChevronLeft className="w-4 h-4" strokeWidth={2} />
               </button>
-              <button
+              {!reducedMotion && <button
                 type="button"
                 onClick={() => setPaused((p) => !p)}
                 aria-label={paused ? "Resume rotation" : "Pause rotation"}
@@ -132,7 +134,7 @@ export function PositiveAffirmations() {
                 ) : (
                   <Pause className="w-4 h-4" strokeWidth={2} />
                 )}
-              </button>
+              </button>}
               <button
                 type="button"
                 onClick={goNext}

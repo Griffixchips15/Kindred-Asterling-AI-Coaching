@@ -56,13 +56,15 @@ export function VoiceInputButton({
         </span>
       )}
       {error && (
-        <span
+        <button
+          type="button"
+          aria-label="Dismiss voice input error"
           className="text-[11px] text-destructive max-w-[180px] text-right cursor-pointer"
           onClick={() => setError(null)}
           title="Dismiss"
         >
           {error}
-        </span>
+        </button>
       )}
     </div>
   );

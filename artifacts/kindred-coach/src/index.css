@@ -367,3 +367,34 @@
 .public-site footer {
   font-family: var(--app-font-sans);
 }
+
+/* Signed-in reflow, keyboard focus and comfortable touch targets. */
+.skip-link {
+  position: fixed;
+  inset: 0 auto auto 0;
+  transform: translateY(-110%);
+  z-index: 100;
+  padding: 0.75rem 1rem;
+  color: hsl(var(--primary-foreground));
+  background: hsl(var(--primary));
+}
+.skip-link:focus { transform: translateY(0); }
+:is(.signed-in-shell, .signed-in-sheet) :is(button, [role="combobox"], input:not([type="checkbox"]):not([type="radio"])) {
+  min-height: 44px;
+  min-width: 44px;
+}
+.signed-in-shell aside a { min-height: 44px; }
+:is(.signed-in-shell, .signed-in-sheet) :is(a, button, input, textarea, [role="slider"]):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.signed-in-shell main { overflow-wrap: anywhere; scroll-padding-block: 1rem; }
+.signed-in-shell main:focus { outline: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

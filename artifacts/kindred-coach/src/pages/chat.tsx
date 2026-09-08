@@ -1,3 +1,4 @@
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -93,6 +94,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 }
 
 export default function Chat() {
+  const reducedMotion = useReducedMotion();
   const qc = useQueryClient();
   const [, setLocation] = useLocation();
   const {
@@ -153,9 +155,9 @@ export default function Chat() {
   useEffect(() => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
+      behavior: reducedMotion ? "auto" : "smooth",
     });
-  }, [messages.length, sending]);
+  }, [messages.length, sending, reducedMotion]);
 
   // Auto-grow the textarea as the user types, capped at TEXTAREA_MAX_HEIGHT_PX
   // so it never crowds the chat. Run after every draft change.
