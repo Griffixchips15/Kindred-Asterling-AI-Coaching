@@ -86,25 +86,21 @@ describe("MongoDB runtime configuration", () => {
   });
 });
 
-describe("Google Calendar configuration", () => {
-  function calendarEnv(redirectUri: string): void {
+describe("retired Google Calendar configuration", () => {
+  it("does not require OAuth credentials when only the cleanup key remains", () => {
     baseEnv();
-    process.env.GOOGLE_CLIENT_ID = "client";
-    process.env.GOOGLE_CLIENT_SECRET = "secret";
-    process.env.GOOGLE_CALENDAR_REDIRECT_URI = redirectUri;
-    process.env.CALENDAR_OAUTH_STATE_SECRET = "state-secret";
-    process.env.CALENDAR_TOKEN_ENCRYPTION_KEY = "token-secret";
-  }
-
-  it("accepts the deployed callback route", () => {
-    calendarEnv("https://kindred.example/api/calendar/callback");
+    delete process.env.GOOGLE_CLIENT_ID;
+    delete process.env.GOOGLE_CLIENT_SECRET;
+    delete process.env.GOOGLE_CALENDAR_REDIRECT_URI;
+    delete process.env.CALENDAR_OAUTH_STATE_SECRET;
+    process.env.CALENDAR_TOKEN_ENCRYPTION_KEY = "cleanup-test-key";
     expect(validateRuntimeConfig).not.toThrow();
   });
 
-  it("rejects relative or mismatched redirect URIs", () => {
-    calendarEnv("/api/calendar/callback");
-    expect(validateRuntimeConfig).toThrow(/absolute HTTPS URL/);
-    calendarEnv("https://kindred.example/calendar/callback");
-    expect(validateRuntimeConfig).toThrow(/absolute HTTPS URL/);
+  it("ignores obsolete OAuth settings during startup", () => {
+    baseEnv();
+    process.env.GOOGLE_CALENDAR_REDIRECT_URI = "/obsolete-callback";
+    delete process.env.CALENDAR_TOKEN_ENCRYPTION_KEY;
+    expect(validateRuntimeConfig).not.toThrow();
   });
 });

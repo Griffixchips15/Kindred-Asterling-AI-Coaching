@@ -13,7 +13,7 @@ export default function PaymentSuccess() {
   const { getToken } = useAuth();
   const [checking, setChecking] = useState(false);
   const [notReady, setNotReady] = useState(false);
-  const appHref = `${import.meta.env.BASE_URL.replace(/\/+$/, "")}/app/today`;
+  const appHref = `${import.meta.env.BASE_URL.replace(/\/+$/, "")}/today`;
 
   const checkAccess = async () => {
     setChecking(true);

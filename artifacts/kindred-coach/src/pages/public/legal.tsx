@@ -124,7 +124,10 @@ function LegalPage({
     ["Date", "August 24, 2026"],
     ...(governingLaw ? [["Governing law", governingLaw]] : []),
     ["Sole proprietor", "Landon Syroid d/b/a Kindred Asterling AI Coaching"],
-    ["Status", published ? "Published" : "Subject to Final Legal Counsel Approval"],
+    [
+      "Status",
+      published ? "Published" : "Subject to Final Legal Counsel Approval",
+    ],
   ];
 
   return (
@@ -216,7 +219,7 @@ const privacySections: LegalSection[] = [
         [
           "Account & Authentication Data: Email address, user identification tokens, account verification status, and name provided through our authentication partner, Clerk.",
           "Wellness, Reflection & Coaching Data: Self-submitted morning check-ins, evening reflections, mood scores, body scan notes, habit records, medication logs, personal goals, and chat interactions with the coaching AI.",
-          "Calendar Integration Metadata (Optional): When you choose to connect Google Calendar, we retrieve read-only upcoming schedule data to calculate a non-identifying, title-free schedule-density metric (e.g., light, moderate, heavy schedule load).",
+          "Retired Calendar Integration: Kindred no longer connects to Google Calendar or retrieves event information. Previously saved encrypted connection tokens remain available for user-initiated disconnection pending a connection audit.",
           "Subscription & Transaction Data: Payment references, plan tiers (Yearly or Lifetime Access), and transaction IDs processed securely through Helcim. We do not store or process raw credit card numbers.",
           "Operational & Security Telemetry: Server access logs, security events, quota tracking, and application error logs.",
         ],
@@ -263,10 +266,10 @@ const privacySections: LegalSection[] = [
         "Kindred's use and transfer to any other app of information received from Google APIs adheres strictly to the Google API Services User Data Policy, including the Limited Use requirements:",
       ),
       list([
-        "Scope Minimization: We request read-only access strictly to upcoming calendar metadata.",
-        "Title-Free Processing: Raw event titles, meeting descriptions, participant emails, and sensitive event details are not injected into the AI context. Only an aggregated schedule-density signal is utilized.",
+        "Integration Retirement: New Google Calendar connections and event retrieval are disabled.",
+        "Coaching Context: Google Calendar events and schedule-density signals are no longer supplied to coaching.",
         "No Secondary Marketing or AI Training: Google user data is never sold, transferred to data brokers, used for advertising, or used to train general-purpose AI models.",
-        "Revocation: You may disconnect Google Calendar and revoke OAuth permissions at any time within your account settings, triggering immediate token deletion from our databases.",
+        "Disconnection: The You page links to cleanup of previously saved Calendar access. Disconnection deletes the saved token from Kindred and attempts Google token revocation; access can also be removed in your Google Account.",
       ]),
     ],
   },
@@ -443,7 +446,7 @@ const healthSections: LegalSection[] = [
         "KINDRED IS NOT A LICENSED HEALTHCARE PROVIDER, MEDICAL CLINIC, CRISIS INTERVENTION CENTER, OR PSYCHIATRIC FACILITY.",
       ),
       list([
-        "No Medical or Therapeutic Advice: All content, AI dialogue, morning/evening reflection prompts, body scan logs, calendar load signals, and generated progress summaries are provided exclusively for personal informational and educational purposes.",
+        "No Medical or Therapeutic Advice: All content, AI dialogue, morning/evening reflection prompts, body scan logs and generated progress summaries are provided exclusively for personal informational and educational purposes.",
         "No Clinical Diagnosis or Treatment: Kindred does not diagnose, treat, prevent, mitigate, or cure any physical, mental, psychiatric, or psychological illness, condition, or disorder. The Service is not a substitute for clinical judgment, medical examinations, or psychotherapy provided by a licensed physician, psychiatrist, registered psychologist, or healthcare professional.",
       ]),
     ],
@@ -514,7 +517,7 @@ const transparencySections: LegalSection[] = [
       list([
         "Conversational Coaching Dialogue: Generating interactive coaching prompts, reflective inquiries, and conversational responses based on user-initiated messages.",
         "Self-Assessment Summaries: Synthesizing user-submitted morning check-ins, evening reflections, body scans, and goal tracking into periodic progress overviews.",
-        "Contextual Schedule Density Signals: Calculating high-level calendar density indicators (e.g., light, moderate, high load) when the optional Google Calendar integration is connected, enabling the AI to tailor coaching pacing without reading raw event descriptions or personal meeting details.",
+        "Calendar Retirement: Calendar events and schedule-density signals are no longer used in AI coaching.",
       ]),
     ],
   },
@@ -738,10 +741,9 @@ export function HealthDisclaimer() {
           content: (
             <p>
               Kindred does not diagnose, treat, cure, or prevent any condition.
-              Its assessments, calendar-load signals, summaries, and AI
-              responses are not clinical evaluations and are not a substitute
-              for a physician, therapist, pharmacist, or other qualified
-              professional.
+              Its assessments, summaries, and AI responses are not clinical
+              evaluations and are not a substitute for a physician, therapist,
+              pharmacist, or other qualified professional.
             </p>
           ),
         },
@@ -814,8 +816,8 @@ export function AIUseDisclosure() {
               AI generates coaching-chat replies and may help form summaries or
               contextual guidance. The server can provide recent morning and
               evening assessments, body scans, habit information, medication
-              status, profile details, and a title-free calendar-load signal
-              when those sources are relevant to the current message.
+              status, and profile details when those sources are relevant to the
+              current message. Google Calendar context is no longer used.
             </p>
           ),
         },
@@ -834,7 +836,6 @@ export function AIUseDisclosure() {
           heading: "Limitations",
           content: list([
             "AI output is probabilistic and may be inaccurate, incomplete, inconsistent, or inappropriate.",
-            "Calendar-load categories describe scheduling density only; they are not diagnoses or psychological conclusions.",
             "Kindred does not have human feelings, professional credentials, or independent knowledge of facts outside the information and tools supplied to it.",
             "Important health, legal, financial, safety, or other consequential information requires a qualified human source.",
           ]),

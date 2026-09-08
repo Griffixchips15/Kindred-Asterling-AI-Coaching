@@ -1,9 +1,3 @@
-import {
-  fetchUpcomingEvents,
-  hasCalendarConnection,
-  isCalendarConfigured,
-  type NormalizedCalendarEvent,
-} from "./googleCalendar";
 import { runChatTool } from "./chatTools";
 
 export const KINDRED_CONTEXT_SCHEMA_VERSION = "1.0" as const;
@@ -12,10 +6,7 @@ export type KindredContextSource =
   | "morning_assessments"
   | "evening_assessments"
   | "habit_tracking"
-  | "body_scans"
-  | "calendar_load";
-
-export type CalendarLoadLevel = "open" | "light" | "moderate" | "high";
+  | "body_scans";
 
 export interface MorningAssessmentContext {
   date: string;
@@ -50,25 +41,6 @@ export interface HabitContext {
   completedCount: number;
 }
 
-export interface CalendarLoadDay {
-  date: string;
-  timedEventCount: number;
-  allDayEventCount: number;
-  totalEventCount: number;
-  level: CalendarLoadLevel;
-}
-
-export interface CalendarLoadSignal {
-  kind: "calendar_load";
-  windowDays: number;
-  days: CalendarLoadDay[];
-  highestDailyEventCount: number;
-  sustainedSchedulingLoad: boolean;
-  interpretation:
-    "no_scheduled_load" | "ordinary_scheduled_load" | "elevated_scheduled_load";
-  disclaimer: string;
-}
-
 export interface KindredUserContext {
   schemaVersion: typeof KINDRED_CONTEXT_SCHEMA_VERSION;
   assembledAt: string;
@@ -88,7 +60,6 @@ export interface KindredUserContext {
     bodyScans?: BodyScanContext[];
   };
   habits?: HabitContext[];
-  calendarLoad?: CalendarLoadSignal;
 }
 
 const SOURCE_PATTERNS: Record<KindredContextSource, RegExp[]> = {
@@ -113,10 +84,6 @@ const SOURCE_PATTERNS: Record<KindredContextSource, RegExp[]> = {
     /\benergy level|tension|tense|fatigue|drained\b/i,
     /\bmy body|physically\b/i,
   ],
-  calendar_load: [
-    /\bcalendar|schedule(d)?|meeting(s)?|appointment(s)?\b/i,
-    /\bworkload|busy|time pressure|packed day|packed week\b/i,
-  ],
 };
 
 const BROAD_LOAD_PATTERNS = [
@@ -140,81 +107,8 @@ export function selectKindredContextSources(
     selected.add("morning_assessments");
     selected.add("evening_assessments");
     selected.add("body_scans");
-    selected.add("calendar_load");
   }
   return Array.from(selected);
-}
-
-function calendarLevel(total: number): CalendarLoadLevel {
-  if (total === 0) return "open";
-  if (total <= 2) return "light";
-  if (total <= 4) return "moderate";
-  return "high";
-}
-
-function dateDistance(a: string, b: string): number {
-  const left = Date.parse(`${a}T00:00:00Z`);
-  const right = Date.parse(`${b}T00:00:00Z`);
-  return Math.round((right - left) / 86_400_000);
-}
-
-export function deriveCalendarLoadSignal(
-  events: NormalizedCalendarEvent[],
-  windowDays = 7,
-  today = new Date(),
-): CalendarLoadSignal {
-  const counts = new Map<string, { timed: number; allDay: number }>();
-  for (const event of events) {
-    const bucket = counts.get(event.date) ?? { timed: 0, allDay: 0 };
-    if (event.time === "All day") bucket.allDay += 1;
-    else bucket.timed += 1;
-    counts.set(event.date, bucket);
-  }
-
-  const start = new Date(today);
-  start.setHours(0, 0, 0, 0);
-  const days: CalendarLoadDay[] = [];
-  for (let offset = 0; offset < windowDays; offset += 1) {
-    const date = new Date(start);
-    date.setDate(date.getDate() + offset);
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-    const count = counts.get(key) ?? { timed: 0, allDay: 0 };
-    const total = count.timed + count.allDay;
-    days.push({
-      date: key,
-      timedEventCount: count.timed,
-      allDayEventCount: count.allDay,
-      totalEventCount: total,
-      level: calendarLevel(total),
-    });
-  }
-
-  const busyDays = days.filter((day) => day.totalEventCount >= 4);
-  const sustainedSchedulingLoad = busyDays.some((day, index) => {
-    const next = busyDays[index + 1];
-    return Boolean(next && dateDistance(day.date, next.date) === 1);
-  });
-  const highestDailyEventCount = Math.max(
-    0,
-    ...days.map((day) => day.totalEventCount),
-  );
-  const interpretation =
-    highestDailyEventCount === 0
-      ? "no_scheduled_load"
-      : highestDailyEventCount >= 5 || sustainedSchedulingLoad
-        ? "elevated_scheduled_load"
-        : "ordinary_scheduled_load";
-
-  return {
-    kind: "calendar_load",
-    windowDays,
-    days,
-    highestDailyEventCount,
-    sustainedSchedulingLoad,
-    interpretation,
-    disclaimer:
-      "This is a scheduling-context signal based only on event counts. It is not a medical or psychological assessment.",
-  };
 }
 
 async function parseToolResult<T>(name: string, userId: string): Promise<T[]> {
@@ -288,24 +182,6 @@ export async function assembleKindredContext(
       ),
     );
   }
-  if (sources.includes("calendar_load")) {
-    tasks.push(
-      (async () => {
-        if (!isCalendarConfigured()) {
-          context.sourceStatus.calendar_load = "not_configured";
-          return;
-        }
-        if (!(await hasCalendarConnection(userId))) {
-          context.sourceStatus.calendar_load = "not_connected";
-          return;
-        }
-        const events = await fetchUpcomingEvents(userId, 6);
-        context.calendarLoad = deriveCalendarLoadSignal(events, 7);
-        context.sourceStatus.calendar_load = "available";
-      })(),
-    );
-  }
-
   const results = await Promise.allSettled(tasks);
   if (results.some((result) => result.status === "rejected")) {
     for (const source of sources) {

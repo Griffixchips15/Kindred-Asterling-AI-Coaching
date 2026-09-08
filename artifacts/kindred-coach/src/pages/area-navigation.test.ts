@@ -27,7 +27,7 @@ function expectTouchTargetAndFocusRing(source: string, testId: string): void {
 describe("primary-area destination coherence", () => {
   it("Talk: the conversation page links to archived conversations", () => {
     const chat = read("chat.tsx");
-    expect(chat).toContain('href="/archive"');
+    expect(chat).toContain('href="/app/archive"');
     expect(chat).toContain('data-testid="talk-archive-link"');
     expect(chat).toContain("Archived conversations");
     expectTouchTargetAndFocusRing(chat, "talk-archive-link");
@@ -42,7 +42,7 @@ describe("primary-area destination coherence", () => {
 
   it("You: the profile page links to account security", () => {
     const profile = read("profile.tsx");
-    expect(profile).toContain('href="/account"');
+    expect(profile).toContain('href="/app/account"');
     expect(profile).toContain('data-testid="you-account-link"');
     expect(profile).toContain("Account security");
     expectTouchTargetAndFocusRing(profile, "you-account-link");

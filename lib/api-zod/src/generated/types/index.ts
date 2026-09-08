@@ -52,3 +52,5 @@ export * from './reminderSettings';
 export * from './reminderSettingsUpdateInput';
 export * from './subscriptionStatus';
 export * from './todaySummary';
+
+export * from './getTodaySummaryParams';

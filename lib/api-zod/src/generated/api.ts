@@ -875,6 +875,15 @@ export const GetUpcomingCalendarEventsResponse = zod.array(GetUpcomingCalendarEv
 /**
  * @summary Get today's progress summary
  */
+export const getTodaySummaryQueryTzOffsetMin = -840;
+export const getTodaySummaryQueryTzOffsetMax = 840;
+
+
+
+export const GetTodaySummaryQueryParams = zod.object({
+  "tzOffset": zod.coerce.number().int().min(getTodaySummaryQueryTzOffsetMin).max(getTodaySummaryQueryTzOffsetMax).optional().describe('Client time-zone offset in minutes as returned by JavaScript Date.getTimezoneOffset() (UTC minus local; e.g. 300 for UTC-5). Used to resolve \"today\" in the user\'s local day. Defaults to 0 (UTC).\n')
+})
+
 export const GetTodaySummaryResponse = zod.object({
   "date": zod.string(),
   "morningDone": zod.boolean(),

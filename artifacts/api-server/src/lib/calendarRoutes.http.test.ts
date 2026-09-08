@@ -16,28 +16,15 @@ import {
   registerTestClerkIdentity,
   revokeTestClerkIdentity,
 } from "../middlewares/testClerkIdentityAdapter";
-import {
-  disconnectCalendar,
-  fetchUpcomingEvents,
-  hasCalendarConnection,
-  isCalendarConfigured,
-} from "./googleCalendar";
+import { disconnectCalendar, hasCalendarConnection } from "./googleCalendar";
 
 vi.mock("./googleCalendar", () => ({
-  createOAuthState: vi.fn(),
   disconnectCalendar: vi.fn(),
-  fetchUpcomingEvents: vi.fn(),
-  googleAuthorizationUrl: vi.fn(),
   hasCalendarConnection: vi.fn(),
-  isCalendarConfigured: vi.fn(),
-  saveAuthorizationCode: vi.fn(),
-  verifyOAuthState: vi.fn(),
 }));
 
-const fetchMock = vi.mocked(fetchUpcomingEvents);
 const disconnectMock = vi.mocked(disconnectCalendar);
 const connectedMock = vi.mocked(hasCalendarConnection);
-const configuredMock = vi.mocked(isCalendarConfigured);
 const suffix = Math.random().toString(36).slice(2, 10);
 const userId = `test-calhttp-user-${suffix}`;
 let server: Server;
@@ -68,10 +55,8 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
-  fetchMock.mockReset();
   disconnectMock.mockReset();
   connectedMock.mockReset();
-  configuredMock.mockReset();
 });
 
 afterAll(async () => {
@@ -101,37 +86,48 @@ describe("DELETE /calendar/connection", () => {
   });
 });
 
-describe("GET /calendar/upcoming", () => {
-  it("rejects anonymous callers", async () => {
-    const response = await api("/calendar/upcoming");
-    expect(response.status).toBe(401);
+describe("retired Calendar endpoints", () => {
+  it.each(["/calendar/upcoming", "/calendar/connect", "/calendar/status", "/calendar/callback"])(
+    "requires authentication on %s",
+    async (path) => {
+      expect((await api(path)).status).toBe(401);
+      expect(connectedMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["/calendar/upcoming", "/calendar/connect"])(
+    "returns 410 on %s even for previously connected users",
+    async (path) => {
+      connectedMock.mockResolvedValue(true);
+      const response = await api(path, token);
+      expect(response).toEqual({
+        status: 410,
+        body: { error: "calendar_retired" },
+      });
+      expect(connectedMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("reports saved access for authenticated cleanup without enabling the feature", async () => {
+    connectedMock.mockResolvedValue(true);
+    const response = await api("/calendar/status", token);
+    expect(response).toEqual({
+      status: 200,
+      body: { retired: true, configured: false, connected: true },
+    });
+    expect(connectedMock).toHaveBeenCalledWith(userId);
   });
 
-  it("requires a connected Google account", async () => {
-    configuredMock.mockReturnValue(true);
-    connectedMock.mockResolvedValue(false);
-    const response = await api("/calendar/upcoming", token);
-    expect(response.status).toBe(409);
-    expect((response.body as { error: string }).error).toBe(
-      "calendar_not_connected",
+  it("discards in-flight OAuth callbacks instead of exchanging their code", async () => {
+    const response = await fetch(
+      `${baseUrl}/calendar/callback?code=unused&state=unused`,
+      { redirect: "manual", headers: { authorization: `Bearer ${token}` } },
     );
-  });
-
-  it("returns events for a connected user", async () => {
-    configuredMock.mockReturnValue(true);
-    connectedMock.mockResolvedValue(true);
-    const events = [{ date: "2026-06-01", time: "9:00 AM", title: "Standup" }];
-    fetchMock.mockResolvedValueOnce(events);
-    const response = await api("/calendar/upcoming", token);
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual(events);
-  });
-
-  it("returns 502 when Google fails", async () => {
-    configuredMock.mockReturnValue(true);
-    connectedMock.mockResolvedValue(true);
-    fetchMock.mockRejectedValueOnce(new Error("google boom"));
-    const response = await api("/calendar/upcoming", token);
-    expect(response.status).toBe(502);
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toMatch(
+      /\/app\/calendar\?retired=1$/,
+    );
+    expect(connectedMock).not.toHaveBeenCalled();
+    expect(disconnectMock).not.toHaveBeenCalled();
   });
 });

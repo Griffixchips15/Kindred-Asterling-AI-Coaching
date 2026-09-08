@@ -43,6 +43,7 @@ import type {
   HabitUpdate,
   HealthStatus,
   ListMedicationsParams,
+  GetTodaySummaryParams,
   Medication,
   MedicationDoseRef,
   MedicationInput,
@@ -2849,20 +2850,27 @@ export function useGetUpcomingCalendarEvents<TData = Awaited<ReturnType<typeof g
 
 
 
-export const getGetTodaySummaryUrl = () => {
+export const getGetTodaySummaryUrl = (params?: GetTodaySummaryParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/dashboard/today`
+  return stringifiedParams.length > 0 ? `/api/dashboard/today?${stringifiedParams}` : `/api/dashboard/today`
 }
 
 /**
  * @summary Get today's progress summary
  */
-export const getTodaySummary = async ( options?: Parameters<typeof customFetch>[1]): Promise<TodaySummary> => {
+export const getTodaySummary = async (params?: GetTodaySummaryParams, options?: Parameters<typeof customFetch>[1]): Promise<TodaySummary> => {
 
-  return customFetch<TodaySummary>(getGetTodaySummaryUrl(),
+  return customFetch<TodaySummary>(getGetTodaySummaryUrl(params),
   {
     ...options,
     method: 'GET'
@@ -2875,23 +2883,23 @@ export const getTodaySummary = async ( options?: Parameters<typeof customFetch>[
 
 
 
-export const getGetTodaySummaryQueryKey = () => {
+export const getGetTodaySummaryQueryKey = (params?: GetTodaySummaryParams,) => {
     return [
-    `/api/dashboard/today`
+    `/api/dashboard/today`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetTodaySummaryQueryOptions = <TData = Awaited<ReturnType<typeof getTodaySummary>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTodaySummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetTodaySummaryQueryOptions = <TData = Awaited<ReturnType<typeof getTodaySummary>>, TError = ErrorType<unknown>>(params?: GetTodaySummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTodaySummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetTodaySummaryQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetTodaySummaryQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTodaySummary>>> = ({ signal }) => getTodaySummary({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTodaySummary>>> = ({ signal }) => getTodaySummary(params, { signal, ...requestOptions });
 
 
 
@@ -2909,11 +2917,11 @@ export type GetTodaySummaryQueryError = ErrorType<unknown>
  */
 
 export function useGetTodaySummary<TData = Awaited<ReturnType<typeof getTodaySummary>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTodaySummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetTodaySummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTodaySummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetTodaySummaryQueryOptions(options)
+  const queryOptions = getGetTodaySummaryQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

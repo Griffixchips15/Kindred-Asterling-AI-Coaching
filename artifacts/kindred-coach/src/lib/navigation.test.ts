@@ -36,32 +36,31 @@ describe("navigation model", () => {
 
   it("exposes every lower-frequency destination in the secondary list", () => {
     const secondaryHrefs = SECONDARY_NAV_ITEMS.map((i) => i.href);
-    expect(secondaryHrefs).toContain("/morning");
-    expect(secondaryHrefs).toContain("/scans");
-    expect(secondaryHrefs).toContain("/evening");
-    expect(secondaryHrefs).toContain("/habits");
-    expect(secondaryHrefs).toContain("/medications");
-    expect(secondaryHrefs).toContain("/calendar");
-    expect(secondaryHrefs).toContain("/reminders");
-    expect(secondaryHrefs).toContain("/account");
-    expect(secondaryHrefs).toContain("/archive");
+    expect(secondaryHrefs).toContain("/app/morning");
+    expect(secondaryHrefs).toContain("/app/scans");
+    expect(secondaryHrefs).toContain("/app/evening");
+    expect(secondaryHrefs).toContain("/app/habits");
+    expect(secondaryHrefs).toContain("/app/medications");
+    expect(secondaryHrefs).not.toContain("/app/calendar");
+    expect(secondaryHrefs).toContain("/app/reminders");
+    expect(secondaryHrefs).toContain("/app/account");
+    expect(secondaryHrefs).toContain("/app/archive");
   });
 
   it("presents every signed-in destination exactly once", () => {
     const expected = [
       "/today",
-      "/morning",
-      "/scans",
-      "/evening",
-      "/habits",
-      "/medications",
+      "/app/morning",
+      "/app/scans",
+      "/app/evening",
+      "/app/habits",
+      "/app/medications",
       "/insights",
       "/you",
-      "/account",
-      "/calendar",
+      "/app/account",
       "/talk",
-      "/archive",
-      "/reminders",
+      "/app/archive",
+      "/app/reminders",
     ];
     expect(ALL_SIGNED_IN_ROUTES.sort()).toEqual(expected.sort());
 
@@ -78,13 +77,12 @@ describe("navigation model", () => {
   it("maps daily-routine routes to the Today primary area", () => {
     for (const href of [
       "/today",
-      "/morning",
-      "/scans",
-      "/evening",
-      "/habits",
-      "/medications",
-      "/calendar",
-      "/reminders",
+      "/app/morning",
+      "/app/scans",
+      "/app/evening",
+      "/app/habits",
+      "/app/medications",
+      "/app/reminders",
     ]) {
       expect(ROUTE_TO_PRIMARY_AREA[href]).toBe("today");
     }
@@ -92,28 +90,35 @@ describe("navigation model", () => {
 
   it("groups Talk, Insights, and You routes correctly", () => {
     expect(ROUTE_TO_PRIMARY_AREA["/talk"]).toBe("talk");
-    expect(ROUTE_TO_PRIMARY_AREA["/archive"]).toBe("talk");
+    expect(ROUTE_TO_PRIMARY_AREA["/app/archive"]).toBe("talk");
     expect(ROUTE_TO_PRIMARY_AREA["/insights"]).toBe("insights");
     expect(ROUTE_TO_PRIMARY_AREA["/you"]).toBe("you");
-    expect(ROUTE_TO_PRIMARY_AREA["/account"]).toBe("you");
+    expect(ROUTE_TO_PRIMARY_AREA["/app/account"]).toBe("you");
   });
 
   it("keeps the previous primary URLs as redirect aliases", () => {
     expect(LEGACY_PRIMARY_ROUTE_REDIRECTS).toEqual({
-      "/": "/today",
-      "/chat": "/talk",
-      "/reports": "/insights",
-      "/profile": "/you",
+      "/app": "/today",
+      "/app/chat": "/talk",
+      "/app/reports": "/insights",
+      "/app/profile": "/you",
+      "/app/today": "/today",
+      "/app/talk": "/talk",
+      "/app/insights": "/insights",
+      "/app/you": "/you",
     });
-    expect(primaryAreaForPath("/")).toBe("today");
-    expect(primaryAreaForPath("/chat")).toBe("talk");
-    expect(primaryAreaForPath("/reports")).toBe("insights");
-    expect(primaryAreaForPath("/profile")).toBe("you");
+    expect(primaryAreaForPath("/app")).toBe("today");
+    expect(primaryAreaForPath("/app/chat")).toBe("talk");
+    expect(primaryAreaForPath("/app/reports")).toBe("insights");
+    expect(primaryAreaForPath("/app/profile")).toBe("you");
+    expect(primaryAreaForPath("/app/account/?tab=security#password")).toBe(
+      "you",
+    );
   });
 
   it("resolves a location path to its primary area", () => {
-    expect(primaryAreaForPath("/morning")).toBe("today");
-    expect(primaryAreaForPath("/archive")).toBe("talk");
+    expect(primaryAreaForPath("/app/morning")).toBe("today");
+    expect(primaryAreaForPath("/app/archive")).toBe("talk");
     expect(primaryAreaForPath("/insights")).toBe("insights");
     expect(primaryAreaForPath("/today")).toBe("today");
   });
@@ -127,36 +132,39 @@ describe("area destinations", () => {
   it("buckets every secondary route under its primary area, without loss", () => {
     const total = Object.values(AREA_SECONDARY_ROUTES).flat().length;
     expect(total).toBe(SECONDARY_NAV_ITEMS.length);
-    expect(AREA_SECONDARY_ROUTES.talk.map((i) => i.href)).toEqual(["/archive"]);
-    expect(AREA_SECONDARY_ROUTES.you.map((i) => i.href)).toEqual(["/account"]);
+    expect(AREA_SECONDARY_ROUTES.talk.map((i) => i.href)).toEqual([
+      "/app/archive",
+    ]);
+    expect(AREA_SECONDARY_ROUTES.you.map((i) => i.href)).toEqual([
+      "/app/account",
+    ]);
     expect(AREA_SECONDARY_ROUTES.insights).toEqual([]);
     expect(AREA_SECONDARY_ROUTES.today.map((i) => i.href)).toEqual([
-      "/morning",
-      "/scans",
-      "/evening",
-      "/habits",
-      "/medications",
-      "/calendar",
-      "/reminders",
+      "/app/morning",
+      "/app/scans",
+      "/app/evening",
+      "/app/habits",
+      "/app/medications",
+      "/app/reminders",
     ]);
   });
 
   it("lists a primary area's secondary destinations", () => {
     expect(areaSecondaryDestinations("talk").map((i) => i.href)).toEqual([
-      "/archive",
+      "/app/archive",
     ]);
     expect(areaSecondaryDestinations("you").map((i) => i.href)).toEqual([
-      "/account",
+      "/app/account",
     ]);
     expect(areaSecondaryDestinations("insights")).toEqual([]);
   });
 
   it("excludes the page the visitor is already on", () => {
     expect(
-      areaSecondaryDestinations("talk", { excludeHref: "/archive" }),
+      areaSecondaryDestinations("talk", { excludeHref: "/app/archive" }),
     ).toEqual([]);
     expect(
-      areaSecondaryDestinations("you", { excludeHref: "/account" }),
+      areaSecondaryDestinations("you", { excludeHref: "/app/account" }),
     ).toEqual([]);
   });
 

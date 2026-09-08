@@ -24,7 +24,7 @@ describe("deriveNextStep", () => {
   it("prioritises the morning check-in when incomplete", () => {
     const step = deriveNextStep(base({ morningDone: false }), at(9));
     expect(step.kind).toBe("morning");
-    expect(step.href).toBe("/morning");
+    expect(step.href).toBe("/app/morning");
   });
 
   it("prompts a dose that is due but unrecorded", () => {
@@ -38,7 +38,7 @@ describe("deriveNextStep", () => {
       at(12),
     );
     expect(step.kind).toBe("medication");
-    expect(step.href).toBe("/medications");
+    expect(step.href).toBe("/app/medications");
     expect(step.body).toContain("08:00");
   });
 
@@ -70,7 +70,7 @@ describe("deriveNextStep", () => {
   it("recommends a body scan when none recorded today", () => {
     const step = deriveNextStep(base({ bodyScansCount: 0 }), at(12));
     expect(step.kind).toBe("body-scan");
-    expect(step.href).toBe("/scans");
+    expect(step.href).toBe("/app/scans");
   });
 
   it("recommends habits when habits are incomplete", () => {
@@ -79,7 +79,7 @@ describe("deriveNextStep", () => {
       at(12),
     );
     expect(step.kind).toBe("habit");
-    expect(step.href).toBe("/habits");
+    expect(step.href).toBe("/app/habits");
   });
 
   it("does not recommend habits when no habits exist", () => {
@@ -95,7 +95,7 @@ describe("deriveNextStep", () => {
   it("recommends the evening reflection after 5 PM when incomplete", () => {
     const step = deriveNextStep(base({ eveningDone: false }), at(18));
     expect(step.kind).toBe("evening");
-    expect(step.href).toBe("/evening");
+    expect(step.href).toBe("/app/evening");
   });
 
   it("does not recommend evening reflection before 5 PM", () => {
@@ -239,7 +239,7 @@ describe("deriveDailyJourney", () => {
       }),
     );
     const tend = journey.find((j) => j.anchor === "Tend");
-    expect(tend?.href).toBe("/medications");
+    expect(tend?.href).toBe("/app/medications");
   });
 
   it("routes Tend to /habits when habits are incomplete", () => {
@@ -251,7 +251,7 @@ describe("deriveDailyJourney", () => {
       }),
     );
     const tend = journey.find((j) => j.anchor === "Tend");
-    expect(tend?.href).toBe("/habits");
+    expect(tend?.href).toBe("/app/habits");
   });
 
   it("does not mark Tend complete while medications are loading", () => {
@@ -316,7 +316,7 @@ describe("deriveNextStep with unavailable medication data", () => {
     expect(step.kind).toBe("medication-unavailable");
     expect(step.title).not.toMatch(/on track/i);
     expect(step.body).not.toMatch(/nothing pressing/i);
-    expect(step.href).toBe("/medications");
+    expect(step.href).toBe("/app/medications");
     expect(step.cta).toContain("medications");
   });
 
@@ -334,6 +334,6 @@ describe("deriveNextStep with unavailable medication data", () => {
       at(12),
     );
     expect(step.kind).toBe("morning");
-    expect(step.href).toBe("/morning");
+    expect(step.href).toBe("/app/morning");
   });
 });

@@ -103,7 +103,7 @@ export function deriveNextStep(inputs: TodayInputs, now: Date): NextStep {
   if (!inputs.morningDone) {
     return {
       kind: "morning",
-      href: "/morning",
+      href: "/app/morning",
       title: "Begin your day",
       body: "Take a quiet moment to check in before the noise begins.",
       cta: "Start your morning check-in",
@@ -123,7 +123,7 @@ export function deriveNextStep(inputs: TodayInputs, now: Date): NextStep {
     if (due) {
       return {
         kind: "medication",
-        href: "/medications",
+        href: "/app/medications",
         title: "Record your medication",
         body: `Your dose scheduled for ${due.scheduledTime} is ready to be marked as taken.`,
         cta: "Open medications",
@@ -135,7 +135,7 @@ export function deriveNextStep(inputs: TodayInputs, now: Date): NextStep {
   if (inputs.bodyScansCount === 0) {
     return {
       kind: "body-scan",
-      href: "/scans",
+      href: "/app/scans",
       title: "Notice what's here",
       body: "A short body scan to ground yourself in the present moment.",
       cta: "Begin a body scan",
@@ -149,7 +149,7 @@ export function deriveNextStep(inputs: TodayInputs, now: Date): NextStep {
   ) {
     return {
       kind: "habit",
-      href: "/habits",
+      href: "/app/habits",
       title: "Tend a small habit",
       body: "A gentle step toward the consistency you're building.",
       cta: "Open your habits",
@@ -160,7 +160,7 @@ export function deriveNextStep(inputs: TodayInputs, now: Date): NextStep {
   if (pastEvening && !inputs.eveningDone) {
     return {
       kind: "evening",
-      href: "/evening",
+      href: "/app/evening",
       title: "Close the day",
       body: "Reflect on what worked and what tomorrow needs.",
       cta: "Start your evening reflection",
@@ -173,7 +173,7 @@ export function deriveNextStep(inputs: TodayInputs, now: Date): NextStep {
   if (inputs.medicationsUnavailable) {
     return {
       kind: "medication-unavailable",
-      href: "/medications",
+      href: "/app/medications",
       title: "Check your medications",
       body: "Your medication schedule couldn't load just now, so Kindred can't tell what's next. Opening your medications is the surest way to check.",
       cta: "Open medications",
@@ -232,7 +232,7 @@ export function deriveDailyJourney(inputs: TodayInputs): JourneyStep[] {
         ? `${inputs.habitsCompletedToday} of ${inputs.totalHabits} habits done · Medication unavailable`
         : "Medication unavailable";
     tendComplete = false;
-    tendHref = habitsIncomplete ? "/habits" : "/medications";
+    tendHref = habitsIncomplete ? "/app/habits" : "/app/medications";
   } else if (inputs.medicationsLoading) {
     // Still loading: unknown medication state can never complete the anchor.
     tendStatus =
@@ -240,7 +240,7 @@ export function deriveDailyJourney(inputs: TodayInputs): JourneyStep[] {
         ? `${inputs.habitsCompletedToday} of ${inputs.totalHabits} habits done`
         : "Still loading";
     tendComplete = false;
-    tendHref = habitsIncomplete ? "/habits" : "/medications";
+    tendHref = habitsIncomplete ? "/app/habits" : "/app/medications";
   } else {
     // Medication data known (may be an empty schedule).
     const medsRecorded = doseCount > 0 && dosesRecorded === doseCount;
@@ -267,24 +267,24 @@ export function deriveDailyJourney(inputs: TodayInputs): JourneyStep[] {
     tendComplete =
       (medsExist || habitsExist) && !medsIncomplete && !habitsIncomplete;
     tendHref = habitsIncomplete
-      ? "/habits"
+      ? "/app/habits"
       : medsExist
-        ? "/medications"
-        : "/habits";
+        ? "/app/medications"
+        : "/app/habits";
   }
 
   return [
     {
       anchor: "Begin",
       label: "Morning check-in",
-      href: "/morning",
+      href: "/app/morning",
       complete: inputs.morningDone,
       status: inputs.morningDone ? "Completed" : "Not yet",
     },
     {
       anchor: "Notice",
       label: "Body scan",
-      href: "/scans",
+      href: "/app/scans",
       complete: inputs.bodyScansCount > 0,
       status:
         inputs.bodyScansCount > 0
@@ -301,7 +301,7 @@ export function deriveDailyJourney(inputs: TodayInputs): JourneyStep[] {
     {
       anchor: "Close",
       label: "Evening reflection",
-      href: "/evening",
+      href: "/app/evening",
       complete: inputs.eveningDone,
       status: inputs.eveningDone ? "Completed" : "Not yet",
     },
