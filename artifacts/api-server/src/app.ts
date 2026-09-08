@@ -4,7 +4,6 @@ import helmet from "helmet";
 import pinoHttp from "pino-http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { clerkMiddleware } from "@clerk/express";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import { testClerkIdentityAdapter } from "./middlewares/testClerkIdentityAdapter";
 import { generalLimiter, writeLimiter } from "./middlewares/rateLimiter";
@@ -14,26 +13,14 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
-// Health routes must respond without Clerk credentials (used in CI/verification
-// environments where Clerk keys may not be configured).
+// Health routes must respond without Auth0 credentials (used in CI/verification
+// environments where Auth0 values may not be configured).
 app.use("/api", healthRouter);
 
-// Clerk must authenticate the untouched incoming request before any middleware
-// that may transform it. Tests use an isolated identity adapter instead.
 const isTest = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
-if (!isTest) {
-  app.use(
-    clerkMiddleware({
-      secretKey: process.env.CLERK_SECRET_KEY!,
-      publishableKey: process.env.CLERK_PUBLISHABLE_KEY!,
-    }),
-  );
-}
-
-const clerkOrigins = [
-  "https://clerk.kindred-asterling-ai-coaching.com",
-  "https://accounts.kindred-asterling-ai-coaching.com",
-];
+const auth0Origins = process.env.AUTH0_DOMAIN
+  ? [`https://${process.env.AUTH0_DOMAIN.trim()}`]
+  : [];
 
 const allowedOrigins = new Set(
   [
@@ -63,18 +50,14 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", clerkOrigins[0], "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: [
-          "'self'",
-          "https://*.clerk.com",
-          ...clerkOrigins,
-        ],
+        connectSrc: ["'self'", ...auth0Origins],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         objectSrc: ["'none'"],
         frameAncestors: ["'none'"],
-        frameSrc: ["https://*.clerk.com", ...clerkOrigins],
+        frameSrc: [...auth0Origins],
         workerSrc: ["'self'", "blob:"],
       },
     },
@@ -131,7 +114,7 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true, limit: "32kb" }));
 
-// Tests use a deliberately small Clerk identity stand-in, never production session code.
+// Tests use a deliberately small application identity stand-in, never production session code.
 if (isTest) {
   app.use(testClerkIdentityAdapter);
 } else {

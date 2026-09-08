@@ -7,7 +7,7 @@ import {
   useGetTodayAffirmation,
   getGetTodayAffirmationQueryKey,
 } from "@workspace/api-client-react";
-import { useUser } from "@clerk/clerk-react";
+import { useUser } from "@/lib/auth";
 import {
   User,
   Save,
@@ -52,7 +52,7 @@ function safeFormatDate(s: string | null | undefined): string | null {
 
 export default function Profile() {
   const qc = useQueryClient();
-  const { user: clerkUser } = useUser();
+  const { user: authUser } = useUser();
   const { data, isLoading, isError, refetch } = useGetCurrentAuthUser({
     query: { queryKey: getGetCurrentAuthUserQueryKey() },
   });
@@ -242,7 +242,7 @@ export default function Profile() {
               value={form.preferredName}
               onChange={(e) => setField("preferredName", e.target.value)}
               className={fieldClass}
-              placeholder={clerkUser?.firstName ?? "What should I call you?"}
+              placeholder={authUser?.firstName ?? "What should I call you?"}
               data-testid="profile-preferredName"
             />
           </div>

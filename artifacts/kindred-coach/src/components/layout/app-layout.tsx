@@ -10,7 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import logoMark from "@/assets/brand/logo-mark.png";
 import { ReactNode, useCallback, useEffect, useState } from "react";
-import { useAuth as useClerkAuth } from "@clerk/clerk-react";
+import { useAuth as useAuth } from "@/lib/auth";
 import { format, parseISO } from "date-fns";
 import { useTheme, THEME_OPTIONS, type ThemeName } from "@/hooks/use-theme";
 import {
@@ -344,7 +344,7 @@ function SecondaryNavList({
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
-  const { signOut } = useClerkAuth();
+  const { signOut } = useAuth();
   const queryClient = useQueryClient();
   const { data: authData } = useGetCurrentAuthUser({
     query: { queryKey: getGetCurrentAuthUserQueryKey() },

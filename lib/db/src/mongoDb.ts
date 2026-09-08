@@ -141,6 +141,14 @@ const indexDefinitions: ReadonlyArray<{
 }> = [
   {
     table: usersTable,
+    keys: { auth0UserId: 1 },
+    options: {
+      unique: true,
+      partialFilterExpression: { auth0UserId: { $type: "string" } },
+    },
+  },
+  {
+    table: usersTable,
     keys: { clerkUserId: 1 },
     options: {
       unique: true,

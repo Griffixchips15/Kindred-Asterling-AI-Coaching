@@ -1,12 +1,12 @@
 import type { NextFunction, Request, Response } from "express";
 import { db, usersTable } from "@workspace/db";
-import type { ClerkIdentity } from "./authMiddleware";
+import type { AuthIdentity } from "../lib/auth0Identity";
 
-const identities = new Map<string, ClerkIdentity>();
+const identities = new Map<string, AuthIdentity>();
 
 /** Test-only stand-in for Clerk token verification; production never executes it. */
 export function registerTestClerkIdentity(
-  identity: Partial<ClerkIdentity> & { id: string },
+  identity: Partial<AuthIdentity> & { id: string },
 ): string {
   const token = `test-clerk-${identity.id}-${crypto.randomUUID()}`;
   identities.set(token, {

@@ -41,7 +41,7 @@ paths:
       operationId: getSubscriptionStatus
       summary: Get the current user's subscription access status
       security:
-        - clerkBearer: []
+        - auth0Bearer: []
       responses:
         "200":
           description: Subscription status resolved successfully.
@@ -57,7 +57,7 @@ paths:
       operationId: createCheckout
       summary: Create a Helcim hosted checkout link for the selected plan
       security:
-        - clerkBearer: []
+        - auth0Bearer: []
       requestBody:
         required: true
         content:
@@ -81,7 +81,7 @@ paths:
       operationId: getCurrentAuthUser
       summary: Get the currently authenticated user
       security:
-        - clerkBearer: []
+        - auth0Bearer: []
       responses:
         "200":
           description: Auth status resolved successfully.
@@ -774,15 +774,15 @@ paths:
                   $ref: "#/components/schemas/MoodTrendPoint"
 
 security:
-  - clerkBearer: []
+  - auth0Bearer: []
 
 components:
   securitySchemes:
-    clerkBearer:
+    auth0Bearer:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Clerk session JWT obtained through the Clerk SDK.
+      description: Auth0 API access token obtained through the Auth0 SDK.
   schemas:
     SubscriptionStatus:
       type: object

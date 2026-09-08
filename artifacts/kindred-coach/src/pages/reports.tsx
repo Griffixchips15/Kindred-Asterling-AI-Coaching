@@ -4,7 +4,7 @@ import {
   type MedicationWeeklyReportLogsItem,
   type MedicationWeeklyReportMedicationsItemScheduleItem,
 } from "@workspace/api-client-react";
-import { useAuth } from "@clerk/clerk-react";
+import { useAuth } from "@/lib/auth";
 import { useState } from "react";
 import { CalendarRange, Pill, Download } from "lucide-react";
 import { cn } from "@/lib/utils";

@@ -38,9 +38,8 @@ export function validateRuntimeConfig(): void {
     requireValue("SUBSCRIPTION_OWNER_IDS");
     requireValue("RESEND_API_KEY");
     requireValue("RESEND_FROM_EMAIL");
-    requireValue("CLERK_SECRET_KEY");
-    requireValue("CLERK_PUBLISHABLE_KEY");
-    requireValue("CLERK_WEBHOOK_SECRET");
+    requireValue("AUTH0_DOMAIN");
+    requireValue("AUTH0_AUDIENCE");
   }
 
   if (process.env.HELCIM_PAYMENTS_ENABLED === "true") {

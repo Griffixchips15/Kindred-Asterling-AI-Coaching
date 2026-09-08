@@ -15,16 +15,12 @@ import {
   useSearch,
 } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import {
-  ClerkProvider,
-  RedirectToTasks,
-  TaskChooseOrganization,
-  TaskResetPassword,
-  TaskSetupMFA,
-  useAuth,
-  useSession,
-} from "@clerk/clerk-react";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
+  setAuthTokenGetter,
+  useGetCurrentAuthUser,
+  getGetCurrentAuthUserQueryKey,
+} from "@workspace/api-client-react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/app-layout";
@@ -77,15 +73,17 @@ const queryClient = new QueryClient({
   },
 });
 
-const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-
-// Wires Clerk's session JWT into the API client so every /api request carries
+// Wires Auth0's API access token into the API client so every /api request carries
 // `Authorization: Bearer <token>` so the API can authenticate the user.
 const AuthTokenReadyContext = createContext(false);
 
 function AuthTokenBridge({ children }: { children: ReactNode }) {
-  const { getToken, isLoaded } = useAuth();
+  const { getToken, isLoaded, user } = useAuth();
   const [tokenBridgeReady, setTokenBridgeReady] = useState(false);
+
+  useEffect(() => {
+    queryClient.clear();
+  }, [user?.id]);
 
   useEffect(() => {
     setAuthTokenGetter(() => getToken());
@@ -123,14 +121,19 @@ function PublicRoutes() {
 
 function PrivateRoutes() {
   const { isLoaded, isSignedIn } = useAuth();
-  const { isLoaded: isSessionLoaded, session } = useSession();
-  const sessionStatus = session?.status;
   const tokenBridgeReady = useContext(AuthTokenReadyContext);
+  const account = useGetCurrentAuthUser({
+    query: {
+      queryKey: getGetCurrentAuthUserQueryKey(),
+      enabled: isLoaded && isSignedIn && tokenBridgeReady,
+      retry: false,
+    },
+  });
   const [location, setLocation] = useLocation();
   const search = useSearch();
 
   useEffect(() => {
-    if (isLoaded && sessionStatus !== "pending" && !isSignedIn) {
+    if (isLoaded && !isSignedIn) {
       setLocation(
         protectedRouteLoginTarget(
           window.location.pathname +
@@ -140,16 +143,41 @@ function PrivateRoutes() {
         { replace: true },
       );
     }
-  }, [isLoaded, isSignedIn, sessionStatus, location, search, setLocation]);
-
-  if (sessionStatus === "pending") return <RedirectToTasks />;
+  }, [isLoaded, isSignedIn, location, search, setLocation]);
 
   // React Query starts requests as soon as its consumers mount. Keep protected
-  // pages unmounted until the shared API client can attach Clerk's bearer token;
-  // public pages remain independent from Clerk startup latency.
-  if (!isLoaded || !isSessionLoaded || !isSignedIn || !tokenBridgeReady) {
+  // pages unmounted until the shared API client can attach Auth0's bearer token;
+  // public pages remain independent from Auth0 startup latency.
+  if (!isLoaded || !isSignedIn || !tokenBridgeReady) {
     return null;
   }
+
+  if (account.error) {
+    const needsLink = (account.error as { status?: number }).status === 409;
+    return (
+      <main className="mx-auto max-w-lg space-y-4 p-8" role="alert">
+        <h1 className="text-2xl font-serif">
+          {needsLink
+            ? "Link your existing Kindred account"
+            : "We couldn’t open your account"}
+        </h1>
+        <p>
+          {needsLink
+            ? "Contact Kindred support to link your sign-in and keep your coaching history and subscription."
+            : "Please try again. If this continues, sign in again or contact Kindred support."}
+        </p>
+        <button className="underline" onClick={() => void account.refetch()}>
+          Try again
+        </button>
+      </main>
+    );
+  }
+  if (account.isLoading)
+    return (
+      <p role="status" className="p-8">
+        Opening your account…
+      </p>
+    );
 
   const canonical = LEGACY_PRIMARY_ROUTE_REDIRECTS[canonicalPathname(location)];
   if (canonical) {
@@ -185,41 +213,9 @@ function PrivateRoutes() {
   );
 }
 
-function SessionTaskShell({ children }: { children: ReactNode }) {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
-      {children}
-    </main>
-  );
-}
-
-function ChooseOrganizationTask() {
-  return (
-    <SessionTaskShell>
-      <TaskChooseOrganization redirectUrlComplete="/today" />
-    </SessionTaskShell>
-  );
-}
-
-function ResetPasswordTask() {
-  return (
-    <SessionTaskShell>
-      <TaskResetPassword redirectUrlComplete="/today" />
-    </SessionTaskShell>
-  );
-}
-
-function SetupMfaTask() {
-  return (
-    <SessionTaskShell>
-      <TaskSetupMFA redirectUrlComplete="/today" />
-    </SessionTaskShell>
-  );
-}
-
 // Legal pages are fully static and require no authentication context.
-// Rendering them outside ClerkProvider prevents Clerk JS from being fetched
-// on these routes, making them resilient to Clerk CDN failures.
+// Rendering them outside AuthProvider prevents authentication SDK from being fetched
+// on these routes, making them resilient to authentication provider failures.
 const LEGAL_ROUTES: Record<string, () => ReactElement> = {
   "/legal/privacy": PrivacyPolicy,
   "/legal/terms": TermsAndConditions,
@@ -249,7 +245,7 @@ function LegalShell() {
 }
 
 function App() {
-  // Serve legal pages without loading Clerk at all.
+  // Serve legal pages without loading authentication at all.
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   const pathname = window.location.pathname;
   const pathWithoutBase = base ? pathname.replace(base, "") || "/" : pathname;
@@ -257,25 +253,8 @@ function App() {
     return <LegalShell />;
   }
 
-  if (!clerkPubKey) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <p className="text-muted-foreground text-sm">
-          VITE_CLERK_PUBLISHABLE_KEY is not configured.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <ClerkProvider
-      publishableKey={clerkPubKey}
-      taskUrls={{
-        "choose-organization": "/app/session-tasks/choose-organization",
-        "reset-password": "/app/session-tasks/reset-password",
-        "setup-mfa": "/app/session-tasks/setup-mfa",
-      }}
-    >
+    <AuthProvider>
       <AuthTokenBridge>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
@@ -290,18 +269,9 @@ function App() {
                   <Route path="/payment-success" component={PublicRoutes} />
                   <Route path="/login" component={PublicRoutes} />
                   <Route path="/signup" component={PublicRoutes} />
-                  <Route
-                    path="/app/session-tasks/choose-organization"
-                    component={ChooseOrganizationTask}
-                  />
-                  <Route
-                    path="/app/session-tasks/reset-password"
-                    component={ResetPasswordTask}
-                  />
-                  <Route
-                    path="/app/session-tasks/setup-mfa"
-                    component={SetupMfaTask}
-                  />
+                  <Route path="/app/session-tasks/:task">
+                    <Redirect to="/app/account" replace />
+                  </Route>
                   <Route
                     path={PRIVATE_ROUTE_PATTERN}
                     component={PrivateRoutes}
@@ -314,7 +284,7 @@ function App() {
           </ThemeProvider>
         </QueryClientProvider>
       </AuthTokenBridge>
-    </ClerkProvider>
+    </AuthProvider>
   );
 }
 

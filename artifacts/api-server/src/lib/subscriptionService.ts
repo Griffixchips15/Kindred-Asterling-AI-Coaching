@@ -79,7 +79,7 @@ async function audit(
 }
 
 export async function resolveSubscription(
-  user: { id: string; email: string | null | undefined },
+  user: { id: string; email: string | null | undefined; emailVerified?: boolean },
   opts: { forceRefresh?: boolean } = {},
 ): Promise<AccessStatus> {
   // Owner access — immutable user ID bypass
@@ -93,7 +93,7 @@ export async function resolveSubscription(
   }
 
   // Owner email bypass (temporary — for bootstrapping before user ID is known)
-  if (user.email && ownerEmails().has(user.email.trim().toLowerCase())) {
+  if (user.emailVerified === true && user.email && ownerEmails().has(user.email.trim().toLowerCase())) {
     return {
       active: true,
       status: "active",

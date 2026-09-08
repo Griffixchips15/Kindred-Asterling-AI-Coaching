@@ -104,3 +104,20 @@ describe("retired Google Calendar configuration", () => {
     expect(validateRuntimeConfig).not.toThrow();
   });
 });
+
+
+describe("Auth0 production configuration", () => {
+  it("requires Auth0 issuer and API audience instead of Clerk credentials", () => {
+    baseEnv();
+    process.env.NODE_ENV = "production";
+    delete process.env.AUTH0_DOMAIN;
+    delete process.env.AUTH0_AUDIENCE;
+    try { validateRuntimeConfig(); } catch (error) {
+      expect(String(error)).toContain("AUTH0_DOMAIN");
+      expect(String(error)).toContain("AUTH0_AUDIENCE");
+      expect(String(error)).not.toContain("CLERK_");
+      return;
+    }
+    throw new Error("Expected missing Auth0 configuration to fail");
+  });
+});

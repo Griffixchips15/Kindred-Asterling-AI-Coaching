@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAuth } from "@clerk/clerk-react";
+import { useAuth } from "@/lib/auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getGetUpcomingCalendarEventsQueryKey } from "@workspace/api-client-react";
 import { Link } from "wouter";

@@ -6,20 +6,13 @@ const mocks = vi.hoisted(() => ({
   authState: { isLoaded: true, isSignedIn: false },
   search: "",
   assign: vi.fn(),
+  login: vi.fn(),
   fallbackRedirectUrl: "",
   signUpUrl: "",
 }));
 
-vi.mock("@clerk/clerk-react", () => ({
-  useUser: () => ({
-    isLoaded: mocks.authState.isLoaded,
-    isSignedIn: mocks.authState.isSignedIn,
-  }),
-  SignIn: (props: { fallbackRedirectUrl?: string; signUpUrl?: string }) => {
-    mocks.fallbackRedirectUrl = props.fallbackRedirectUrl ?? "";
-    mocks.signUpUrl = props.signUpUrl ?? "";
-    return null;
-  },
+vi.mock("@/lib/auth", () => ({
+  useAuth: () => ({ ...mocks.authState, login: mocks.login }),
 }));
 
 vi.mock("wouter", () => ({
@@ -63,25 +56,27 @@ describe("Login returnTo validation", () => {
     });
   });
 
-  it("passes a validated safe return destination to Clerk's fallbackRedirectUrl", async () => {
+  it("passes a validated safe return destination to Auth0 login", async () => {
     mocks.search = "returnTo=%2Fpricing";
 
     await act(async () => {
       root.render(createElement(Login));
     });
 
-    expect(mocks.fallbackRedirectUrl).toBe("/pricing");
-    expect(mocks.signUpUrl).toBe("/signup?returnTo=%2Fpricing");
+    await act(async () => container.querySelector("button")!.click());
+    expect(mocks.login).toHaveBeenCalledWith("/pricing", false);
+    expect(container.querySelector("a")?.getAttribute("href")).toBe("/signup?returnTo=%2Fpricing");
   });
 
-  it("collapses an unsafe return destination to /app in fallbackRedirectUrl", async () => {
+  it("collapses an unsafe return destination to /today in Auth0 login", async () => {
     mocks.search = "returnTo=https%3A%2F%2Fevil.example.com";
 
     await act(async () => {
       root.render(createElement(Login));
     });
 
-    expect(mocks.fallbackRedirectUrl).toBe("/today");
+    await act(async () => container.querySelector("button")!.click());
+    expect(mocks.login).toHaveBeenCalledWith("/today", false);
   });
 
   it("navigates a signed-in visitor to a safe return destination", async () => {
