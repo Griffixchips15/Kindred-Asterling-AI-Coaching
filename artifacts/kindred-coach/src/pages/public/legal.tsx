@@ -11,6 +11,8 @@ type LegalSection =
   | { heading: string; content: ReactNode | LegalBlock };
 
 interface LegalPageProps {
+  /** Marks a document as published and removes draft-only review warnings. */
+  published?: boolean;
   title: string;
   summary: string;
   governingLaw?: string;
@@ -110,6 +112,7 @@ function renderLegacyContent(content: ReactNode | LegalBlock): ReactNode {
 }
 
 function LegalPage({
+  published = false,
   title,
   summary,
   governingLaw,
@@ -117,18 +120,18 @@ function LegalPage({
   sections,
 }: LegalPageProps) {
   const metadata = [
-    ["Version", "1.0 (Final Review Draft)"],
+    ["Version", published ? "1.0" : "1.0 (Final Review Draft)"],
     ["Date", "August 24, 2026"],
     ...(governingLaw ? [["Governing law", governingLaw]] : []),
     ["Sole proprietor", "Landon Syroid d/b/a Kindred Asterling AI Coaching"],
-    ["Status", "Subject to Final Legal Counsel Approval"],
+    ["Status", published ? "Published" : "Subject to Final Legal Counsel Approval"],
   ];
 
   return (
     <article className="mx-auto max-w-3xl px-5 py-16 md:px-8 md:py-20">
       <header className="border-b border-border pb-8">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-          Working draft — not legal advice
+          {published ? "Legal information" : "Working draft — not legal advice"}
         </p>
         <h1 className="mt-3 font-serif text-4xl font-medium tracking-tight text-foreground md:text-5xl">
           {title}
@@ -150,9 +153,11 @@ function LegalPage({
           ))}
         </dl>
 
-        <div className="mt-6 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
-          Draft - for final legal review and execution - not for distribution
-        </div>
+        {!published ? (
+          <div className="mt-6 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+            Draft - for final legal review and execution - not for distribution
+          </div>
+        ) : null}
 
         {pdfHref ? (
           <a
@@ -701,182 +706,11 @@ const marketingSections: LegalSection[] = [
 export function PrivacyPolicy() {
   return (
     <LegalPage
+      published
       title="Privacy Policy"
-      summary="This working draft for Kindred Asterling AI reflects the data flows visible in the repository. It must be reconciled with the deployed infrastructure, contracts, business practices, and applicable law before publication."
-      sections={[
-        {
-          heading: "Who is responsible",
-          content: (
-            <>
-              <p>
-                Kindred Asterling AI is operated as an Alberta sole
-                proprietorship based in Edmonton, Alberta, Canada. Privacy
-                questions may be sent to{" "}
-                <a
-                  className="text-primary underline"
-                  href="mailto:kindredaicoach@gmail.com"
-                >
-                  kindredaicoach@gmail.com
-                </a>
-                . Customer-support requests may be sent to{" "}
-                <a
-                  className="text-primary underline"
-                  href="mailto:kindred_support@kindred-asterling-ai-coaching.com"
-                >
-                  kindred_support@kindred-asterling-ai-coaching.com
-                </a>
-                .
-              </p>
-              <Confirmation>
-                An Alberta trade name is not a separate legal person. Confirm
-                the proprietor's contracting identity and privacy-officer
-                designation. Before publication, provide a business mailbox or
-                registered service address instead of publishing a private
-                residential address.
-              </Confirmation>
-            </>
-          ),
-        },
-        {
-          heading: "Information Kindred handles",
-          content: list([
-            "Account and identity information, including identity-provider identifiers, email, verification state, name, and profile details you choose to provide.",
-            "Wellness and coaching information, including morning and evening reflections, body scans, habits, medication schedules and logs, goals, chat messages, and generated coaching replies.",
-            "Optional integration data, including an encrypted Google Calendar refresh token and read-only upcoming-event information, plus reminder preferences, phone number, and time zone when those features are enabled.",
-            "Subscription and transaction references needed to confirm access. Kindred's code delegates checkout and billing management to Helcim rather than storing full payment-card details.",
-            "Operational information such as request logs, quota usage, security events, and delivery records. The current safety-event code is designed to emit a non-identifying control event rather than message content.",
-          ]),
-        },
-        {
-          heading: "Why it is used",
-          content: list([
-            "Provide authentication, the coaching conversation, assessments, habit and medication tracking, reports, reminders, calendar context, and account support.",
-            "Personalize responses using only context selected as relevant to the current interaction.",
-            "Operate subscriptions, prevent abuse, protect accounts, troubleshoot failures, and meet legal obligations.",
-            "Send marketing only under a separate, recorded consent where required; service messages and marketing preferences must not be bundled.",
-          ]),
-        },
-        {
-          heading: "Service providers and disclosures",
-          content: (
-            <>
-              <p>
-                Hosting is provided by Contabo GmbH, Welfenstrasse 22, 81541
-                Munich, Germany. Production AI inference is provided through AWS
-                Bedrock. The repository also supports Clerk (identity), Helcim
-                (payments), Google Calendar (optional read-only access), Twilio
-                (SMS), Resend (email), and ElevenLabs (voice features). Data
-                should be sent to a provider only when its feature is enabled
-                and needed.
-              </p>
-              <Confirmation>
-                Confirm the Contabo server location, database provider and
-                storage location, AWS Bedrock model and processing region, which
-                optional providers are enabled, provider retention and training
-                terms, subprocessors, cross-border transfers, and contractual
-                safeguards. Remove providers not used in production.
-              </Confirmation>
-            </>
-          ),
-        },
-        {
-          heading: "Google Calendar data",
-          content: (
-            <>
-              <p>
-                If a user connects Google Calendar, Kindred requests read-only
-                access to upcoming events. It stores an encrypted refresh token
-                so the connection can continue, displays upcoming event
-                information to the user, and may supply only a title-free
-                schedule-density signal to the coaching AI.
-              </p>
-              <p>
-                Kindred's use and transfer of information received from Google
-                APIs will comply with the{" "}
-                <a
-                  className="text-primary underline"
-                  href="https://developers.google.com/terms/api-services-user-data-policy"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Google API Services User Data Policy
-                </a>
-                , including its Limited Use requirements. Google Calendar data
-                is not sold, used for advertising, or used to train a
-                general-purpose AI model.
-              </p>
-              <Confirmation>
-                Match the app's requested OAuth scope to the least-privilege
-                scope configured in Google Cloud, and implement and verify a
-                calendar disconnect and token-revocation flow before promising
-                users they can revoke access inside Kindred.
-              </Confirmation>
-            </>
-          ),
-        },
-        {
-          heading: "Consent, choices, retention, and access",
-          content: (
-            <>
-              <p>
-                Optional calendar and communication processing should require
-                specific, informed, revocable consent. The product already
-                exposes account export and deletion routes; production
-                procedures must also address correction, consent withdrawal,
-                provider-side deletion, legal holds, and verified privacy
-                requests.
-              </p>
-              <p>
-                Current internal proposals retain account and wellness data for
-                the account lifetime, reminder-delivery records for 90 days,
-                backups for 35 days, administrative audit records for one year,
-                and billing records for up to seven years when legally required.
-                These periods are proposals until business and legal review
-                confirms them.
-              </p>
-              <Confirmation>
-                Approve or replace each proposed retention period and set the
-                request-verification steps, response timelines, deletion and
-                legal-hold exceptions, and any other rules required by law.
-              </Confirmation>
-            </>
-          ),
-        },
-        {
-          heading: "Security and Canadian privacy guidance",
-          content: (
-            <>
-              <p>
-                The code uses access controls, user-scoped queries, encrypted
-                calendar tokens, no-store responses for wellness data, and
-                security headers. No system is risk-free. Incident response and
-                breach notification procedures must be confirmed before launch.
-              </p>
-              <p>
-                Reference guidance:{" "}
-                <a
-                  className="text-primary underline"
-                  href="https://www.priv.gc.ca/en/privacy-topics/privacy-laws-in-canada/the-personal-information-protection-and-electronic-documents-act-pipeda/p_principle/"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  PIPEDA fair information principles
-                </a>{" "}
-                and{" "}
-                <a
-                  className="text-primary underline"
-                  href="https://www.priv.gc.ca/en/privacy-topics/technology/artificial-intelligence/gd_principles_ai"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Canadian privacy regulators' generative-AI principles
-                </a>
-                .
-              </p>
-            </>
-          ),
-        },
-      ]}
+      summary="This Privacy Policy explains how Kindred Asterling AI Coaching collects, uses, safeguards, and discloses personal information."
+      governingLaw="Alberta PIPA, PIPEDA & Canadian Privacy Law"
+      sections={privacySections}
     />
   );
 }
@@ -884,145 +718,11 @@ export function PrivacyPolicy() {
 export function TermsAndConditions() {
   return (
     <LegalPage
+      published
       title="Terms and Conditions"
-      summary="These working terms describe the adult-only Kindred Asterling AI service but do not become binding until the proprietor identity, commercial terms, and governing law are confirmed and reviewed by counsel."
-      sections={[
-        {
-          heading: "Agreement and eligibility",
-          content: (
-            <>
-              <p>
-                By creating an account or using Kindred, a user would agree to
-                these terms and the Privacy Policy. Users must provide accurate
-                account information and protect their sign-in credentials. The
-                service is intended only for people who are at least 18 years
-                old; minors are not permitted to create or use an account.
-              </p>
-              <Confirmation>
-                Confirm the proprietor's contracting identity, effective date,
-                supported launch locations, age-gate implementation, and the
-                process for accepting updated terms.
-              </Confirmation>
-            </>
-          ),
-        },
-        {
-          heading: "The service",
-          content: (
-            <p>
-              Kindred offers AI-assisted wellness coaching, reflections,
-              tracking, reports, reminders, and optional integrations. Features
-              may change during the pilot. Kindred does not promise a particular
-              personal, health, educational, employment, or financial outcome.
-            </p>
-          ),
-        },
-        {
-          heading: "Subscriptions and payment",
-          content: (
-            <>
-              <p>
-                The interface currently advertises a $49.99 yearly plan and a
-                $79.99 one-time “Lifetime Access” plan and delegates checkout to
-                Helcim. The currency, applicable taxes, yearly renewal terms,
-                failed-payment treatment, and any trial terms must be disclosed
-                before purchase.
-              </p>
-              <p>
-                The proposed policy permits cancellation requests within 30 days
-                of purchase. Cancellation and refund eligibility are different
-                matters, and no refund entitlement is promised here until the
-                final refund rules are approved. Mandatory consumer rights
-                continue to apply.
-              </p>
-              <p>
-                For this draft, “Lifetime Access” means access for up to 100
-                years from purchase, subject to these terms; it does not promise
-                that the service will operate indefinitely.
-              </p>
-              <Confirmation>
-                Confirm the currency, taxes, whether the yearly plan
-                automatically renews, renewal notices, trial rules, refund
-                eligibility and method, service-closure remedy, and applicable
-                consumer-law disclosures. Reconcile the 100-year definition with
-                public claims such as “forever” and “all future features.”
-              </Confirmation>
-            </>
-          ),
-        },
-        {
-          heading: "Acceptable use",
-          content: list([
-            "Do not misuse the service, access another person's data, disrupt systems, evade limits, upload unlawful content, or use outputs to harm or deceive others.",
-            "Do not treat AI output as professional advice or use it as the sole basis for consequential decisions.",
-            "Users retain responsibility for what they submit and for ensuring they have permission to submit information about anyone else.",
-          ]),
-        },
-        {
-          heading: "Intellectual property and feedback",
-          content: (
-            <>
-              <p>
-                Kindred's software, branding, and site content remain the
-                owner's property. Users retain rights they have in their
-                submissions, while granting the limited rights needed to store,
-                process, and display them to provide the service.
-              </p>
-              <Confirmation>
-                Confirm ownership/licensing of generated outputs, feedback
-                rights, trademark owner, and rules for research or
-                product-improvement use. Do not claim training rights that are
-                not actually intended and separately consented to.
-              </Confirmation>
-            </>
-          ),
-        },
-        {
-          heading: "Availability, suspension, and termination",
-          content: (
-            <p>
-              The service may be interrupted or changed. Access may be suspended
-              for security, non-payment, or material misuse. Account deletion
-              should follow the published privacy and retention process.
-            </p>
-          ),
-        },
-        {
-          heading: "Disclaimers and liability",
-          content: (
-            <>
-              <p>
-                The service is provided on an “as available” basis to the extent
-                permitted by law. Mandatory consumer rights are not excluded.
-              </p>
-              <Confirmation>
-                Counsel must draft enforceable warranty disclaimers, liability
-                limits, indemnity language, severability, assignment, and
-                notices for the actual business jurisdiction.
-              </Confirmation>
-            </>
-          ),
-        },
-        {
-          heading: "Governing law and disputes",
-          content: (
-            <>
-              <p>
-                These terms are intended to be governed by the laws of Alberta
-                and the applicable federal laws of Canada. Subject to mandatory
-                consumer rights, disputes would be brought before the courts of
-                Alberta.
-              </p>
-              <Confirmation>
-                Approve the proposed process of first sending a written
-                complaint to the support address and allowing 30 days for an
-                informal resolution. Counsel must confirm the governing-law,
-                venue, and dispute terms for every supported launch location.
-              </Confirmation>
-            </>
-          ),
-        },
-      ]}
+      summary="These Terms and Conditions govern access to and use of the Kindred Asterling AI Coaching service."
+      governingLaw="Province of Alberta & Federal Laws of Canada"
+      sections={termsSections}
     />
   );
 }
