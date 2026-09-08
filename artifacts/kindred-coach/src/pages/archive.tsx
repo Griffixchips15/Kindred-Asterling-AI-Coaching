@@ -7,12 +7,21 @@ import {
   type ChatConversationWithMessages,
 } from "@workspace/api-client-react";
 import { format } from "date-fns";
-import { Download, FileText, Loader2, Archive as ArchiveIcon } from "lucide-react";
+import { Link } from "wouter";
+import {
+  Download,
+  FileText,
+  Loader2,
+  Archive as ArchiveIcon,
+  MessagesSquare,
+} from "lucide-react";
 
 function buildTxt(conv: ChatConversationWithMessages): string {
   const lines: string[] = [];
   lines.push(`${conv.title}`);
-  lines.push(`Archived: ${conv.archivedAt ? format(new Date(conv.archivedAt), "PPpp") : "—"}`);
+  lines.push(
+    `Archived: ${conv.archivedAt ? format(new Date(conv.archivedAt), "PPpp") : "—"}`,
+  );
   lines.push("");
   for (const m of conv.messages) {
     const who = m.role === "user" ? "You" : "Kindred";
@@ -70,9 +79,16 @@ function ArchivedRow({ conv }: { conv: ChatConversation }) {
     setBusy(kind);
     try {
       const full = await getArchivedChat(conv.id);
-      const stamp = format(new Date(conv.archivedAt ?? conv.createdAt), "yyyy-MM-dd-HHmm");
+      const stamp = format(
+        new Date(conv.archivedAt ?? conv.createdAt),
+        "yyyy-MM-dd-HHmm",
+      );
       if (kind === "txt") {
-        download(`kindred-chat-${stamp}.txt`, buildTxt(full), "text/plain;charset=utf-8");
+        download(
+          `kindred-chat-${stamp}.txt`,
+          buildTxt(full),
+          "text/plain;charset=utf-8",
+        );
       } else {
         const html = buildHtml(full);
         const w = window.open("", "_blank");
@@ -104,7 +120,11 @@ function ArchivedRow({ conv }: { conv: ChatConversation }) {
           data-testid={`download-txt-${conv.id}`}
           aria-label="Download chat as TXT"
         >
-          {busy === "txt" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+          {busy === "txt" ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <FileText className="w-3.5 h-3.5" />
+          )}
           TXT
         </button>
         <button
@@ -114,7 +134,11 @@ function ArchivedRow({ conv }: { conv: ChatConversation }) {
           data-testid={`download-pdf-${conv.id}`}
           aria-label="Download chat as PDF"
         >
-          {busy === "pdf" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          {busy === "pdf" ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Download className="w-3.5 h-3.5" />
+          )}
           PDF
         </button>
       </div>
@@ -123,32 +147,53 @@ function ArchivedRow({ conv }: { conv: ChatConversation }) {
 }
 
 export default function Archive() {
-  const { data, isLoading } = useListArchivedChats({ query: { queryKey: getListArchivedChatsQueryKey() } });
+  const { data, isLoading } = useListArchivedChats({
+    query: { queryKey: getListArchivedChatsQueryKey() },
+  });
   const rows = data ?? [];
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <header className="pt-4">
-        <h1 className="text-3xl font-serif text-foreground tracking-tight">Archive</h1>
-        <p className="text-muted-foreground">Past coaching conversations</p>
+      <header className="pt-4 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-serif text-foreground tracking-tight">
+            Archive
+          </h1>
+          <p className="text-muted-foreground">Past coaching conversations</p>
+        </div>
+        <Link
+          href="/talk"
+          className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-border px-3 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          data-testid="talk-chat-link"
+        >
+          <MessagesSquare className="w-3.5 h-3.5" strokeWidth={2} />
+          Back to your conversation
+        </Link>
       </header>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+        <div className="flex justify-center py-12">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
       ) : rows.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
           <ArchiveIcon className="w-10 h-10 mb-3 opacity-50" />
           <p className="text-sm">No archived conversations yet.</p>
-          <p className="text-xs mt-1">When you archive a chat, it will appear here.</p>
+          <p className="text-xs mt-1">
+            When you archive a chat, it will appear here.
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
-          {rows.map((c) => <ArchivedRow key={c.id} conv={c} />)}
+          {rows.map((c) => (
+            <ArchivedRow key={c.id} conv={c} />
+          ))}
         </div>
       )}
 
       <p className="text-xs text-muted-foreground/70 pt-2">
-        PDF export opens a print-ready view — choose "Save as PDF" in the print dialog.
+        PDF export opens a print-ready view — choose "Save as PDF" in the print
+        dialog.
       </p>
     </div>
   );

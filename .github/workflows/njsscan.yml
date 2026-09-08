@@ -7,6 +7,13 @@ on:
   schedule:
     - cron: '0 12 * * 1'
 
+# The final step uploads a SARIF report to code scanning, which requires
+# security-events: write on default-branch pushes (pull_request uploads work
+# without it, which is why this only failed after merge).
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   njsscan:
     runs-on: ubuntu-latest

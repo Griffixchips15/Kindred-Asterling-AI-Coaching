@@ -51,8 +51,10 @@ const EVENING_AFTER_HOUR = 17; // 5:00 PM
 
 function minutesSinceMidnight(hhmm: string): number {
   const [h = 0, m = 0] = hhmm.split(":").map((n) => Number.parseInt(n, 10));
-  return Math.max(0, Math.min(23, Number.isFinite(h) ? h : 0)) * 60 +
-    Math.max(0, Math.min(59, Number.isFinite(m) ? m : 0));
+  return (
+    Math.max(0, Math.min(23, Number.isFinite(h) ? h : 0)) * 60 +
+    Math.max(0, Math.min(59, Number.isFinite(m) ? m : 0))
+  );
 }
 
 /**
@@ -65,8 +67,14 @@ function dueUnrecordedDose(
   nowMinutes: number,
 ): TodayDose | null {
   const due = doses
-    .filter((d) => !d.takenAt && minutesSinceMidnight(d.scheduledTime) <= nowMinutes)
-    .sort((a, b) => minutesSinceMidnight(a.scheduledTime) - minutesSinceMidnight(b.scheduledTime));
+    .filter(
+      (d) => !d.takenAt && minutesSinceMidnight(d.scheduledTime) <= nowMinutes,
+    )
+    .sort(
+      (a, b) =>
+        minutesSinceMidnight(a.scheduledTime) -
+        minutesSinceMidnight(b.scheduledTime),
+    );
   return due[0] ?? null;
 }
 
@@ -106,7 +114,11 @@ export function deriveNextStep(inputs: TodayInputs, now: Date): NextStep {
   //    Only when medication data actually loaded (doses !== null and not still
   //    loading) — never inferred from unknown or failed medication data. We
   //    never label it "missed" — just a gentle, time-aware prompt to record it.
-  if (doses !== null && !inputs.medicationsUnavailable && !inputs.medicationsLoading) {
+  if (
+    doses !== null &&
+    !inputs.medicationsUnavailable &&
+    !inputs.medicationsLoading
+  ) {
     const due = dueUnrecordedDose(doses, nowMinutes);
     if (due) {
       return {
@@ -131,7 +143,10 @@ export function deriveNextStep(inputs: TodayInputs, now: Date): NextStep {
   }
 
   // 4. Incomplete habits when habits exist.
-  if (inputs.totalHabits > 0 && inputs.habitsCompletedToday < inputs.totalHabits) {
+  if (
+    inputs.totalHabits > 0 &&
+    inputs.habitsCompletedToday < inputs.totalHabits
+  ) {
     return {
       kind: "habit",
       href: "/habits",
@@ -168,7 +183,7 @@ export function deriveNextStep(inputs: TodayInputs, now: Date): NextStep {
   // 7. Nothing actionable remaining.
   return {
     kind: "on-track",
-    href: "/",
+    href: "/today",
     title: "You're on track",
     body: "There's nothing pressing right now. Rest, or revisit anything above.",
     cta: "View today",
@@ -212,16 +227,18 @@ export function deriveDailyJourney(inputs: TodayInputs): JourneyStep[] {
 
   if (inputs.medicationsUnavailable) {
     // Failed: unknown medication state can never complete the anchor.
-    tendStatus = habitsExist && !habitsDone
-      ? `${inputs.habitsCompletedToday} of ${inputs.totalHabits} habits done · Medication unavailable`
-      : "Medication unavailable";
+    tendStatus =
+      habitsExist && !habitsDone
+        ? `${inputs.habitsCompletedToday} of ${inputs.totalHabits} habits done · Medication unavailable`
+        : "Medication unavailable";
     tendComplete = false;
     tendHref = habitsIncomplete ? "/habits" : "/medications";
   } else if (inputs.medicationsLoading) {
     // Still loading: unknown medication state can never complete the anchor.
-    tendStatus = habitsExist && !habitsDone
-      ? `${inputs.habitsCompletedToday} of ${inputs.totalHabits} habits done`
-      : "Still loading";
+    tendStatus =
+      habitsExist && !habitsDone
+        ? `${inputs.habitsCompletedToday} of ${inputs.totalHabits} habits done`
+        : "Still loading";
     tendComplete = false;
     tendHref = habitsIncomplete ? "/habits" : "/medications";
   } else {
@@ -249,7 +266,11 @@ export function deriveDailyJourney(inputs: TodayInputs): JourneyStep[] {
     tendStatus = parts.length > 0 ? parts.join(" · ") : "Nothing scheduled";
     tendComplete =
       (medsExist || habitsExist) && !medsIncomplete && !habitsIncomplete;
-    tendHref = habitsIncomplete ? "/habits" : medsExist ? "/medications" : "/habits";
+    tendHref = habitsIncomplete
+      ? "/habits"
+      : medsExist
+        ? "/medications"
+        : "/habits";
   }
 
   return [

@@ -6,7 +6,13 @@ import {
   useEffect,
   useState,
 } from "react";
-import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import {
+  Redirect,
+  Switch,
+  Route,
+  Router as WouterRouter,
+  useLocation,
+} from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   ClerkProvider,
@@ -46,6 +52,7 @@ import Account from "@/pages/account";
 import AdminBeta from "@/pages/admin-beta";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { protectedRouteLoginTarget } from "@/lib/routing";
+import { LEGACY_PRIMARY_ROUTE_REDIRECTS } from "@/lib/navigation";
 import {
   AIUseDisclosure,
   CookieNotice,
@@ -137,20 +144,27 @@ function PrivateRoutes() {
   return (
     <AppLayout>
       <Switch>
-        <Route path="/" component={Dashboard} />
+        <Route path="/today" component={Dashboard} />
+        <Route path="/talk" component={Chat} />
+        <Route path="/insights" component={Reports} />
+        <Route path="/you" component={Profile} />
         <Route path="/morning" component={Morning} />
         <Route path="/scans" component={Scans} />
         <Route path="/evening" component={Evening} />
         <Route path="/habits" component={Habits} />
         <Route path="/medications" component={Medications} />
-        <Route path="/reports" component={Reports} />
-        <Route path="/profile" component={Profile} />
         <Route path="/account" component={Account} />
         <Route path="/admin/beta" component={AdminBeta} />
         <Route path="/calendar" component={CalendarPage} />
-        <Route path="/chat" component={Chat} />
         <Route path="/archive" component={Archive} />
         <Route path="/reminders" component={Reminders} />
+        {Object.entries(LEGACY_PRIMARY_ROUTE_REDIRECTS).map(
+          ([legacyPath, canonicalPath]) => (
+            <Route key={legacyPath} path={legacyPath}>
+              <Redirect to={canonicalPath} replace />
+            </Route>
+          ),
+        )}
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
@@ -168,7 +182,7 @@ function SessionTaskShell({ children }: { children: ReactNode }) {
 function ChooseOrganizationTask() {
   return (
     <SessionTaskShell>
-      <TaskChooseOrganization redirectUrlComplete="/app" />
+      <TaskChooseOrganization redirectUrlComplete="/app/today" />
     </SessionTaskShell>
   );
 }
@@ -176,7 +190,7 @@ function ChooseOrganizationTask() {
 function ResetPasswordTask() {
   return (
     <SessionTaskShell>
-      <TaskResetPassword redirectUrlComplete="/app" />
+      <TaskResetPassword redirectUrlComplete="/app/today" />
     </SessionTaskShell>
   );
 }
@@ -184,7 +198,7 @@ function ResetPasswordTask() {
 function SetupMfaTask() {
   return (
     <SessionTaskShell>
-      <TaskSetupMFA redirectUrlComplete="/app" />
+      <TaskSetupMFA redirectUrlComplete="/app/today" />
     </SessionTaskShell>
   );
 }

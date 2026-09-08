@@ -34,7 +34,9 @@ describe("isSafeReturnDestination", () => {
   });
 
   it("rejects full external URLs", () => {
-    expect(isSafeReturnDestination("https://evil.example.com/pricing")).toBe(false);
+    expect(isSafeReturnDestination("https://evil.example.com/pricing")).toBe(
+      false,
+    );
     expect(isSafeReturnDestination("http://evil.example.com")).toBe(false);
   });
 
@@ -46,7 +48,9 @@ describe("isSafeReturnDestination", () => {
     expect(isSafeReturnDestination("javascript:alert(1)")).toBe(false);
     expect(isSafeReturnDestination("data:text/html,<script>")).toBe(false);
     expect(isSafeReturnDestination("/pricing\\evil")).toBe(false);
-    expect(isSafeReturnDestination("/pricing\r\nLocation:https://evil.com")).toBe(false);
+    expect(
+      isSafeReturnDestination("/pricing\r\nLocation:https://evil.com"),
+    ).toBe(false);
   });
 
   it("rejects missing, empty, or non-path values", () => {
@@ -58,10 +62,12 @@ describe("isSafeReturnDestination", () => {
 });
 
 describe("resolveReturnDestination", () => {
-  it("falls back to /app when no safe destination is supplied", () => {
-    expect(resolveReturnDestination(null)).toBe("/app");
-    expect(resolveReturnDestination("https://evil.example.com")).toBe("/app");
-    expect(resolveReturnDestination("//evil.example.com")).toBe("/app");
+  it("falls back to canonical /app/today when no safe destination is supplied", () => {
+    expect(resolveReturnDestination(null)).toBe("/app/today");
+    expect(resolveReturnDestination("https://evil.example.com")).toBe(
+      "/app/today",
+    );
+    expect(resolveReturnDestination("//evil.example.com")).toBe("/app/today");
   });
 
   it("preserves a validated same-origin return destination", () => {
@@ -70,9 +76,9 @@ describe("resolveReturnDestination", () => {
   });
 
   it("honours a custom fallback", () => {
-    expect(resolveReturnDestination("https://evil.example.com", "/pricing")).toBe(
-      "/pricing",
-    );
+    expect(
+      resolveReturnDestination("https://evil.example.com", "/pricing"),
+    ).toBe("/pricing");
   });
 });
 
@@ -82,23 +88,25 @@ describe("buildLoginUrl", () => {
   });
 
   it("keeps the target on the public /login route (not /app/login)", () => {
-    const url = buildLoginUrl("/app");
+    const url = buildLoginUrl("/app/today");
     expect(url.startsWith("/login?")).toBe(true);
     expect(url).not.toMatch(/^\/app\/login/);
   });
 
-  it("rejects an external return destination and falls back to /app", () => {
+  it("rejects an external return destination and falls back to /app/today", () => {
     expect(buildLoginUrl("https://evil.example.com/pricing")).toBe(
-      "/login?returnTo=%2Fapp",
+      "/login?returnTo=%2Fapp%2Ftoday",
     );
-    expect(buildLoginUrl("//evil.example.com")).toBe("/login?returnTo=%2Fapp");
+    expect(buildLoginUrl("//evil.example.com")).toBe(
+      "/login?returnTo=%2Fapp%2Ftoday",
+    );
   });
 });
 
 describe("protectedDestination", () => {
-  it("maps the app root to /app", () => {
-    expect(protectedDestination("/")).toBe("/app");
-    expect(protectedDestination(undefined)).toBe("/app");
+  it("maps the app root to canonical /app/today", () => {
+    expect(protectedDestination("/")).toBe("/app/today");
+    expect(protectedDestination(undefined)).toBe("/app/today");
   });
 
   it("maps a relative app route to its absolute protected path", () => {
@@ -122,7 +130,9 @@ describe("protectedRouteLoginTarget", () => {
     expect(protectedRouteLoginTarget("/morning")).toBe(
       "/login?returnTo=%2Fapp%2Fmorning",
     );
-    expect(protectedRouteLoginTarget("/")).toBe("/login?returnTo=%2Fapp");
+    expect(protectedRouteLoginTarget("/")).toBe(
+      "/login?returnTo=%2Fapp%2Ftoday",
+    );
   });
 });
 

@@ -11,11 +11,12 @@ type LegalSection =
   | { heading: string; content: ReactNode | LegalBlock };
 
 interface LegalPageProps {
+  /** Marks a document as published and removes draft-only review warnings. */
+  published?: boolean;
   title: string;
   summary: string;
   governingLaw?: string;
   pdfHref?: string;
-  published?: boolean;
   sections: LegalSection[];
 }
 
@@ -111,11 +112,11 @@ function renderLegacyContent(content: ReactNode | LegalBlock): ReactNode {
 }
 
 function LegalPage({
+  published = false,
   title,
   summary,
   governingLaw,
   pdfHref,
-  published = false,
   sections,
 }: LegalPageProps) {
   const metadata = [
@@ -123,21 +124,14 @@ function LegalPage({
     ["Date", "August 24, 2026"],
     ...(governingLaw ? [["Governing law", governingLaw]] : []),
     ["Sole proprietor", "Landon Syroid d/b/a Kindred Asterling AI Coaching"],
-    [
-      "Status",
-      published
-        ? "Approved for publication"
-        : "Subject to Final Legal Counsel Approval",
-    ],
+    ["Status", published ? "Published" : "Subject to Final Legal Counsel Approval"],
   ];
 
   return (
     <article className="mx-auto max-w-3xl px-5 py-16 md:px-8 md:py-20">
       <header className="border-b border-border pb-8">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-          {published
-            ? "Kindred Asterling AI Coaching"
-            : "Working draft — not legal advice"}
+          {published ? "Legal information" : "Working draft — not legal advice"}
         </p>
         <h1 className="mt-3 font-serif text-4xl font-medium tracking-tight text-foreground md:text-5xl">
           {title}

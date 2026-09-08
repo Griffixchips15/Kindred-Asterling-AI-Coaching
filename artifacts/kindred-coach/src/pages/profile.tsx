@@ -17,7 +17,9 @@ import {
   AlertCircle,
   CalendarDays,
   CheckCircle2,
+  ShieldCheck,
 } from "lucide-react";
+import { Link } from "wouter";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { QueryErrorState } from "@/components/query-error-state";
@@ -224,14 +226,24 @@ export default function Profile() {
 
   return (
     <div className="space-y-6 pb-12">
-      <header>
-        <h1 className="text-2xl font-serif text-primary tracking-tight">
-          Profile
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Keep this up to date — Kindred uses what you share here to make your
-          coaching chats feel more like you.
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-serif text-primary tracking-tight">
+            Profile
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Keep this up to date — Kindred uses what you share here to make your
+            coaching chats feel more like you.
+          </p>
+        </div>
+        <Link
+          href="/account"
+          className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-border px-3 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          data-testid="you-account-link"
+        >
+          <ShieldCheck className="w-3.5 h-3.5" strokeWidth={2} />
+          Account security
+        </Link>
       </header>
 
       {/* Identity card */}
