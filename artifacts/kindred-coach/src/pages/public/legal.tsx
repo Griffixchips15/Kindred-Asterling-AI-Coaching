@@ -17,6 +17,7 @@ interface LegalPageProps {
   summary: string;
   governingLaw?: string;
   pdfHref?: string;
+  published?: boolean;
   sections: LegalSection[];
 }
 
@@ -117,6 +118,7 @@ function LegalPage({
   summary,
   governingLaw,
   pdfHref,
+  published = false,
   sections,
 }: LegalPageProps) {
   const metadata = [
@@ -932,8 +934,8 @@ export function CookieNotice() {
             <Confirmation>
               Inspect production response headers and browser storage, identify
               cookie names, providers, and lifetimes, confirm Clerk and hosting
-              behavior, and determine whether a consent manager is
-              required in each supported launch location.
+              behavior, and determine whether a consent manager is required in
+              each supported launch location.
             </Confirmation>
           ),
         },

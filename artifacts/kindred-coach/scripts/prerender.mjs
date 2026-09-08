@@ -147,8 +147,12 @@ const ROUTES = [
     description,
     ogTitle: `${label} | ${SITE_NAME}`,
     ogDescription: description,
-    // Draft templates require founder/legal review before search indexing.
-    robots: "noindex, follow",
+    // Privacy and Terms are approved for publication; remaining templates
+    // require founder/legal review before search indexing.
+    robots:
+      slug === "privacy" || slug === "terms"
+        ? "index, follow"
+        : "noindex, follow",
   })),
 ];
 
