@@ -1,6 +1,7 @@
 import { auth } from "express-oauth2-jwt-bearer";
 import type { NextFunction, Request, Response, RequestHandler } from "express";
 import { logger } from "../lib/logger";
+import { createAuth0ProfileLoader } from "../lib/auth0Profile";
 import {
   IdentityLinkRequiredError,
   syncAuth0Identity,
@@ -31,6 +32,7 @@ export function createAuth0Middleware(options: {
     audience: options.audience,
     tokenSigningAlg: "RS256",
   });
+  const loadProfile = createAuth0ProfileLoader(options);
   return (req, res, next) => {
     req.isAuthenticated = function (this: Request) {
       return this.user != null;
@@ -48,7 +50,7 @@ export function createAuth0Middleware(options: {
           .json({ error: "Unauthorized" });
         return;
       }
-      void resolveIdentity(req, res, next, options);
+      void resolveIdentity(req, res, next, options, loadProfile);
     });
   };
 }
@@ -80,32 +82,17 @@ async function resolveIdentity(
   res: Response,
   next: NextFunction,
   options: Parameters<typeof createAuth0Middleware>[0],
+  loadProfile: ReturnType<typeof createAuth0ProfileLoader>,
 ) {
   try {
-    // UserInfo is bound to the verified API access token; never accept browser profile fields.
-    const response = await (options.profileFetch ?? fetch)(
-      new URL("userinfo", options.issuerBaseURL).href,
-      {
-        headers: { Authorization: `Bearer ${req.auth!.token}` },
-        signal: AbortSignal.timeout(5000),
-        redirect: "error",
-      },
+    const identity = await loadProfile(
+      req.auth!.token,
+      req.auth!.payload.sub!,
+      typeof req.auth!.payload.exp === "number"
+        ? req.auth!.payload.exp * 1000
+        : 0,
     );
-    if (!response.ok)
-      throw new Error(`Auth0 profile unavailable (${response.status})`);
-    const profile = (await response.json()) as Record<string, unknown>;
-    if (profile.sub !== req.auth!.payload.sub)
-      throw new Error("Auth0 subject mismatch");
-    const string = (value: unknown) =>
-      typeof value === "string" ? value : null;
-    const user = await (options.syncIdentity ?? syncAuth0Identity)({
-      id: req.auth!.payload.sub!,
-      email: string(profile.email),
-      firstName: string(profile.given_name),
-      lastName: string(profile.family_name),
-      profileImageUrl: string(profile.picture),
-      emailVerified: profile.email_verified === true,
-    });
+    const user = await (options.syncIdentity ?? syncAuth0Identity)(identity);
     req.user = {
       id: user.id,
       email: user.email,

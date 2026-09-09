@@ -69,6 +69,8 @@ beforeAll(async () => {
   if (!address || typeof address === "string")
     throw new Error("Missing test server address");
   issuer = `http://127.0.0.1:${address.port}/`;
+});
+function createTestApp() {
   app = express();
   app.use(
     createAuth0Middleware({
@@ -84,7 +86,7 @@ beforeAll(async () => {
       ? res.json({ id: req.user!.id })
       : res.sendStatus(401),
   );
-});
+}
 afterAll(async () => {
   await new Promise<void>((resolve, reject) =>
     server.close((err) => (err ? reject(err) : resolve())),
@@ -92,6 +94,7 @@ afterAll(async () => {
 });
 beforeEach(() => {
   vi.clearAllMocks();
+  createTestApp();
   profileFetch.mockResolvedValue(
     new Response(
       JSON.stringify({
@@ -166,6 +169,28 @@ describe("Auth0 API authentication", () => {
         .status,
     ).toBe(503);
     expect(syncIdentity).not.toHaveBeenCalled();
+  });
+  it("shares UserInfo for repeated requests but rechecks application identity", async () => {
+    const bearer = token();
+    expect(
+      (await request(app).get("/private").auth(bearer, { type: "bearer" }))
+        .status,
+    ).toBe(200);
+    syncIdentity.mockRejectedValueOnce(new IdentityLinkRequiredError());
+    expect(
+      (await request(app).get("/private").auth(bearer, { type: "bearer" }))
+        .status,
+    ).toBe(409);
+    expect(profileFetch).toHaveBeenCalledTimes(1);
+    expect(syncIdentity).toHaveBeenCalledTimes(2);
+    expect(
+      (
+        await request(app)
+          .get("/private")
+          .auth(token({ exp: 1 }), { type: "bearer" })
+      ).status,
+    ).toBe(401);
+    expect(syncIdentity).toHaveBeenCalledTimes(2);
   });
   it("returns an actionable conflict when the existing account needs migration", async () => {
     syncIdentity.mockRejectedValueOnce(new IdentityLinkRequiredError());

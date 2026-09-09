@@ -30,9 +30,55 @@ all 292 tests in 36 files. `git diff --check` also passed. Frontend tests/build
 and the full-stack journey were not repeated in this follow-up because no
 frontend or runtime code changed; their combined-version results appear below.
 
-Human screen-reader testing, hosted Auth0 sign-in verification on the combined
-version, and the five-user pilot remain open. See [the acceptance checklist](phase-2d-acceptance.md).
+Human screen-reader testing and the five-user pilot remain open. Hosted Auth0
+sign-in and the browser daily loop were verified after the repairs below.
+See [the acceptance checklist](phase-2d-acceptance.md).
 No deployment or production verification is established by the merge or green CI.
+
+## Auth0 acceptance repairs
+
+Real browser acceptance on the combined version exposed two failures that the
+original journey's already-signed-in mock did not exercise:
+
+- When Auth0 finished loading, the identity-change effect cleared the query
+  cache after the account query had started. This detached/cancelled the query
+  and left the page on “Opening your account…”. Protected queries now wait for
+  the identity's cache cleanup. The journey now starts with authentication
+  loading and then signs in; it failed before this fix and passes after it.
+- Every API data request fetched Auth0 UserInfo. Navigating through the dashboard
+  caused confirmed HTTP 429 responses and account-loading errors. UserInfo claims
+  now share concurrent lookups and are cached in memory for at most 60 seconds,
+  bounded by JWT expiry and 1,000 entries. Cache keys are token hashes, not bearer
+  tokens. Failed or mismatched responses are not cached. Every request still
+  verifies its JWT and performs the application identity lookup/sync, so the
+  cache contains no application authorization decisions. Profile updates can
+  take up to 60 seconds to refresh.
+
+Auth0 documents [caching UserInfo responses to reduce rate-limit failures](https://support.auth0.com/center/s/article/Error-code-429).
+No authentication provider settings, credentials, or production records changed.
+
+Validation of these repairs:
+
+- Real Auth0 login return and fresh browser reload opened the protected app.
+- In Chrome, synthetic morning, body scan, habit, and evening entries saved
+  through the real API into a disposable local MongoDB database. Today advanced
+  through the steps and ended at “You're on track”, with all four steps complete.
+- Evening keyboard arrow selection and route-to-main focus were checked.
+- `pnpm --filter @workspace/kindred-coach run test`: 189 tests passed.
+- `pnpm --filter @workspace/db run test:journey`: the authentication-transition
+  regression and full daily loop passed.
+- `LOG_LEVEL=silent pnpm --filter @workspace/db run test:api`: 298 tests passed
+  in 37 files, including cache expiry, concurrency, isolation, failure recovery,
+  and per-request application identity checks.
+- `pnpm run typecheck`: full workspace passed.
+- Frontend build/prerender using synthetic Auth0 public configuration and
+  `pnpm --filter @workspace/api-server run build`: passed.
+- `git diff --check`: passed.
+
+The earlier fixture-only commit `a87d4a6` passed GitLab pipeline #2831175695;
+that result does not validate these later auth repairs. Their pipeline must be
+checked separately. The human pilot and screen-reader session are not replaced
+by this automated/browser evidence.
 
 ## Changes
 

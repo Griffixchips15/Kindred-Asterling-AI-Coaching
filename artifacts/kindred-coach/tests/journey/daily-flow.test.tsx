@@ -11,15 +11,18 @@ import {
 import api from "../../../api-server/src/app";
 
 const auth = vi.hoisted(() => {
-  return { token: "", getToken: async () => auth.token };
+  return { token: "", loaded: false, getToken: async () => auth.token };
 });
 vi.mock("@/lib/auth", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/auth")>()),
-  AuthProvider: ({ children }: { children: import("react").ReactNode }) => children,
+  AuthProvider: ({ children }: { children: import("react").ReactNode }) =>
+    children,
   useAuth: () => ({
-    isLoaded: true,
-    isSignedIn: true,
-    user: { id: "journey-test", firstName: null, email: "journey@example.test" },
+    isLoaded: auth.loaded,
+    isSignedIn: auth.loaded,
+    user: auth.loaded
+      ? { id: "journey-test", firstName: null, email: "journey@example.test" }
+      : null,
     error: undefined,
     getToken: auth.getToken,
     signOut: vi.fn(),
@@ -64,14 +67,12 @@ beforeAll(async () => {
       disconnect() {}
     },
   );
-  window.matchMedia = vi
-    .fn()
-    .mockImplementation((media: string) => ({
-      matches: media.includes("reduced-motion"),
-      media,
-      addEventListener() {},
-      removeEventListener() {},
-    }));
+  window.matchMedia = vi.fn().mockImplementation((media: string) => ({
+    matches: media.includes("reduced-motion"),
+    media,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
   Element.prototype.scrollTo = vi.fn();
   // The evening recommendation is time-dependent. Only the application's clock
   // is fixed; HTTP and Mongo still use real timers and the isolated test database.
@@ -163,6 +164,10 @@ it("completes the daily loop through real forms, routes, HTTP saves and MongoDB"
   });
   expect(medication.status).toBe(201);
   const { id: medicationId } = await medication.json();
+  await act(async () => root.render(createElement(App)));
+  // Real hosted sign-in resolves after the app has mounted. Exercise that
+  // transition so cache cleanup cannot strand the first account request.
+  auth.loaded = true;
   await act(async () => root.render(createElement(App)));
   await nextStep("Begin your day");
   await click('[data-testid="next-step-action"]');

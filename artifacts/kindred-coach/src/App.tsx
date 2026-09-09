@@ -80,10 +80,15 @@ const AuthTokenReadyContext = createContext(false);
 function AuthTokenBridge({ children }: { children: ReactNode }) {
   const { getToken, isLoaded, user } = useAuth();
   const [tokenBridgeReady, setTokenBridgeReady] = useState(false);
+  const userId = user?.id ?? null;
+  const [preparedUserId, setPreparedUserId] = useState<string | null>(null);
 
   useEffect(() => {
+    // An identity arriving after mount must finish cache cleanup before its
+    // account query starts. Otherwise clear() cancels and detaches that query.
     queryClient.clear();
-  }, [user?.id]);
+    setPreparedUserId(userId);
+  }, [userId]);
 
   useEffect(() => {
     setAuthTokenGetter(() => getToken());
@@ -96,7 +101,9 @@ function AuthTokenBridge({ children }: { children: ReactNode }) {
   }, [getToken]);
 
   return (
-    <AuthTokenReadyContext.Provider value={isLoaded && tokenBridgeReady}>
+    <AuthTokenReadyContext.Provider
+      value={isLoaded && tokenBridgeReady && preparedUserId === userId}
+    >
       {children}
     </AuthTokenReadyContext.Provider>
   );
