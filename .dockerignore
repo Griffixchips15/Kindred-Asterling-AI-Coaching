@@ -9,6 +9,8 @@ node_modules
 coverage
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
 attached_assets
 artifacts/mockup-sandbox

@@ -2,6 +2,15 @@
 
 The React/Vite frontend and Express API on this branch use Auth0. Production cutover has not been performed. Internal `users.id` values remain the owner keys for coaching records, subscriptions, reminders, and other application data. The old Clerk mapping fields and offline migration helpers remain for audit/rollback; the Clerk webhook is no longer mounted and the production packages no longer depend on Clerk.
 
+## Current cutover preparation
+
+The [production cutover checklist](releases/auth0-cutover.md) records the exact
+hosting changes, account-mapping gates, rollback procedure, and pending evidence.
+The preparation branch updates the root Dockerfile to accept the three public
+Auth0 build values through arguments or secret mounts, and rejects missing values
+before compilation. It does not apply provider settings or production identity writes.
+The historical task evidence below records what was done at that time.
+
 ## Auth0 resources created through MCP
 
 - Application: **Kindred Asterling AI Coaching** (`HhxYDycwHK6A71CofaymdURN9zEgvaFS`), type SPA, authorization code + rotating refresh tokens, no client secret in the browser.
@@ -30,7 +39,7 @@ AUTH0_DOMAIN=dev-rio3w0hvdl6hccn6.us.auth0.com
 AUTH0_AUDIENCE=https://kindred-asterling-ai-coaching.com/api
 ```
 
-Set these in the existing environment injection mechanism. The API never uses a SPA client secret or MCP management token. `CLERK_*` variables are no longer runtime requirements. Health endpoints remain available without Auth0 settings; API routes that require a user reject missing/invalid tokens. JWT signature, algorithm, issuer, audience and expiration are checked by `express-oauth2-jwt-bearer`. UserInfo must match the verified subject. Auth0 machine identities are rejected on user routes.
+Set these in the existing environment injection mechanism. The API never uses a SPA client secret or MCP management token. `CLERK_*` variables are no longer runtime requirements. Health handlers do not require user authentication, but production startup requires both Auth0 runtime variables. API routes that require a user reject missing/invalid tokens. JWT signature, algorithm, issuer, audience and expiration are checked by `express-oauth2-jwt-bearer`. UserInfo must match the verified subject. Auth0 machine identities are rejected on user routes.
 
 ## Account security
 
@@ -71,7 +80,7 @@ A new Auth0 subject never receives an existing account based only on email. A co
 
 - Run frontend tests/typecheck, full workspace typecheck, production frontend/API builds, the disposable MongoDB API harness, and `git diff --check`.
 - Complete a real browser login → API → logout round trip and account-security operations with a test identity. Verify rejected JWTs and anonymous requests stay rejected.
-- Review the actual hosting build configuration before rollout. Any existing container build arguments named `VITE_CLERK_*` need an explicitly authorized hosting/container update for Auth0 build variables. Container files have deliberately not been edited in this task.
+- Review the actual hosting build configuration before rollout. The prepared Dockerfile uses `VITE_AUTH0_*`; configure the approved values in Coolify before promotion. Build and runtime values must select the same tenant and API audience.
 - Register the final production callback, logout and web-origin URLs on the intended Auth0 application. Configure the approved production tenant and API variables in hosting. Do not mix tenants between frontend and backend.
 - Deploy only after explicit approval, then verify `/api/healthz`, `/api/healthz/db`, migrated signed-in flows, payments and reminders in production. A passing build or CI does not establish production readiness.
 
@@ -92,7 +101,7 @@ References: [React SDK examples](https://github.com/auth0/auth0-react/blob/main/
 
 The My Account user grant and MRRT policy are **configured**. Browser authorization completed, grant `cgr_ACzfmSo9AgcWGbT9` was created with `subject_type: user` and the four scopes listed above, and a subsequent application read verified the MRRT policy and rotating/expiring refresh-token settings. Credentialed account-security operations still require live verification. The registered SPA, Kindred API, and grant already exist; do not create duplicates when resuming.
 
-The current root `Dockerfile` lines 33–35 inject only `VITE_CLERK_PUBLISHABLE_KEY`. Those build arguments/secret mounts must be replaced with the three public `VITE_AUTH0_*` values above before a production build can use Auth0. This task did not modify container configuration, in accordance with `AGENTS.md`.
+At the end of the originating integration task, the root Dockerfile still injected only the Clerk publishable key. The later cutover preparation fixes that build wiring; production hosting changes remain pending.
 
 ## Clerk retirement boundary
 
