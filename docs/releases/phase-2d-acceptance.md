@@ -5,6 +5,12 @@ The owner has confirmed successful local daily-flow/visual review and native
 200% browser zoom. The automated journey, keyboard/reflow checks, and CI results
 are recorded in [the quality report](phase-2d-quality.md).
 
+Hosted Auth0 return, fresh-load sign-in, and the complete synthetic browser daily
+loop were subsequently verified on the follow-up repair: Today showed all four
+steps complete and “You're on track”. This was an agent-driven Chrome session,
+not a representative-user pilot or human screen-reader session. The temporary
+local preview is `http://localhost:8080/today` while its process is running.
+
 ## Screen-reader session
 
 Use a test account on a running preview of the combined Auth0/Phase 2D version.
