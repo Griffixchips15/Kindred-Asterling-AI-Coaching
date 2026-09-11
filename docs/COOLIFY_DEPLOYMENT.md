@@ -6,6 +6,10 @@ PM2, Replit workflows, or a host-side Node process. Coolify builds the Dockerfil
 runs one non-root application container, and connects it to separately managed
 MongoDB and AWS Bedrock.
 
+For the Clerk-to-Auth0 release, complete the [Auth0 cutover checklist](releases/auth0-cutover.md)
+before redeploying. The old Clerk image and its configuration remain the rollback
+target; a healthy API alone does not prove the new sign-in flow works.
+
 ## GitLab application setup (the new-resource screen)
 
 For the Coolify screen shown when adding a **Private GitLab App** repository:
@@ -21,7 +25,7 @@ For the Coolify screen shown when adding a **Private GitLab App** repository:
    application's public HTTPS domain.
 4. In **Environment Variables**, add the values described below. Any `VITE_*`
    value used by the browser must have **Build Variable** enabled. Runtime-only
-   secrets such as `MONGODB_URI`, `CLERK_SECRET_KEY`, and webhook secrets must
+   secrets such as `MONGODB_URI` and webhook secrets must
    not be exposed as build variables.
 5. Save, deploy, and watch the build logs. A successful deployment should pass
    `GET /api/healthz`; verify `GET /api/healthz/db` separately after the database
@@ -49,11 +53,12 @@ Both commands must exit successfully. Then confirm all of the following in a
 browser or the relevant provider dashboard:
 
 - The home page loads over HTTPS without a certificate warning.
-- Clerk sign-in and sign-out work with the production Clerk instance.
+- Auth0 sign-in, API access, refresh, and sign-out work with the approved production application and a mapped test identity.
 - A synthetic test coaching message receives a response from the configured AI
   provider. Do not use real health information for deployment smoke testing.
-- Clerk, Helcim (when enabled), and Google Calendar (when enabled) report a 2xx
-  response from their production webhook or callback URLs.
+- Helcim webhook delivery remains healthy when enabled. Calendar new connections
+  remain retired; existing disconnect/revocation remains available. The new release
+  does not mount the old Clerk webhook; retain its configuration for rollback.
 - A push to `main` starts a new Coolify deployment if automatic deployments are
   enabled; otherwise, a manual **Redeploy** builds the latest Git commit.
   If `/api/healthz` fails, inspect the application build and runtime logs first. If
@@ -71,14 +76,19 @@ browser or the relevant provider dashboard:
    temporary, approved rollback option, not the production provider.
 3. Create an application from this Git repository. Select **Dockerfile** with
    path `/Dockerfile`, port `8080`, and the production branch.
-4. Add `VITE_CLERK_PUBLISHABLE_KEY` as a **build argument**. It is public and
-   compiled into browser assets. A change requires a rebuild.
+4. Add `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, and `VITE_AUTH0_AUDIENCE`
+   as **Build Variables**. These are public identifiers compiled into browser assets.
+   The Dockerfile accepts build arguments or the existing Coolify Build Secrets mode.
+   Missing/blank values fail `build:deployment` before compilation. A change requires
+   a rebuild; when using secret mounts, disable the build cache for that rebuild
+   because secret contents do not invalidate cached layers.
 5. Add the applicable runtime values from `.env.example`. Do not add
    `POSTGRES_SOURCE_URL`, `PG_SSL_CA`, migration target variables, or
    migration reports to the application runtime. Mark keys, webhook signing
    secrets, database URLs, and encryption values as secrets.
-   The Clerk publishable key is needed twice: the Vite build argument and
-   `CLERK_PUBLISHABLE_KEY` at server runtime.
+   Add `AUTH0_DOMAIN` and `AUTH0_AUDIENCE` at runtime, matching the frontend
+   tenant and audience exactly. No Auth0 client secret is needed for this SPA.
+   Retain the old Clerk variables for rollback without using them in the new build.
 6. For a new empty MongoDB database, run
    `pnpm --filter @workspace/db run initialize` from a trusted environment before
    switching traffic. For the PostgreSQL cutover, follow
@@ -122,14 +132,15 @@ Configure the two core Coolify checks:
 
 Register public HTTPS endpoints using the canonical hostname:
 
-- Clerk webhook: `https://<host>/api/clerk/webhook`
+- Auth0 callback and logout: `https://<host>/`; web origin: `https://<host>`
 - Helcim webhook: inspect the API route registered by the deployed release and
   use `https://<host>/api/payment/webhook`; preserve the raw request body.
-- Google Calendar callback: `https://<host>/api/calendar/callback`
+- Legacy Clerk and Calendar provider configuration: retain through the approved
+  audit/rollback window. This release does not accept new Calendar connections.
 
-Store the corresponding Clerk and Helcim signing secrets in Coolify. Do not put
-secrets in `VITE_*` variables. Confirm each provider's delivery log returns a 2xx
-response after deployment and again after changing a domain.
+Store the Helcim signing secret in Coolify and preserve existing rollback secrets.
+Do not put secrets in `VITE_*` variables. Confirm payment webhook delivery and the
+Auth0 browser round trip after deployment and after any approved domain change.
 
 ## 5. Persistence and backups
 
@@ -151,7 +162,7 @@ and record the deployed Git SHA/image digest.
 Before promotion, GitLab CI validates the Node 24/pnpm 10.28.1 monorepo. Coolify
 separately builds the root `/Dockerfile` from GitLab `main`. Build the exact
 commit, complete the backup and MongoDB migration gate, and
-deploy. Verify both health endpoints, Clerk login, one response from the configured
+deploy. Verify both health endpoints, mapped Auth0 login, one response from the configured
 Bedrock provider using synthetic test data, and webhook delivery. Private Ollama
 may be used only under the approved rollback procedure.
 
