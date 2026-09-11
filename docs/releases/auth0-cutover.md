@@ -18,21 +18,21 @@ This is a review package, not evidence of a completed cutover.
 - Re-read deployment history and GitLab main immediately before promotion.
   Do not deploy additional unreviewed commits that arrive after this preparation.
 
-## Proposed configuration, awaiting production tenant selection
+## Proposed configuration for the selected tenant
 
 The existing locally tested tenant is `dev-rio3w0hvdl6hccn6.us.auth0.com` and
 SPA client ID is `HhxYDycwHK6A71CofaymdURN9zEgvaFS`. These are public identifiers,
 not secrets. The tenant name alone does not establish production readiness.
-Confirm whether to use it or a separate production tenant before applying changes.
-If selecting another tenant, replace both domain values and the client ID below,
-and verify its API, connections, My Account grant, and refresh policy.
+The founder confirmed use of this existing tenant during the setup walkthrough.
+The hosting values below now use the verified custom domain in both frontend
+and API. Login and account-security checks through that domain remain required.
 
 | Coolify variable | Proposed value for the existing tenant | Build | Runtime |
 | --- | --- | --- | --- |
-| `VITE_AUTH0_DOMAIN` | `dev-rio3w0hvdl6hccn6.us.auth0.com` | Yes | No |
+| `VITE_AUTH0_DOMAIN` | `auth.kindred-asterling-ai-coaching.com` | Yes | No |
 | `VITE_AUTH0_CLIENT_ID` | `HhxYDycwHK6A71CofaymdURN9zEgvaFS` | Yes | No |
 | `VITE_AUTH0_AUDIENCE` | `https://kindred-asterling-ai-coaching.com/api` | Yes | No |
-| `AUTH0_DOMAIN` | `dev-rio3w0hvdl6hccn6.us.auth0.com` | No | Yes |
+| `AUTH0_DOMAIN` | `auth.kindred-asterling-ai-coaching.com` | No | Yes |
 | `AUTH0_AUDIENCE` | `https://kindred-asterling-ai-coaching.com/api` | No | Yes |
 
 Keep `APP_PUBLIC_URL=https://kindred-asterling-ai-coaching.com` and existing
@@ -212,3 +212,166 @@ migration tests use synthetic records; they do not prove customer migration.
 
 No production settings, customer records, imports, messages, charges or deployments
 were changed by preparation. No Clerk or Calendar credentials/data were removed.
+
+## Provider setup progress — September 11, 2026
+
+This section records later operational work separately from the original local
+preparation above.
+
+- Founder reported confirming the production callback/logout/origin entries,
+  RS256 API audience/offline access, and refresh rotation with seven-day maximum
+  and one-day idle lifetimes. These confirmations are not a full production login test.
+- Preparation commit `6d9960b2d5fbb0bf190389d5a10a1a26c0dfe7cc` was pushed to
+  `origin/codex/auth0-cutover-preparation`; it has not been merged or deployed.
+  GitLab pipeline `2840852197` failed without executing its checks: the typecheck
+  job reports "No more compute minutes available" and has no trace. Do not treat
+  this as either a test failure or a successful remote validation.
+- Auth0 custom domain `auth.kindred-asterling-ai-coaching.com`, resource
+  `cd_Yk5iiysYGTxBmMSd`, exists and uses Auth0-managed certificates. It initially
+  reported "The verification record was not found."
+- Cloudflare's existing `auth` CNAME already pointed to
+  `dev-rio3w0hvdl6hccn6-cd-yk5iiysygtxbmmsd.edge.tenants.us.auth0.com` with
+  proxying disabled. The cause was zone-wide **CNAME flattening for all CNAME
+  records**, which suppressed CNAME answers even for DNS-only records.
+- Disabled that zone-wide flattening setting and read back the saved `false`
+  state. Both authoritative nameservers and Google's public resolver returned the
+  required CNAME afterward. Another public resolver retained a negative cache
+  response, so propagation was still in progress. Existing record targets,
+  website proxying, DNSSEC, and access policies were not changed. This setting
+  affects all DNS-only CNAME answers, not only `auth`; their destinations remain
+  unchanged. Restoring the toggle would restore flattening but break verification.
+- Both production API health endpoints returned success after the DNS change.
+  Auth0 subsequently reported the custom domain VERIFIED. Its HTTPS OpenID
+  discovery endpoint returned the custom-domain issuer and authorization, token,
+  and JWKS endpoints successfully. This does not activate the deployed app issuer.
+- Founder created the separate **Kindred Auth0 Sign-In** Web client and saved
+  its credentials in Auth0. The expected client ID was read back without exposing
+  the secret; the developer-key warning disappeared. Enabled this connection for
+  the Kindred SPA. No existing Calendar client was edited.
+- Founder completed Try Connection. Auth0 logs confirm Success Login through
+  `google-oauth2` at `2026-09-11T13:25:51.436Z` and Success Exchange of the
+  authorization code at `2026-09-11T13:25:51.922Z`. This verifies the social
+  connection, not the deployed Kindred application or existing-account continuity.
+- Founder saved Spacemail SMTP credentials and sent test messages. The earlier
+  test at `2026-09-11T13:30:23.397Z` failed with SMTP 535 authentication rejected.
+  A later test at `2026-09-11T13:36:47.573Z` returned HTTP 200 / "Email sent",
+  with no newer notification failure observed. Founder subsequently confirmed
+  receipt. SMTP test delivery is verified; password-reset flow remains untested.
+  Credential fields appearing blank after saving are not evidence of missing
+  stored credentials.
+
+Pending: account-security operations, complete customer
+mapping/restore rehearsal, CI capacity, container validation, and production release.
+
+## Coolify read-only cutover audit — September 11, 2026
+
+- Latest successful deployment remains `9980553b0a316fe5dbe60f6daf5c421d8c5e217f`.
+  The same image is listed as available for rollback. Rollback itself was not run.
+- Git Source is Kindred-Gitlab, repository
+  `kindred-asterling-ai-group/Kindred-Asterling-AI-Coaching`, branch `main`,
+  commit selector `HEAD`. A fresh GitLab fetch still resolves main to
+  `2205b982401cd809fd0a297eb9cd378e5e0c0159`.
+- No `AUTH0_*` or `VITE_AUTH0_*` variables are present in the 50-row hosting
+  inventory. Clerk, Calendar, payment, reminder, AI and database variable names
+  remain present. Secret values were not exposed or changed.
+- Coolify application storage backups show zero schedules and zero executions.
+  This page covers application storage; it does not establish whether external
+  MongoDB has backups. A database backup and restore rehearsal remain unverified.
+- No reviewed identity mapping or rehearsal report was located in the release
+  checkout. Requested the location of any private existing evidence from the
+  founder. No production records were read or modified during this audit.
+- No Coolify settings were saved and no deployment was triggered. Existing
+  account continuity must be established before switching traffic: the new API
+  rejects email collisions with `account_link_required` and has no live Clerk
+  authentication fallback.
+
+## Hosting values saved — September 11, 2026
+
+- Founder added all five Auth0 production values. Corrected the misspelled
+  `VITE_AITH0_AUDIENCE` to `VITE_AUTH0_AUDIENCE` in production and preview.
+  Explicitly saved and read back the production audience value.
+- Read back all five production public values against the table above. The three
+  Vite values are build-only; both API values are runtime-only. No secrets were
+  revealed or replaced. Coolify still uses its existing BuildKit secrets mode.
+- Auth0 SPA settings include the production root callback/logout and web origin,
+  alongside localhost:8080 entries. Refresh rotation is enabled, idle lifetime
+  86400 seconds, maximum lifetime 604800 seconds, overlap 5 seconds.
+- The application settings MRRT table and its configuration panel currently show
+  no API entries. Earlier grant documentation does not establish current readiness.
+  Resolve grant/audience configuration or verify live account-security operations
+  through the custom domain before promotion.
+- Founder reports no other platform users and no known prior migration work. This
+  is not a verified database inventory; the founder's own history still requires
+  continuity. MongoDB Atlas connector access is expired and requires reconnection.
+  No account records were retrieved or modified.
+- No deploy, merge, backup, identity write, or credential retirement was performed.
+
+## Read-only account inventory — September 11, 2026
+
+- MongoDB Atlas connector reauthenticated successfully. Inspected the selected
+  project's Cluster0 and the `kindred` database; Coolify's production database
+  name was read back as `kindred`.
+- Two application user records exist: one with a Clerk mapping and neither with
+  an Auth0 mapping. Both have email addresses and existing coaching history.
+- The older record has one conversation, one morning log, and no subscription
+  record. The Clerk-linked record has five conversations, two morning logs, and
+  one subscription record. A subscription record alone does not prove a paid or
+  active entitlement. No message bodies or health content were read.
+- Founder confirmed both accounts belong to them and must remain separate with
+  their existing histories. Exact email addresses and identity IDs are omitted
+  from this tracked report. No account merge is authorized.
+- Auth0's user inventory currently shows one Google identity matching the
+  Clerk-linked account's label. The second account still needs a verified Auth0
+  identity. Email matching alone is not proof sufficient to apply a mapping.
+- The current migration helper requires a nonempty Clerk subject for every row,
+  so it cannot handle the older account as-is. A reviewed migration path for
+  that account and an isolated restore rehearsal remain required.
+- Atlas has a database named `kindred_migration_rehearsal_20260902`; its name
+  alone is not evidence of a current backup, tested restore, or Auth0 rehearsal.
+- The Atlas web dashboard requires a separate login to inspect backup/restore
+  options. Requested browser login; no backup or restore was initiated.
+- All MongoDB operations were read-only. No database records, provider identities,
+  subscriptions or production deployments changed during this inventory.
+
+## Atlas backup and restore rehearsal started — September 11, 2026
+
+- Atlas Cloud Backup and point-in-time recovery are enabled for Cluster0.
+  Dashboard showed 29 retained snapshots; newest snapshot was
+  `2026-09-11T13:52:16Z` (07:52 MDT), MongoDB 8.0.32.
+- Restore history was empty before this rehearsal.
+- Started restore job `6aa4097cdc4bdca4c495e1a8` at approximately 08:00 MDT:
+  source `kindred` from that snapshot; destination
+  `Cluster0.kindred_auth0_restore_20260911`; strategy **Create as new**.
+  Selected all ordinary indexes excluding TTL indexes so expiry cannot remove
+  rehearsal records. Search indexes are not supported by this restore mode.
+- Atlas selected-data size was 528 KB. No new cluster was created. The restore
+  creates a separate database on the existing cluster and does not overwrite
+  `kindred`. It still uses shared cluster resources.
+- Last observed state: INITIALIZING, preparing resources and performing collection
+  restore. Completion, record reconciliation and migration rehearsal are pending.
+- Opened a Google connection test for the founder's second account. User must
+  complete account selection/sign-in; no second identity has been assumed.
+- No production account mapping, live database overwrite, merge or application
+  deployment was performed.
+
+## Second identity and migration-helper preparation — September 11, 2026
+
+- The second Google connection test displayed Successful transaction. Auth0's
+  user inventory now shows two separate Google identities corresponding to the
+  two founder-owned account labels. Exact identity IDs remain out of this report.
+- Added an explicit `--allow-legacy-without-clerk` migration option requiring
+  `clerkUserId: null` in each independently reviewed pre-Clerk mapping. Omitted
+  fields still fail, and existing Clerk/Auth0 ownership checks remain enforced.
+  Each transactional update now requires exactly one matched account.
+- Added regression coverage for opt-in/dry-run behavior, omitted legacy IDs,
+  rejection of a null mapping against a Clerk account without partial batch
+  writes, and Auth0 identity collisions. Tests use a disposable local replica set.
+- No mapping has been applied to either live or restored accounts. The Atlas
+  restore job still reported INITIALIZING at the latest check.
+
+Validation of the legacy-account helper update (Node 24.19.0 / pnpm 10.34.5):
+`pnpm --filter @workspace/db run test:api` passed 302 tests in 37 files;
+`pnpm --filter @workspace/kindred-coach run test` passed 195 tests in 23 files;
+`pnpm run typecheck` passed across the workspace; `git diff --check` passed.
+No new application build, remote CI, live migration or production verification
+was performed for this update.

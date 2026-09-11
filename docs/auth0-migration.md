@@ -66,6 +66,14 @@ A new Auth0 subject never receives an existing account based only on email. A co
    [{"userId":"existing-kindred-id","clerkUserId":"existing-clerk-id","auth0UserId":"auth0|verified-auth0-subject"}]
    ```
 
+For a legacy account that predates Clerk, the reviewed mapping must explicitly set
+`clerkUserId: null` and the command additionally requires
+`--allow-legacy-without-clerk`. Establish ownership through an independently
+verified sign-in and owner review before preparing that mapping. An omitted field
+is rejected. The flag never bypasses an existing Clerk mapping or Auth0 owner,
+never links by email, and leaves the missing/null Clerk field unchanged. Use the
+same restore rehearsal and production approval process as for Clerk accounts.
+
 4. With an isolated restored MongoDB replica set selected in the environment, validate without writes:
 
    ```sh
