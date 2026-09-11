@@ -375,3 +375,52 @@ Validation of the legacy-account helper update (Node 24.19.0 / pnpm 10.34.5):
 `pnpm run typecheck` passed across the workspace; `git diff --check` passed.
 No new application build, remote CI, live migration or production verification
 was performed for this update.
+
+## Migration rehearsal completed — September 11, 2026
+
+The Atlas restore completed and the full identity-mapping rehearsal ran to
+completion against the isolated copy `Cluster0.kindred_auth0_restore_20260911`.
+Production `kindred` was not written to at any point.
+
+- The two founder-owned accounts were mapped to their confirmed Auth0 Google
+  subjects. One account is pre-Clerk (migrated with `clerkUserId: null` via
+  `--allow-legacy-without-clerk`); the other is Clerk-linked. Exact identity
+  IDs and emails remain out of this tracked report.
+- The founder confirmed each Auth0 subject by reading the Auth0 user record
+  (email-verified, matching the corresponding account), not by position.
+- The mapping file is stored owner-only outside the repository; it is not
+  committed.
+
+Rehearsal sequence against the restore database:
+
+- Dry run passed: both mappings validated with no writes.
+- Apply passed: `auth0UserId` and `updatedAt` set on exactly two rows.
+- Read-back confirmed internal `id` values unchanged, `clerkUserId` preserved
+  (including the legacy `null`), and `auth0UserId` set to the intended subject
+  on each account.
+- Data continuity verified: the pre-Clerk account retains one conversation and
+  one morning log with no subscription; the Clerk-linked account retains five
+  conversations, two morning logs, and one subscription. These match the
+  read-only inventory recorded above.
+- Database-initialization rehearsal passed: the unique partial `auth0UserId`
+  index (`auth0UserId_1`, unique, `{$type:"string"}` filter) installs cleanly
+  on the populated restore database.
+
+Authorization: the Atlas database user initially held `readWrite` on `kindred`
+only. The founder added `readWrite` on `kindred_auth0_restore_20260911` to the
+existing user (`asterlingdigital_db_user`) to permit the rehearsal. No role
+grants beyond the existing `kindred` scope were added.
+
+Not performed: production mapping, any write to `kindred`, live
+account-security operations, container build/boot, deployment, or provider
+credential changes.
+
+## CI coverage moved to GitHub Actions — September 11, 2026
+
+GitLab CI remains blocked on shared compute minutes ("No more compute minutes
+available"). To retain validation coverage without GitLab compute, the GitHub
+Actions workflow (`.github/workflows/ci.yml`) was updated to mirror the GitLab
+jobs: `typecheck`, `test-api-server` (with `libcurl4`), `test-kindred-coach`,
+and a production build that runs `build:deployment` plus the API build using
+synthetic public Auth0 identifiers. Committed locally on the cutover branch;
+not pushed.
