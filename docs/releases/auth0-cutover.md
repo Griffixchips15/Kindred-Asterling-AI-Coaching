@@ -422,5 +422,25 @@ available"). To retain validation coverage without GitLab compute, the GitHub
 Actions workflow (`.github/workflows/ci.yml`) was updated to mirror the GitLab
 jobs: `typecheck`, `test-api-server` (with `libcurl4`), `test-kindred-coach`,
 and a production build that runs `build:deployment` plus the API build using
-synthetic public Auth0 identifiers. Committed locally on the cutover branch;
-not pushed.
+synthetic public Auth0 identifiers. Committed locally on the cutover branch
+and pushed to `origin`.
+
+## Production mapping applied — September 11, 2026
+
+The reviewed mapping was applied to the live `kindred` database with the
+founder's explicit approval. The write-freeze precondition is satisfied in
+practice: the founder confirmed only the two founder-owned accounts exist.
+
+- Dry run against `kindred` passed: both mappings validated with no writes.
+- Apply set `auth0UserId` and `updatedAt` on exactly two rows; read-back
+  confirmed internal `id` values unchanged and `clerkUserId` preserved
+  (including the legacy `null`).
+- The currently deployed build is still the pre-Auth0 Clerk build, which reads
+  `clerkUserId` and ignores `auth0UserId`, so the write is inert until the
+  Auth0 build deploys.
+- The unique partial `auth0UserId` index is not yet installed on `kindred`; it
+  is created by the first Auth0-build database initialization on deploy.
+  Production has two distinct subjects, so the index will build cleanly.
+
+Not performed: deployment, live account-security operations, container
+build/boot, or provider credential changes.
