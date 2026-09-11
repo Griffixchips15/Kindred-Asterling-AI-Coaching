@@ -444,3 +444,27 @@ practice: the founder confirmed only the two founder-owned accounts exist.
 
 Not performed: deployment, live account-security operations, container
 build/boot, or provider credential changes.
+
+## Deploy source flipped to GitHub — September 11, 2026
+
+GitLab could not run the pipeline (no shared compute minutes), so the deploy
+source and CI were moved to the GitHub repository.
+
+- Force-pushed GitHub `main` to match GitLab `main` (`2205b98`). This dropped
+  the GitHub-only commits that had diverged from GitLab (dependabot bumps and a
+  jfrog OIDC workflow example); they are minor and re-creatable.
+- Pushed `codex/auth0-cutover-preparation` to GitHub and merged it via pull
+  request #134. GitHub `main` now carries the Auth0 `Dockerfile` build args and
+  the updated GitHub Actions `ci.yml`.
+- GitHub Actions CI ran on the pull request: `typecheck`, `test-api-server`,
+  `test-kindred-coach`, and `build` all passed, along with CodeQL, njsscan, and
+  Devin review. Two pre-existing checks remain red in the experimental Next.js
+  `frontend/` package only (`pnpm audit` vulnerabilities and an
+  `eslint-plugin-react`/`eslint` version incompatibility); these are not
+  deployed and do not block the production build.
+- Coolify must be repointed to the GitHub repository
+  (`Griffixchips15/Kindred-Asterling-AI-Coaching`, branch `main`) before the
+  next deploy. This repointing was not performed from the repository.
+
+Not performed: Coolify repointing, deployment, live account-security
+operations, or container build/boot.
