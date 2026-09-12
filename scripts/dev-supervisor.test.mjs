@@ -1,0 +1,523 @@
+// Tests for scripts/dev-supervisor.mjs and the dev.mjs launcher.
+//
+// Unit tests cover parsing/config/jobs. Integration tests spawn the real
+// `dev.mjs` CLI with the fake-children fixture and verify process-group
+// shutdown: all owned children (and wrappers/grandchildren) exit on
+// SIGINT/SIGTERM and on child/build failure, unrelated processes survive, and
+// ports become reusable. No real ports or real product processes are used.
+
+import { spawn } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import net from "node:net";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, test } from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  checkPortFree,
+  checkPortInUse,
+  createJobs,
+  DEFAULT_DEV_DB_MODE,
+  loadEnvFile,
+  parseDevConfig,
+  parseEnvFile,
+  parsePort,
+  preflightPorts,
+  waitForReadiness,
+} from "./dev-supervisor.mjs";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(here, "..");
+const fixturePath = path.join(here, "dev-supervisor-fixture.mjs");
+
+// ---------------------------------------------------------------------------
+// Unit: env parsing / ports / config / jobs
+// ---------------------------------------------------------------------------
+
+describe("parseEnvFile", () => {
+  test("parses KEY=VALUE, quotes, comments, and export prefixes", () => {
+    const parsed = parseEnvFile(`
+# comment
+KINDRED_WEB_PORT=8080
+export KINDRED_API_PORT=3000
+VITE_AUTH0_DOMAIN="https://dev.example.auth0.com"
+MONGODB_URI='mongodb://127.0.0.1:27017'
+ALONE
+=orphan
+`);
+    assert.equal(parsed.KINDRED_WEB_PORT, "8080");
+    assert.equal(parsed.KINDRED_API_PORT, "3000");
+    assert.equal(parsed.VITE_AUTH0_DOMAIN, "https://dev.example.auth0.com");
+    assert.equal(parsed.MONGODB_URI, "mongodb://127.0.0.1:27017");
+    assert.equal(parsed.ALONE, undefined);
+  });
+});
+
+describe("loadEnvFile", () => {
+  test("returns {} when the file is missing", () => {
+    assert.deepEqual(loadEnvFile("/nonexistent/.env.dev"), {});
+  });
+});
+
+describe("parsePort", () => {
+  test("accepts valid ports", () => {
+    assert.equal(parsePort("8080", "KINDRED_WEB_PORT"), 8080);
+    assert.equal(parsePort(3000, "KINDRED_API_PORT"), 3000);
+  });
+
+  test("rejects missing, zero, out-of-range, and non-numeric values", () => {
+    assert.throws(() => parsePort("", "KINDRED_WEB_PORT"), /KINDRED_WEB_PORT/);
+    assert.throws(() => parsePort("0", "KINDRED_WEB_PORT"), /KINDRED_WEB_PORT/);
+    assert.throws(() => parsePort("65536", "KINDRED_WEB_PORT"), /KINDRED_WEB_PORT/);
+    assert.throws(() => parsePort("-1", "KINDRED_WEB_PORT"), /KINDRED_WEB_PORT/);
+    assert.throws(() => parsePort("abc", "KINDRED_WEB_PORT"), /KINDRED_WEB_PORT/);
+  });
+});
+
+describe("parseDevConfig", () => {
+  test("applies defaults when nothing is set", () => {
+    const config = parseDevConfig({ processEnv: {}, fileEnv: {} });
+    assert.equal(config.webPort, 8080);
+    assert.equal(config.apiPort, 3000);
+    assert.equal(config.dbMode, "disposable");
+    assert.equal(config.basePath, "/");
+    assert.equal(config.apiOrigin, "http://127.0.0.1:3000");
+  });
+
+  test("process env overrides the file env; file env fills the rest", () => {
+    const config = parseDevConfig({
+      processEnv: { KINDRED_WEB_PORT: "9500" },
+      fileEnv: {
+        KINDRED_WEB_PORT: "9000",
+        KINDRED_API_PORT: "4000",
+        VITE_AUTH0_DOMAIN: "https://file.example.auth0.com",
+      },
+    });
+    assert.equal(config.webPort, 9500);
+    assert.equal(config.apiPort, 4000);
+    assert.equal(config.apiOrigin, "http://127.0.0.1:4000");
+    assert.equal(
+      config.webEnv.VITE_AUTH0_DOMAIN,
+      "https://file.example.auth0.com",
+    );
+  });
+
+  test("rejects equal web/api ports", () => {
+    assert.throws(() =>
+      parseDevConfig({
+        processEnv: {},
+        fileEnv: { KINDRED_WEB_PORT: "8080", KINDRED_API_PORT: "8080" },
+      }),
+    );
+  });
+
+  test("external mode requires MONGODB_URI/DATABASE and never echoes secrets", () => {
+    const secret = "mongodb://user:s3cr3t-uri@db.example:27017";
+    assert.throws(
+      () =>
+        parseDevConfig({
+          processEnv: {},
+          fileEnv: { KINDRED_DEV_DB: "external", MONGODB_URI: secret },
+        }),
+      (err) => {
+        assert.match(err.message, /MONGODB_URI/);
+        assert.match(err.message, /MONGODB_DATABASE/);
+        assert.ok(!err.message.includes("s3cr3t-uri"));
+        return true;
+      },
+    );
+  });
+
+  test("external mode rejects non-mongodb URIs and invalid database names", () => {
+    assert.throws(() =>
+      parseDevConfig({
+        processEnv: {},
+        fileEnv: {
+          KINDRED_DEV_DB: "external",
+          MONGODB_URI: "postgres://127.0.0.1/db",
+          MONGODB_DATABASE: "kindred_dev",
+        },
+      }),
+      /mongodb/,
+    );
+    assert.throws(() =>
+      parseDevConfig({
+        processEnv: {},
+        fileEnv: {
+          KINDRED_DEV_DB: "external",
+          MONGODB_URI: "mongodb://127.0.0.1:27017",
+          MONGODB_DATABASE: "bad db name;drop",
+        },
+      }),
+      /MONGODB_DATABASE/,
+    );
+  });
+
+  test("isolates server secrets from the browser child env", () => {
+    const config = parseDevConfig({
+      processEnv: {},
+      fileEnv: {
+        MONGODB_URI: "mongodb://127.0.0.1:27017",
+        MONGODB_DATABASE: "kindred_dev",
+        RESEND_API_KEY: "k-file-123",
+        VITE_AUTH0_CLIENT_ID: "pub-client-456",
+        KINDRED_DEV_DB: DEFAULT_DEV_DB_MODE,
+      },
+    });
+    assert.equal(config.webEnv.MONGODB_URI, undefined);
+    assert.equal(config.webEnv.MONGODB_DATABASE, undefined);
+    assert.equal(config.webEnv.RESEND_API_KEY, undefined);
+    assert.equal(config.webEnv.VITE_AUTH0_CLIENT_ID, "pub-client-456");
+    assert.equal(config.apiEnv.MONGODB_URI, "mongodb://127.0.0.1:27017");
+    assert.equal(config.apiEnv.RESEND_API_KEY, "k-file-123");
+  });
+
+  test("validates BASE_PATH and KINDRED_API_ORIGIN", () => {
+    assert.throws(
+      () => parseDevConfig({ processEnv: { BASE_PATH: "nope" }, fileEnv: {} }),
+      /BASE_PATH/,
+    );
+    assert.throws(
+      () =>
+        parseDevConfig({
+          processEnv: { KINDRED_API_ORIGIN: "not-a-url" },
+          fileEnv: {},
+        }),
+      /KINDRED_API_ORIGIN/,
+    );
+  });
+});
+
+describe("port helpers", () => {
+  test("detects an occupied port and accepts a free one", async () => {
+    const port = await getFreePort();
+    const freePort = await getFreePort();
+    const server = net.createServer();
+    await new Promise((resolve) => server.listen(port, "0.0.0.0", resolve));
+    try {
+      assert.equal(await checkPortInUse(port), true);
+      assert.equal(await checkPortFree(port), false);
+      const occupied = await preflightPorts([
+        { port, label: "busy" },
+        { port: freePort, label: "free" },
+      ]);
+      assert.deepEqual(occupied.map((entry) => entry.label), ["busy"]);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+});
+
+describe("createJobs", () => {
+  const config = parseDevConfig({ processEnv: {}, fileEnv: {} });
+
+  test("runs the real product workspace commands with proper launch env", () => {
+    const jobs = createJobs(config, { cwd: repoRoot });
+    assert.deepEqual(jobs.web.args, [
+      "--filter",
+      "@workspace/kindred-coach",
+      "run",
+      "dev",
+    ]);
+    assert.deepEqual(jobs.api.args, [
+      "--filter",
+      "@workspace/api-server",
+      "run",
+      "start",
+    ]);
+    assert.equal(jobs.build.command, "pnpm");
+    assert.equal(jobs.web.env.PORT, "8080");
+    assert.equal(jobs.web.env.BASE_PATH, "/");
+    assert.equal(jobs.web.env.REMINDER_SCHEDULER_DISABLED, undefined);
+    assert.equal(jobs.api.env.PORT, "3000");
+    assert.equal(jobs.api.env.REMINDER_SCHEDULER_DISABLED, "true");
+    assert.equal(jobs.api.env.NODE_ENV, "development");
+  });
+
+  test("never launches the Next.js experiment", () => {
+    const jobs = createJobs(config, { cwd: repoRoot });
+    for (const job of [jobs.build, jobs.web, jobs.api]) {
+      const flat = job.args.join(" ");
+      assert.ok(!flat.includes("frontend"), `${job.name} must not target frontend`);
+      assert.ok(!flat.includes("next"), `${job.name} must not target next`);
+    }
+  });
+
+  test("web child keeps an exec PATH but never receives server secrets", () => {
+    const jobEnvConfig = parseDevConfig({
+      processEnv: {},
+      fileEnv: {
+        MONGODB_URI: "mongodb://user:secret@127.0.0.1:27017",
+        MONGODB_DATABASE: "kindred_dev",
+        OLLAMA_BASE_URL: "http://127.0.0.1:11434",
+        VITE_AUTH0_DOMAIN: "dev.example.auth0.com",
+      },
+    });
+    const jobs = createJobs(jobEnvConfig, { cwd: repoRoot });
+    assert.ok(
+      jobs.web.env.PATH?.length > 0,
+      "web child must be able to exec pnpm via PATH",
+    );
+    assert.equal(jobs.web.env.MONGODB_URI, undefined);
+    assert.equal(jobs.web.env.MONGODB_DATABASE, undefined);
+    assert.equal(jobs.web.env.OLLAMA_BASE_URL, undefined);
+    assert.equal(jobs.web.env.VITE_AUTH0_DOMAIN, "dev.example.auth0.com");
+    assert.equal(jobs.api.env.MONGODB_URI, "mongodb://user:secret@127.0.0.1:27017");
+  });
+});
+
+describe("waitForReadiness", () => {
+  test("is instantly ready without a readiness spec", async () => {
+    assert.deepEqual(await waitForReadiness({ name: "x" }), {
+      ok: true,
+      job: { name: "x" },
+    });
+  });
+
+  test("resolves ok once a port is bound", async () => {
+    const port = await getFreePort();
+    const server = net.createServer();
+    await new Promise((resolve) => server.listen(port, "127.0.0.1", resolve));
+    try {
+      const result = await waitForReadiness(
+        {
+          name: "web",
+          readiness: { type: "port", port, host: "127.0.0.1", timeoutMs: 3000 },
+        },
+        { pollMs: 50 },
+      );
+      assert.equal(result.ok, true);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  test("times out when the port never binds", async () => {
+    const port = await getFreePort();
+    const result = await waitForReadiness(
+      {
+        name: "web",
+        readiness: { type: "port", port, host: "127.0.0.1", timeoutMs: 400 },
+      },
+      { pollMs: 50 },
+    );
+    assert.equal(result.ok, false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Integration: real CLI + fake children
+// ---------------------------------------------------------------------------
+
+function getFreePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function waitForExit(child, timeoutMs = 20_000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error("child did not exit")),
+      timeoutMs,
+    );
+    child.once("exit", (code) => {
+      clearTimeout(timer);
+      resolve(code ?? 1);
+    });
+  });
+}
+
+async function waitForFile(file, timeoutMs = 20_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (existsSync(file)) return JSON.parse(readFileSync(file, "utf8"));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.fail(`marker file never appeared: ${file}`);
+}
+
+async function waitForPortState(port, expectedInUse, timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if ((await checkPortInUse(port)) === expectedInUse) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.fail(`port ${port} did not become ${expectedInUse ? "in use" : "free"}`);
+}
+
+function waitFor(condition, timeoutMs = 10_000) {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeoutMs;
+    const tick = () => {
+      if (condition()) return resolve();
+      if (Date.now() >= deadline) return reject(new Error("condition timed out"));
+      setTimeout(tick, 100);
+    };
+    tick();
+  });
+}
+
+async function startCli(overrides = {}) {
+  const stateDir = mkdtempSync(path.join(os.tmpdir(), "kindred-dev-sup-test-"));
+  const webPort = await getFreePort();
+  const apiPort = await getFreePort();
+  const env = {
+    PATH: process.env.PATH,
+    HOME: process.env.HOME,
+    KINDRED_DEV_DB: "external",
+    MONGODB_URI: "mongodb://127.0.0.1:25999",
+    MONGODB_DATABASE: "kindred_dev",
+    KINDRED_DEV_JOBS_FIXTURE: fixturePath,
+    FAKE_STATE_DIR: stateDir,
+    KINDRED_WEB_PORT: String(webPort),
+    KINDRED_API_PORT: String(apiPort),
+    KINDRED_DEV_DEBUG_LOG: path.join(stateDir, "cli.audit.log"),
+    ...overrides,
+  };
+  const child = spawn(process.execPath, ["scripts/dev.mjs"], {
+    cwd: repoRoot,
+    env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stderr = "";
+  let stdout = "";
+  child.stdout.on("data", (d) => (stdout += d));
+  child.stderr.on("data", (d) => (stderr += d));
+  child.output = () => ({ stdout, stderr });
+  return { child, stateDir, webPort, apiPort };
+}
+
+function failWithCliOutput(assertion, stateDir, cli) {
+  const out = cli.output ? cli.output() : { stdout: "", stderr: "" };
+  let dir;
+  try {
+    dir = readFileSync(stateDir, "utf8");
+  } catch {
+    dir = "";
+  }
+  assertion(new Error(
+    `marker did not appear; stateDir=${stateDir}; CLI stderr:\n${out.stderr}\nCLI stdout:\n${out.stdout}\nstateDir listing:\n${dir}`,
+  ));
+}
+
+test("SIGINT: stops all owned children including grandchildren; unrelated process survives; ports freed", async () => {
+  const { child, stateDir, webPort, apiPort } = await startCli({
+    FAKE_MODE: "ok",
+    FAKE_WRAP_GRANDCHILD: "true",
+  });
+
+  const webMarker = path.join(stateDir, "web.marker.json");
+  const apiMarker = path.join(stateDir, "api.marker.json");
+  await waitForFile(webMarker);
+  await waitForFile(apiMarker);
+  await waitForPortState(webPort, true);
+  await waitForPortState(apiPort, true);
+
+  const webPid = JSON.parse(readFileSync(webMarker, "utf8")).pid;
+  const apiPid = JSON.parse(readFileSync(apiMarker, "utf8")).pid;
+  const grandchildPid = Number(
+    readFileSync(path.join(stateDir, "web.grandchild.pid"), "utf8"),
+  );
+  assert.ok(isAlive(webPid) && isAlive(apiPid) && isAlive(grandchildPid));
+
+  const unrelated = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+    stdio: "ignore",
+  });
+  assert.ok(isAlive(unrelated.pid));
+
+  child.kill("SIGINT");
+  const code = await waitForExit(child);
+  assert.equal(code, 0);
+
+  await waitForPortState(webPort, false);
+  await waitForPortState(apiPort, false);
+  await waitFor(() => !isAlive(webPid) && !isAlive(apiPid) && !isAlive(grandchildPid));
+  assert.ok(isAlive(unrelated.pid), "unrelated process must survive");
+  unrelated.kill("SIGKILL");
+});
+
+test("SIGTERM: stops all owned children cleanly with exit code 0", async () => {
+  const { child, stateDir, webPort, apiPort } = await startCli({
+    FAKE_MODE: "ok",
+    FAKE_WRAP_GRANDCHILD: "true",
+  });
+
+  await waitForFile(path.join(stateDir, "web.marker.json"));
+  await waitForFile(path.join(stateDir, "api.marker.json"));
+  await waitForPortState(webPort, true);
+  await waitForPortState(apiPort, true);
+
+  child.kill("SIGTERM");
+  const code = await waitForExit(child);
+  assert.equal(code, 0);
+  await waitForPortState(webPort, false);
+  await waitForPortState(apiPort, false);
+});
+
+test("api child failure: launcher exits nonzero and cleans up the web child", async () => {
+  const { child, stateDir, webPort, apiPort } = await startCli({
+    FAKE_MODE: "api-fail",
+  });
+
+  await waitForFile(path.join(stateDir, "web.marker.json"), 20_000).catch(() => {
+    failWithCliOutput(assert.fail, stateDir, child);
+  });
+  await waitForPortState(webPort, true);
+
+  const code = await waitForExit(child);
+  assert.equal(code, 4);
+  await waitForPortState(apiPort, false);
+  await waitForPortState(webPort, false);
+});
+
+test("web child failure: launcher exits nonzero and cleans up the api child", async () => {
+  const { child, stateDir, webPort, apiPort } = await startCli({
+    FAKE_MODE: "web-fail",
+  });
+
+  await waitForFile(path.join(stateDir, "api.marker.json"), 20_000).catch(() => {
+    failWithCliOutput(assert.fail, stateDir, child);
+  });
+  await waitForPortState(apiPort, true);
+
+  const code = await waitForExit(child);
+  assert.equal(code, 3);
+  await waitForPortState(apiPort, false);
+  await waitForPortState(webPort, false);
+});
+
+test("build phase failure: launcher exits nonzero before starting runtime children", async () => {
+  const { child, stateDir, webPort } = await startCli({ FAKE_MODE: "build-fail" });
+
+  const code = await waitForExit(child);
+  assert.equal(code, 7);
+  assert.equal(existsSync(path.join(stateDir, "web.marker.json")), false);
+  await waitForPortState(webPort, false);
+});
+
+test("root package.json dev wiring stays on the product stack", () => {
+  const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+  assert.equal(pkg.scripts.dev, "node scripts/dev.mjs");
+  assert.equal(pkg.scripts["dev:experiment"], "pnpm --filter frontend dev");
+  assert.match(
+    pkg.scripts["test:dev-supervisor"],
+    /--test scripts\/dev-supervisor\.test\.mjs/,
+  );
+});

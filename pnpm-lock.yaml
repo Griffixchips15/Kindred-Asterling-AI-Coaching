@@ -79,6 +79,9 @@ importers:
 
   .:
     devDependencies:
+      mongodb-memory-server:
+        specifier: ^10.4.3
+        version: 10.4.3
       prettier:
         specifier: ^3.8.3
         version: 3.9.6

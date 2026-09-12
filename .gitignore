@@ -52,6 +52,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+!.env.dev.example
 !.env.1password
 
 # Stripe Projects vault output
