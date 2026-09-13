@@ -8,15 +8,19 @@
 
 import { spawn } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { candidateState, writeEvidence } from "./verify-evidence.mjs";
+import { candidateState, invalidateEvidence, writeEvidence } from "./verify-evidence.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
-// Export the component list so tests and CI documentation stay in sync.
+// Export the component list so tests and CI documentation stay in sync. The
+// verification/release machinery regression tests live in the maintained
+// path, so a bug in evidence handling fails a later `pnpm verify` run too.
 export const COMPONENTS = [
   { name: "format:check", cmd: "node", args: ["scripts/format-check.mjs"] },
   { name: "typecheck:production", cmd: "pnpm", args: ["run", "typecheck:production"] },
   { name: "test:dev-supervisor", cmd: "pnpm", args: ["run", "test:dev-supervisor"] },
+  { name: "test:verify", cmd: "pnpm", args: ["run", "test:verify"] },
+  { name: "test:release-check", cmd: "pnpm", args: ["run", "test:release-check"] },
   {
     name: "test:frontend",
     cmd: "pnpm",
@@ -32,6 +36,17 @@ export const COMPONENTS = [
     args: ["--filter", "@workspace/kindred-coach", "run", "build"],
   },
 ];
+
+// Evidence is only recorded when the run covered the exact expected component
+// set; a subset run is never a full verification.
+export function componentsComplete(passed) {
+  const expected = COMPONENTS.map((c) => c.name);
+  return (
+    Array.isArray(passed) &&
+    passed.length === expected.length &&
+    [...passed].sort().join("\0") === [...expected].sort().join("\0")
+  );
+}
 
 const PASS_THROUGH_KEYS = [
   "PATH",
@@ -130,6 +145,77 @@ export async function verify({
   return { passed, failed: null, exitCode: 0 };
 }
 
+// Decide what to do with success evidence after an otherwise-passing run.
+// Never leaves an older success silently valid:
+//  - an interrupted run invalidates evidence outright;
+//  - a working tree that changed during the run is not a stable candidate, so
+//    evidence is invalidated instead of stamped;
+//  - a run that did not cover the complete expected component set records no
+//    success evidence.
+export function finalizeEvidence({
+  before,
+  after,
+  passed,
+  interruptedSignal = null,
+  evidenceFile,
+  toolchain = null,
+  log = (message) => console.log(message),
+}) {
+  if (interruptedSignal) {
+    invalidateEvidence(evidenceFile);
+    log(`[verify] interrupted (${interruptedSignal}); verification evidence invalidated`);
+    return { action: "invalidate", reason: `interrupted (${interruptedSignal})` };
+  }
+  if (after.fingerprint !== before.fingerprint) {
+    invalidateEvidence(evidenceFile);
+    log(
+      "[verify] working tree changed during the run; no verified candidate — evidence invalidated",
+    );
+    return { action: "invalidate", reason: "working tree changed during the run" };
+  }
+  if (!componentsComplete(passed)) {
+    invalidateEvidence(evidenceFile);
+    log(
+      `[verify] run covered ${passed.length} of ${COMPONENTS.length} components; evidence invalidated`,
+    );
+    return { action: "invalidate", reason: "incomplete component set" };
+  }
+  const effectiveToolchain = toolchain ?? { node: process.version };
+  return writeEvidence(
+    { state: before, components: passed, toolchain: effectiveToolchain },
+    evidenceFile,
+  );
+}
+
+// Post-verify evidence decision covering every outcome. A failing or
+// interrupted run, a working tree that changed during the run, or an
+// incomplete component set never leaves an older success silently valid.
+export function settleRun({
+  result,
+  before,
+  after,
+  interruptedSignal = null,
+  evidenceFile,
+  log = (message) => console.log(message),
+}) {
+  if (interruptedSignal) {
+    return finalizeEvidence({
+      before,
+      after,
+      passed: result?.passed ?? [],
+      interruptedSignal,
+      evidenceFile,
+      log,
+    });
+  }
+  if (result.failed) {
+    invalidateEvidence(evidenceFile);
+    log(`[verify] finished with a failing component: ${result.failed}`);
+    return { action: "invalidate", reason: `component failed: ${result.failed}` };
+  }
+  return finalizeEvidence({ before, after, passed: result.passed, evidenceFile, log });
+}
+
 async function main() {
   let interruptedSignal = null;
   for (const signal of ["SIGINT", "SIGTERM"]) {
@@ -139,28 +225,35 @@ async function main() {
     });
   }
 
+  const before = candidateState();
+  let result;
   try {
-    const result = await verify();
-    if (result.failed) {
-      console.error(`\n[verify] finished with a failing component: ${result.failed}`);
-      process.exitCode = 1;
-    } else {
+    result = await verify();
+  } catch (err) {
+    console.error(`\n[verify] internal failure: ${err.message}`);
+    invalidateEvidence();
+    process.exitCode = 1;
+    return;
+  }
+
+  if (interruptedSignal) {
+    settleRun({ result, before, after: before, interruptedSignal });
+    process.exit(interruptedSignal === "SIGINT" ? 130 : 143);
+  }
+
+  const after = candidateState();
+  if (result.failed) {
+    settleRun({ result, before, after });
+    console.error(`\n[verify] finished with a failing component: ${result.failed}`);
+    process.exitCode = 1;
+  } else {
+    try {
+      settleRun({ result, before, after });
       console.log(`\n[verify] all ${result.passed.length} components passed`);
-      try {
-        const state = candidateState();
-        writeEvidence({
-          head: state.head,
-          branch: state.branch,
-          fingerprint: state.fingerprint,
-          components: result.passed,
-        });
-        console.log(`[verify] verification evidence recorded for ${state.head}`);
-      } catch (err) {
-        console.warn(`[verify] could not record verification evidence: ${err.message}`);
-      }
+      console.log(`[verify] verification evidence recorded for ${before.head}`);
+    } catch (err) {
+      console.warn(`[verify] could not record verification evidence: ${err.message}`);
     }
-  } finally {
-    if (interruptedSignal) process.exit(interruptedSignal === "SIGINT" ? 130 : 143);
   }
 }
 

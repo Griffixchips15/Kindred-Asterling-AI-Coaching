@@ -15,7 +15,16 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
-import { candidateState, readEvidence, EVIDENCE_FILE, ROOT, runGit } from "./verify-evidence.mjs";
+import {
+  candidateState,
+  currentToolchain,
+  evidenceError,
+  readEvidence,
+  EVIDENCE_FILE,
+  ROOT,
+  runGit,
+} from "./verify-evidence.mjs";
+import { COMPONENTS, componentsComplete } from "./verify.mjs";
 
 // Exit code bits. Remainder (unverified remote/production fields) is always
 // part of the report; the bits below mark the locally-detectable problems.
@@ -142,14 +151,27 @@ export function collectPublished({ state }) {
   };
 }
 
+export function toolchainMatch(recorded, current) {
+  if (!recorded || typeof recorded !== "object") return false;
+  // The Node runtime version must match: a verify run under a different
+  // runtime does not prove anything for the current environment.
+  if (recorded.node !== current.node) return false;
+  return true;
+}
+
 export function evaluate({ state, evidence, config, published }) {
   let evidenceStatus;
-  if (!evidence) {
-    evidenceStatus = "missing";
-  } else if (evidence.fingerprint && evidence.fingerprint === state.fingerprint) {
-    evidenceStatus = "verified";
-  } else {
+  const malformed = evidenceError(evidence);
+  if (malformed) {
+    evidenceStatus = "malformed";
+  } else if (evidence.fingerprint !== state.fingerprint) {
     evidenceStatus = "stale";
+  } else if (!componentsComplete(evidence.components)) {
+    evidenceStatus = "stale";
+  } else if (!toolchainMatch(evidence.toolchain, currentToolchain())) {
+    evidenceStatus = "stale";
+  } else {
+    evidenceStatus = "verified";
   }
 
   let exit = EXIT.CLEAN;
@@ -165,18 +187,32 @@ export function printReport({ state, evidence, evidenceStatus, config, published
   lines.push("=== release:check (read-only) ===");
   lines.push(`candidate sha:    ${state.head}`);
   lines.push(`candidate branch: ${state.branch ?? "(detached)"}`);
-  lines.push(`working tree:     ${state.dirty ? "DIRTY (tracked or untracked changes)" : "clean"}`);
+  lines.push(
+    `working tree:     ${state.dirty ? `DIRTY (${state.changedFiles} changed file${state.changedFiles === 1 ? "" : "s"})` : "clean"}`,
+  );
   lines.push("");
   lines.push("--- verification evidence ---");
-  if (!evidence) {
-    lines.push(`status: unverified — no ${EVIDENCE_FILE}`);
-  } else if (evidenceStatus === "verified") {
+  if (evidenceStatus === "verified") {
     lines.push(`status: verified for this exact candidate (${evidence.timestamp})`);
+    lines.push(
+      `schema: ${evidence.schema} — toolchain node ${evidence.toolchain.node}${evidence.toolchain.pnpm ? `, ${evidence.toolchain.pnpm}` : ""}${evidence.toolchain.orval ? `, orval ${evidence.toolchain.orval}` : ""}`,
+    );
     lines.push(`components: ${evidence.components.join(", ")}`);
+  } else if (evidenceStatus === "malformed") {
+    lines.push(`status: MALFORMED — evidence cannot be trusted (${evidenceError(evidence)})`);
+    if (evidence) {
+      lines.push(`evidence sha: ${evidence.sha ?? "<missing>"} (current: ${state.head})`);
+      lines.push(`evidence recorded: ${evidence.timestamp ?? "<missing>"}`);
+    }
+  } else if (!evidence) {
+    lines.push(`status: unverified — no ${EVIDENCE_FILE}`);
   } else {
     lines.push(`status: STALE — evidence belongs to a different working-tree state`);
     lines.push(`evidence sha: ${evidence.sha} (current: ${state.head})`);
     lines.push(`evidence recorded: ${evidence.timestamp}`);
+    lines.push(
+      `required: ${evidence.fingerprint === state.fingerprint ? "" : "matching content fingerprint, "}${COMPONENTS.length} component set, schema/toolchain match`,
+    );
   }
   lines.push("");
   lines.push("--- required public config (names only) ---");
@@ -228,7 +264,7 @@ export function printReport({ state, evidence, evidenceStatus, config, published
   lines.push("");
   lines.push("--- exit code ---");
   lines.push(
-    `${exit} (bits: 1=evidence missing/stale, 2=dirty candidate, 4=config incomplete/incoherent, 8=remote/production unverified, 64=no candidate)`,
+    `${exit} (bits: 1=evidence missing/stale/malformed, 2=dirty candidate, 4=config incomplete/incoherent, 8=remote/production unverified, 64=no candidate)`,
   );
   return `\n${lines.join("\n")}\n`;
 }

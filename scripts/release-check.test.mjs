@@ -1,20 +1,67 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { ROOT } from "./verify-evidence.mjs";
+import { COMPONENTS } from "./verify.mjs";
 
 function gitRun(cwd, args) {
   return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
 }
 
-function fingerprint(cwd) {
-  const head = gitRun(cwd, ["rev-parse", "HEAD"]);
-  const status = gitRun(cwd, ["status", "--porcelain"]);
-  return createHash("sha256").update(`${head}\0${status}\0`).digest("hex");
+// Computes the real content-bound candidate state for a disposable repo using
+// the production helper (KINDRED_RELEASE_ROOT keeps runGit bound to the repo).
+function computeCandidateState(dir) {
+  const r = spawnSync(
+    process.execPath,
+    [
+      "-e",
+      `import(process.env.VERIFY_EVIDENCE_IMPORT).then((m) => process.stdout.write(JSON.stringify(m.candidateState()))).catch((e) => { console.error(e); process.exit(1); });`,
+    ],
+    {
+      env: {
+        ...process.env,
+        KINDRED_RELEASE_ROOT: dir,
+        VERIFY_EVIDENCE_IMPORT: pathToFileURL(join(ROOT, "scripts", "verify-evidence.mjs")).href,
+      },
+      encoding: "utf8",
+    },
+  );
+  assert.equal(r.status, 0, `candidateState failed:\n${r.stderr}`);
+  return JSON.parse(r.stdout);
+}
+
+// Writes a structurally-valid, content-bound evidence stamp for the current
+// repo state (full component set, schema, toolchain) — the same shape
+// `pnpm verify` writes.
+function stampEvidence(
+  dir,
+  branch,
+  { components = undefined, schema = 2, toolchain = undefined, override = {} } = {},
+) {
+  const state = computeCandidateState(dir);
+  writeFileSync(
+    join(dir, ".verify-evidence.json"),
+    `${JSON.stringify(
+      {
+        tool: "pnpm verify",
+        schema,
+        sha: state.head,
+        branch,
+        fingerprint: state.fingerprint,
+        timestamp: new Date().toISOString(),
+        toolchain: toolchain ?? { node: process.version },
+        components: components ?? COMPONENTS.map((c) => c.name),
+        ...override,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  return state;
 }
 
 // Creates an isolated twin of a released candidate: a committed branch whose
@@ -48,22 +95,7 @@ function makeRepo(overrides = {}) {
     writeFileSync(join(dir, "docs", "release-rollback.md"), "# Rollback\n");
   }
   if (!overrides.noEvidence) {
-    writeFileSync(
-      join(dir, ".verify-evidence.json"),
-      `${JSON.stringify(
-        {
-          tool: "pnpm verify",
-          sha: head,
-          branch,
-          fingerprint: fingerprint(dir),
-          timestamp: new Date().toISOString(),
-          node: process.version,
-          components: ["format:check", "typecheck:production"],
-        },
-        null,
-        2,
-      )}\n`,
-    );
+    stampEvidence(dir, branch);
   }
   return { dir, branch, head };
 }
@@ -120,12 +152,13 @@ describe("release:check (read-only)", () => {
     try {
       const stale = {
         tool: "pnpm verify",
+        schema: 2,
         sha: "0".repeat(40),
         branch: "release/check",
         fingerprint: "a".repeat(64),
         timestamp: "2026-01-01T00:00:00.000Z",
-        node: process.version,
-        components: ["format:check"],
+        toolchain: { node: process.version },
+        components: COMPONENTS.map((c) => c.name),
       };
       writeFileSync(join(dir, ".verify-evidence.json"), JSON.stringify(stale, null, 2));
       const { status, stdout } = runCheck({ dir });
@@ -253,6 +286,72 @@ describe("release:check (read-only)", () => {
           : null,
         evidenceBefore,
       );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("re-editing an already-dirty file changes the fingerprint: evidence is stale", () => {
+    const { dir } = makeRepo();
+    try {
+      writeFileSync(join(dir, "app.txt"), "first edit\n");
+      stampEvidence(dir, "release/check");
+      writeFileSync(join(dir, "app.txt"), "second edit of the same path\n");
+      const { status, stdout } = runCheck({ dir });
+      assert.ok(status & 1, `expected evidence-stale bit, got exit ${status}`);
+      assert.match(stdout, /STALE/);
+      assert.match(stdout, /matching content fingerprint/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("malformed evidence is reported MALFORMED, never verified (exit includes 1)", () => {
+    const { dir } = makeRepo();
+    try {
+      writeFileSync(join(dir, ".verify-evidence.json"), "not json at all\n");
+      const { status, stdout } = runCheck({ dir });
+      assert.ok(status & 1, `expected evidence bit, got exit ${status}`);
+      assert.match(stdout, /MALFORMED/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("evidence with a partial component set is stale even with a matching fingerprint (exit includes 1)", () => {
+    const { dir } = makeRepo();
+    try {
+      const state = stampEvidence(dir, "release/check", {
+        components: ["format:check", "typecheck:production"],
+      });
+      assert.equal(state.dirty, false);
+      const { status, stdout } = runCheck({ dir });
+      assert.ok(status & 1, `expected evidence-stale bit, got exit ${status}`);
+      assert.match(stdout, new RegExp(`${String(COMPONENTS.length)} component set`));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("evidence stamped under an older schema is rejected (exit includes 1)", () => {
+    const { dir } = makeRepo();
+    try {
+      stampEvidence(dir, "release/check", { schema: 1 });
+      const { status, stdout } = runCheck({ dir });
+      assert.ok(status & 1, `expected evidence bit, got exit ${status}`);
+      assert.match(stdout, /MALFORMED/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("evidence recorded under a different Node runtime is stale (exit includes 1)", () => {
+    const { dir } = makeRepo();
+    try {
+      stampEvidence(dir, "release/check", { toolchain: { node: "v99.0.0" } });
+      const { status, stdout } = runCheck({ dir });
+      assert.ok(status & 1, `expected evidence-stale bit, got exit ${status}`);
+      assert.match(stdout, /STALE/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

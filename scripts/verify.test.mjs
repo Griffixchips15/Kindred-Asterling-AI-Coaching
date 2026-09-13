@@ -6,13 +6,26 @@
 // RUN_VERIFY_INTEGRATION=1) a real orval re-generation proving tracked files
 // stay unchanged.
 
-import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { execFileSync, spawnSync } from "node:child_process";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 
-import { buildChildEnv, runComponent, verify, VerifyComponentError } from "./verify.mjs";
+import {
+  buildChildEnv,
+  runComponent,
+  verify,
+  VerifyComponentError,
+  COMPONENTS,
+  componentsComplete,
+  finalizeEvidence,
+  settleRun,
+} from "./verify.mjs";
 import { compareGeneratedTrees } from "./verify-generated.mjs";
+import { candidateState, evidenceError, readEvidence, writeEvidence } from "./verify-evidence.mjs";
 
 const formatCheck = await import("./format-check.mjs");
 
@@ -249,3 +262,277 @@ function gitStatus(paths) {
   if (r.status !== 0) throw new Error(`git status failed: ${r.stderr}`);
   return r.stdout;
 }
+
+// ---------------------------------------------------------------------------
+// evidence: content-bound candidate fingerprint
+// ---------------------------------------------------------------------------
+
+function gitRun(cwd, args) {
+  return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
+}
+
+async function withRepo(fn) {
+  const dir = mkdtempSync(join(tmpdir(), "kindred-verify-candidate-"));
+  gitRun(dir, ["init", "-b", "main"]);
+  gitRun(dir, ["config", "user.email", "t@example.com"]);
+  gitRun(dir, ["config", "user.name", "t"]);
+  writeFileSync(join(dir, "file.txt"), "one\n");
+  gitRun(dir, ["add", "."]);
+  gitRun(dir, ["commit", "-m", "init"]);
+  try {
+    await fn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// Real candidateState() for a disposable repo (subprocess so KINDRED_RELEASE_ROOT
+// binds runGit to the repo, exactly like release:check uses it).
+function stateAt(dir) {
+  const r = spawnSync(
+    process.execPath,
+    [
+      "-e",
+      `import(process.env.VERIFY_EVIDENCE_IMPORT).then((m) => process.stdout.write(JSON.stringify(m.candidateState()))).catch((e) => { console.error(e); process.exit(1); });`,
+    ],
+    {
+      env: {
+        ...process.env,
+        KINDRED_RELEASE_ROOT: dir,
+        VERIFY_EVIDENCE_IMPORT: pathToFileURL(join(ROOT, "scripts", "verify-evidence.mjs")).href,
+      },
+      encoding: "utf8",
+    },
+  );
+  assert.equal(r.status, 0, `candidateState failed:\n${r.stderr}`);
+  return JSON.parse(r.stdout);
+}
+
+describe("content-bound candidate fingerprint", () => {
+  test("re-editing an already-dirty file changes the fingerprint while porcelain stays identical", async () => {
+    await withRepo((dir) => {
+      writeFileSync(join(dir, "file.txt"), "two\n");
+      const b = stateAt(dir);
+      assert.equal(b.dirty, true);
+      writeFileSync(join(dir, "file.txt"), "three\n");
+      const c = stateAt(dir);
+      assert.equal(c.dirty, true);
+      assert.notEqual(b.fingerprint, c.fingerprint, "same path, different content, must differ");
+    });
+  });
+
+  test("staged changes are content-bound", async () => {
+    await withRepo((dir) => {
+      writeFileSync(join(dir, "file.txt"), "staged\n");
+      gitRun(dir, ["add", "file.txt"]);
+      const staged = stateAt(dir);
+      writeFileSync(join(dir, "file.txt"), "re-staged\n");
+      gitRun(dir, ["add", "file.txt"]);
+      const restaged = stateAt(dir);
+      assert.notEqual(staged.fingerprint, restaged.fingerprint);
+    });
+  });
+
+  test("untracked candidate changes are content-bound", async () => {
+    await withRepo((dir) => {
+      writeFileSync(join(dir, "new.txt"), "one\n");
+      const a = stateAt(dir);
+      writeFileSync(join(dir, "new.txt"), "two\n");
+      const b = stateAt(dir);
+      assert.notEqual(a.fingerprint, b.fingerprint);
+    });
+  });
+
+  test("a commit during the candidate lifecycle is bound to the new HEAD", async () => {
+    await withRepo((dir) => {
+      const before = stateAt(dir);
+      writeFileSync(join(dir, "file.txt"), "committed\n");
+      gitRun(dir, ["add", "."]);
+      gitRun(dir, ["commit", "-m", "change"]);
+      const after = stateAt(dir);
+      assert.equal(after.dirty, false);
+      assert.notEqual(before.fingerprint, after.fingerprint);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// evidence: finalization decisions and schema
+// ---------------------------------------------------------------------------
+
+function withEvidenceFile(fn) {
+  const dir = mkdtempSync(join(tmpdir(), "kindred-evidence-"));
+  const file = join(dir, "evidence.json");
+  try {
+    return fn(file);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const FULL_PASSED = COMPONENTS.map((c) => c.name);
+
+describe("evidence finalization", () => {
+  test("writes success evidence only for a stable, complete, untouched candidate", () => {
+    withEvidenceFile((file) => {
+      const state = { head: "h1", branch: "main", fingerprint: "fp" };
+      finalizeEvidence({
+        before: state,
+        after: { ...state },
+        passed: FULL_PASSED,
+        evidenceFile: file,
+        toolchain: { node: process.version },
+        log: () => {},
+      });
+      const ev = readEvidence(file);
+      assert.ok(ev, "success evidence must be written");
+      assert.equal(ev.schema, 2);
+      assert.equal(ev.fingerprint, "fp");
+      assert.deepEqual(ev.components, FULL_PASSED);
+    });
+  });
+
+  test("an interrupted run invalidates evidence instead of recording success", () => {
+    withEvidenceFile((file) => {
+      writeEvidence(
+        {
+          state: { head: "h1", branch: "main", fingerprint: "old" },
+          components: FULL_PASSED,
+          toolchain: { node: process.version },
+        },
+        file,
+      );
+      const state = { head: "h2", branch: "main", fingerprint: "new" };
+      const out = finalizeEvidence({
+        before: state,
+        after: { ...state },
+        passed: FULL_PASSED,
+        interruptedSignal: "SIGINT",
+        evidenceFile: file,
+        log: () => {},
+      });
+      assert.equal(existsSync(file), false, "interrupted run must not leave older success valid");
+      assert.deepEqual(out, { action: "invalidate", reason: "interrupted (SIGINT)" });
+    });
+  });
+
+  test("a working tree that changed during the run invalidates evidence (mutation regression)", () => {
+    withEvidenceFile((file) => {
+      const before = { head: "h1", branch: "main", fingerprint: "before" };
+      finalizeEvidence({
+        before,
+        after: { ...before, fingerprint: "after" },
+        passed: FULL_PASSED,
+        evidenceFile: file,
+        log: () => {},
+      });
+      assert.equal(
+        existsSync(file),
+        false,
+        "evidence must not be stamped for the final state alone",
+      );
+    });
+  });
+
+  test("a run that did not cover the complete component set records no success evidence", () => {
+    withEvidenceFile((file) => {
+      const state = { head: "h1", branch: "main", fingerprint: "fp" };
+      finalizeEvidence({
+        before: state,
+        after: { ...state },
+        passed: ["format:check"],
+        evidenceFile: file,
+        log: () => {},
+      });
+      assert.equal(existsSync(file), false, "partial runs must not produce success evidence");
+    });
+  });
+
+  test("a failed run invalidates prior success evidence (failed rerun regression)", () => {
+    withEvidenceFile((file) => {
+      writeEvidence(
+        {
+          state: { head: "h1", branch: "main", fingerprint: "old" },
+          components: FULL_PASSED,
+          toolchain: { node: process.version },
+        },
+        file,
+      );
+      const state = { head: "h2", branch: "main", fingerprint: "new" };
+      const out = settleRun({
+        result: { passed: ["format:check"], failed: "typecheck:production", exitCode: 1 },
+        before: state,
+        after: { ...state },
+        evidenceFile: file,
+        log: () => {},
+      });
+      assert.equal(existsSync(file), false, "a failed rerun must not leave older success valid");
+      assert.deepEqual(out, {
+        action: "invalidate",
+        reason: "component failed: typecheck:production",
+      });
+    });
+  });
+
+  test("an interrupted run invalidates evidence via settleRun too", () => {
+    withEvidenceFile((file) => {
+      writeEvidence(
+        {
+          state: { head: "h1", branch: "main", fingerprint: "old" },
+          components: FULL_PASSED,
+          toolchain: { node: process.version },
+        },
+        file,
+      );
+      const state = { head: "h2", branch: "main", fingerprint: "new" };
+      settleRun({
+        result: { passed: FULL_PASSED, failed: null, exitCode: 0 },
+        before: state,
+        after: { ...state },
+        interruptedSignal: "SIGTERM",
+        evidenceFile: file,
+        log: () => {},
+      });
+      assert.equal(existsSync(file), false, "an interrupted run must invalidate evidence");
+    });
+  });
+});
+
+describe("componentsComplete and evidence schema", () => {
+  test("componentsComplete requires the exact expected component set", () => {
+    assert.equal(componentsComplete(FULL_PASSED), true);
+    assert.equal(componentsComplete([]), false);
+    assert.equal(componentsComplete(["format:check"]), false);
+    assert.equal(componentsComplete([...FULL_PASSED, "extra"]), false);
+  });
+
+  test("writeEvidence records schema and toolchain and round-trips", () => {
+    withEvidenceFile((file) => {
+      const state = { head: "abc", branch: "main", fingerprint: "fp" };
+      const toolchain = { node: process.version, pnpm: "pnpm@10.28.1", orval: "^8.22.0" };
+      writeEvidence({ state, components: FULL_PASSED, toolchain }, file);
+      const ev = readEvidence(file);
+      assert.equal(ev.schema, 2);
+      assert.equal(ev.fingerprint, "fp");
+      assert.deepEqual(ev.toolchain, toolchain);
+      assert.deepEqual(ev.components, FULL_PASSED);
+    });
+  });
+
+  test("evidenceError rejects malformed, wrong-schema and toolchain-less evidence", () => {
+    const good = {
+      schema: 2,
+      sha: "a",
+      fingerprint: "b",
+      components: ["x"],
+      toolchain: { node: process.version },
+    };
+    assert.equal(evidenceError(good), null);
+    assert.ok(evidenceError(null));
+    assert.ok(evidenceError({}));
+    assert.ok(evidenceError({ ...good, schema: 1 }));
+    assert.ok(evidenceError({ ...good, fingerprint: "" }));
+    assert.ok(evidenceError({ ...good, components: "nope" }));
+    assert.ok(evidenceError({ ...good, toolchain: {} }));
+  });
+});

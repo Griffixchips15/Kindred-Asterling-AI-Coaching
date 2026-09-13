@@ -54,13 +54,9 @@ function debugLog(message) {
 async function loadFactory() {
   const injected = process.env.KINDRED_DEV_DB_FACTORY;
   if (injected) {
-    const mod = await import(
-      pathToFileURL(path.resolve(repoRoot, injected)).href
-    );
+    const mod = await import(pathToFileURL(path.resolve(repoRoot, injected)).href);
     if (typeof mod.createReplicaSet !== "function") {
-      throw new Error(
-        `KINDRED_DEV_DB_FACTORY module must export createReplicaSet() (${injected})`,
-      );
+      throw new Error(`KINDRED_DEV_DB_FACTORY module must export createReplicaSet() (${injected})`);
     }
     return mod.createReplicaSet;
   }
@@ -85,9 +81,7 @@ function stopDatabase() {
         console.error("[db-worker] disposable database stopped");
         process.exitCode = 0;
       } catch (err) {
-        console.error(
-          `[db-worker] failed to stop disposable database: ${err?.message ?? err}`,
-        );
+        console.error(`[db-worker] failed to stop disposable database: ${err?.message ?? err}`);
         process.exitCode = 1;
       } finally {
         clearInterval(keepAlive);
@@ -121,8 +115,7 @@ async function main() {
       },
       replSet: {
         count: Number(process.env.KINDRED_DEV_DB_REPLSET_COUNT || 1),
-        storageEngine:
-          process.env.KINDRED_DEV_DB_STORAGE_ENGINE || "wiredTiger",
+        storageEngine: process.env.KINDRED_DEV_DB_STORAGE_ENGINE || "wiredTiger",
       },
     };
     creating = createReplicaSet(options);
