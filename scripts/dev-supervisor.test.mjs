@@ -11,8 +11,8 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { describe, test } from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { describe, test, after } from "node:test";
 import assert from "node:assert/strict";
 
 import {
@@ -25,12 +25,55 @@ import {
   parseEnvFile,
   parsePort,
   preflightPorts,
+  runDevelopment,
   waitForReadiness,
 } from "./dev-supervisor.mjs";
+
+// ---------------------------------------------------------------------------
+// Unit: blank VITE_* handling (Auth0 fallback correctness)
+// ---------------------------------------------------------------------------
+
+describe("parseDevConfig: blank VITE_* values", () => {
+  test("blank/whitespace-only VITE_* values are treated as unset (never forwarded as empty strings)", () => {
+    const config = parseDevConfig({
+      processEnv: {},
+      fileEnv: {
+        VITE_AUTH0_DOMAIN: "",
+        VITE_AUTH0_CLIENT_ID: "   ",
+        VITE_AUTH0_AUDIENCE: "https://api.example.com",
+        MONGODB_URI: "mongodb://127.0.0.1:27017",
+      },
+    });
+    assert.equal("VITE_AUTH0_DOMAIN" in config.webEnv, false);
+    assert.equal("VITE_AUTH0_CLIENT_ID" in config.webEnv, false);
+    assert.equal(config.webEnv.VITE_AUTH0_AUDIENCE, "https://api.example.com");
+  });
+
+  test("a blank shell value is dropped so the web child never sees an empty string (Vite can fall back to the package .env)", () => {
+    const config = parseDevConfig({
+      processEnv: { VITE_AUTH0_DOMAIN: "" },
+      fileEnv: { VITE_AUTH0_DOMAIN: "file.example.com" },
+    });
+    assert.equal("VITE_AUTH0_DOMAIN" in config.webEnv, false);
+  });
+
+  test("an explicit nonblank shell override still wins over the file value", () => {
+    const config = parseDevConfig({
+      processEnv: { VITE_AUTH0_DOMAIN: "shell.example.com" },
+      fileEnv: { VITE_AUTH0_DOMAIN: "file.example.com" },
+    });
+    assert.equal(config.webEnv.VITE_AUTH0_DOMAIN, "shell.example.com");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Integration: real CLI + fake children
+// ---------------------------------------------------------------------------
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
 const fixturePath = path.join(here, "dev-supervisor-fixture.mjs");
+const dbFixturePath = path.join(here, "dev-db-fixture.mjs");
 
 // ---------------------------------------------------------------------------
 // Unit: env parsing / ports / config / jobs
@@ -322,6 +365,28 @@ function getFreePort() {
   });
 }
 
+// Reserves several distinct free ports at once (the sockets are still open
+// while each is measured, so two calls cannot return the same port).
+function getDistinctFreePorts(count) {
+  return new Promise((resolve, reject) => {
+    const servers = [];
+    let used = 0;
+    for (let i = 0; i < count; i++) {
+      const server = net.createServer();
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", () => {
+        servers.push(server);
+        used += 1;
+        if (used !== count) return;
+        const ports = servers.map((s) => s.address().port);
+        Promise.all(
+          servers.map((s) => new Promise((res) => s.close(res))),
+        ).then(() => resolve(ports));
+      });
+    }
+  });
+}
+
 function isAlive(pid) {
   try {
     process.kill(pid, 0);
@@ -376,8 +441,14 @@ function waitFor(condition, timeoutMs = 10_000) {
 
 async function startCli(overrides = {}) {
   const stateDir = mkdtempSync(path.join(os.tmpdir(), "kindred-dev-sup-test-"));
-  const webPort = await getFreePort();
-  const apiPort = await getFreePort();
+  const webPort =
+    overrides.KINDRED_WEB_PORT !== undefined
+      ? Number(overrides.KINDRED_WEB_PORT)
+      : await getFreePort();
+  const apiPort =
+    overrides.KINDRED_API_PORT !== undefined
+      ? Number(overrides.KINDRED_API_PORT)
+      : await getFreePort();
   const env = {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
@@ -396,6 +467,7 @@ async function startCli(overrides = {}) {
     env,
     stdio: ["ignore", "pipe", "pipe"],
   });
+  launchedClis.push(child);
   let stderr = "";
   let stdout = "";
   child.stdout.on("data", (d) => (stdout += d));
@@ -403,6 +475,24 @@ async function startCli(overrides = {}) {
   child.output = () => ({ stdout, stderr });
   return { child, stateDir, webPort, apiPort };
 }
+
+// Global safety net: if a test abort mid-flight (assertion failure) with a CLI
+// or fake child still alive, kill it so the test runner can exit. Individual
+// tests still do their own cleanup; this only covers failure leaks.
+const launchedClis = [];
+const spawnedPids = new Set();
+after(() => {
+  for (const cli of launchedClis) {
+    try {
+      cli.kill("SIGKILL");
+    } catch {}
+  }
+  for (const pid of spawnedPids) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {}
+  }
+});
 
 function failWithCliOutput(assertion, stateDir, cli) {
   const out = cli.output ? cli.output() : { stdout: "", stderr: "" };
@@ -520,4 +610,215 @@ test("root package.json dev wiring stays on the product stack", () => {
     pkg.scripts["test:dev-supervisor"],
     /--test scripts\/dev-supervisor\.test\.mjs/,
   );
+});
+
+test("SIGINT during a long build: stops the build group (incl. grandchild), never starts runtime children, unrelated survives", { timeout: 30_000 }, async () => {
+  const { child, stateDir, webPort, apiPort } = await startCli({
+    FAKE_BUILD_LONG: "true",
+    FAKE_BUILD_GRANDCHILD: "true",
+  });
+
+  const buildMarker = await waitForFile(path.join(stateDir, "build.marker.json"));
+  const buildPid = buildMarker.pid;
+  const gcPidPath = path.join(stateDir, "build.grandchild.pid");
+  await waitFor(() => existsSync(gcPidPath));
+  const gcPid = Number(readFileSync(gcPidPath, "utf8"));
+  spawnedPids.add(gcPid);
+  assert.ok(isAlive(buildPid) && isAlive(gcPid));
+
+  const unrelated = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+    stdio: "ignore",
+  });
+  assert.ok(isAlive(unrelated.pid));
+
+  child.kill("SIGINT");
+  const code = await waitForExit(child);
+  assert.equal(code, 0);
+
+  await waitFor(() => !isAlive(buildPid) && !isAlive(gcPid));
+  assert.equal(existsSync(path.join(stateDir, "web.marker.json")), false);
+  assert.equal(existsSync(path.join(stateDir, "api.marker.json")), false);
+  assert.equal(await checkPortFree(webPort), true);
+  assert.equal(await checkPortFree(apiPort), true);
+  assert.ok(isAlive(unrelated.pid), "unrelated process must survive");
+  unrelated.kill("SIGKILL");
+});
+
+test("SIGTERM during a long build: same guarantees with the TERM signal", { timeout: 30_000 }, async () => {
+  const { child, stateDir, webPort, apiPort } = await startCli({
+    FAKE_BUILD_LONG: "true",
+    FAKE_BUILD_GRANDCHILD: "true",
+  });
+
+  const buildMarker = await waitForFile(path.join(stateDir, "build.marker.json"));
+  const buildPid = buildMarker.pid;
+  const gcPidPath = path.join(stateDir, "build.grandchild.pid");
+  await waitFor(() => existsSync(gcPidPath));
+  const gcPid = Number(readFileSync(gcPidPath, "utf8"));
+  spawnedPids.add(gcPid);
+  assert.ok(isAlive(buildPid) && isAlive(gcPid));
+
+  child.kill("SIGTERM");
+  const code = await waitForExit(child);
+  assert.equal(code, 0);
+
+  await waitFor(() => !isAlive(buildPid) && !isAlive(gcPid));
+  assert.equal(existsSync(path.join(stateDir, "web.marker.json")), false);
+  assert.equal(existsSync(path.join(stateDir, "api.marker.json")), false);
+  assert.equal(await checkPortFree(webPort), true);
+  assert.equal(await checkPortFree(apiPort), true);
+});
+
+test("SIGINT with a stubborn grandchild: group-completion force-stops it during explicit shutdown; port becomes reusable", { timeout: 30_000 }, async () => {
+  const [webPort, apiPort, grandchildPort] = await getDistinctFreePorts(3);
+  const { child, stateDir } = await startCli({
+    KINDRED_WEB_PORT: String(webPort),
+    KINDRED_API_PORT: String(apiPort),
+    FAKE_MODE: "ok",
+    FAKE_WRAP_GRANDCHILD: "stubborn",
+    GRANDCHILD_PORT: String(grandchildPort),
+    KINDRED_DEV_GRACE_MS: "800",
+    KINDRED_DEV_FORCE_GRACE_MS: "1500",
+  });
+
+  await waitForFile(path.join(stateDir, "web.marker.json"));
+  await waitForFile(path.join(stateDir, "api.marker.json"));
+  await waitForPortState(webPort, true);
+  await waitForPortState(apiPort, true);
+  await waitForFile(path.join(stateDir, "web.grandchild.ready"));
+  const gcPid = Number(
+    readFileSync(path.join(stateDir, "web.grandchild.pid"), "utf8"),
+  );
+  spawnedPids.add(gcPid);
+  assert.ok(isAlive(gcPid));
+  await waitForPortState(grandchildPort, true);
+
+  child.kill("SIGINT");
+  const code = await waitForExit(child);
+  assert.equal(code, 0);
+
+  await waitFor(() => !isAlive(gcPid));
+  await waitForPortState(grandchildPort, false);
+  await waitForPortState(webPort, false);
+  await waitForPortState(apiPort, false);
+});
+
+test("sibling failure with a stubborn grandchild: group-completion still force-stops it; port becomes reusable", { timeout: 30_000 }, async () => {
+  const [webPort, apiPort, grandchildPort] = await getDistinctFreePorts(3);
+  const { child, stateDir } = await startCli({
+    KINDRED_WEB_PORT: String(webPort),
+    KINDRED_API_PORT: String(apiPort),
+    FAKE_MODE: "api-fail",
+    FAKE_WRAP_GRANDCHILD: "stubborn",
+    GRANDCHILD_PORT: String(grandchildPort),
+    KINDRED_DEV_GRACE_MS: "800",
+    KINDRED_DEV_FORCE_GRACE_MS: "1500",
+  });
+
+  await waitForFile(path.join(stateDir, "web.marker.json"));
+  await waitForPortState(webPort, true);
+  await waitForFile(path.join(stateDir, "web.grandchild.ready"));
+  const gcPid = Number(
+    readFileSync(path.join(stateDir, "web.grandchild.pid"), "utf8"),
+  );
+  spawnedPids.add(gcPid);
+  assert.ok(isAlive(gcPid));
+  await waitForPortState(grandchildPort, true);
+
+  const code = await waitForExit(child);
+  assert.equal(code, 4);
+
+  await waitFor(() => !isAlive(gcPid));
+  await waitForPortState(grandchildPort, false);
+  await waitForPortState(webPort, false);
+  await waitForPortState(apiPort, false);
+});
+
+test("build wrapper exits before a stubborn descendant: group-completion detects the live group, force-stops it, launcher reports the problem", { timeout: 30_000 }, async () => {
+  const [webPort, apiPort, grandchildPort] = await getDistinctFreePorts(3);
+  const stateDir = mkdtempSync(path.join(os.tmpdir(), "kindred-dev-sup-test-"));
+  const config = parseDevConfig({
+    processEnv: { KINDRED_WEB_PORT: String(webPort), KINDRED_API_PORT: String(apiPort) },
+    fileEnv: {},
+  });
+
+  const savedEnv = { ...process.env };
+  process.env.FAKE_STATE_DIR = stateDir;
+  process.env.FAKE_MODE = "ok";
+  process.env.FAKE_BUILD_GRANDCHILD = "true";
+  process.env.WRAP_EXIT_AFTER_MS = "250";
+  process.env.GRANDCHILD_STUBBORN = "true";
+  process.env.GRANDCHILD_PORT = String(grandchildPort);
+  try {
+    const fixture = await import(pathToFileURL(fixturePath).href);
+    const jobs = fixture.buildJobs(config, { cwd: repoRoot });
+    const result = await runDevelopment(
+      [jobs.build, jobs.web, jobs.api].filter(Boolean),
+      { buildFlushMs: 1500 },
+    );
+    assert.equal(result.code, 1);
+    assert.match(result.reason, /left a running descendant/);
+  } finally {
+    for (const [key, value] of Object.entries(savedEnv)) process.env[key] = value;
+    for (const key of Object.keys(process.env)) {
+      if (!(key in savedEnv)) delete process.env[key];
+    }
+  }
+
+  const gcPid = Number(
+    readFileSync(path.join(stateDir, "build.grandchild.pid"), "utf8"),
+  );
+  spawnedPids.add(gcPid);
+  await waitFor(() => !isAlive(gcPid));
+  await waitForPortState(grandchildPort, false);
+  assert.equal(existsSync(path.join(stateDir, "web.marker.json")), false);
+});
+
+test("failed spawn: launcher reports the error without touching unrelated processes", { timeout: 30_000 }, async () => {
+  const unrelated = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+    stdio: "ignore",
+  });
+  assert.ok(isAlive(unrelated.pid));
+
+  const result = await runDevelopment([
+    { name: "bogus", command: "definitely-not-a-real-binary", args: [], env: process.env },
+  ]);
+  assert.equal(result.code, 1);
+  assert.match(result.reason, /spawn error/);
+  assert.ok(isAlive(unrelated.pid), "unrelated process must survive");
+  unrelated.kill("SIGKILL");
+});
+
+test("SIGINT during database provisioning: stops the DB service, exits 0, nothing is spawned", { timeout: 30_000 }, async () => {
+  const dbFixtureOut = mkdtempSync(path.join(os.tmpdir(), "kindred-dev-db-test-"));
+  const { child, stateDir } = await startCli({
+    KINDRED_DEV_DB_FIXTURE: dbFixturePath,
+    FAKE_DB_MODE: "interrupted",
+    KINDRED_DEV_DB_FIXTURE_OUT: dbFixtureOut,
+  });
+
+  await waitForFile(path.join(dbFixtureOut, "db-provisioning.started"));
+  child.kill("SIGINT");
+  const code = await waitForExit(child);
+  assert.equal(code, 0);
+  assert.equal(existsSync(path.join(dbFixtureOut, "db-fixture-stopped")), true);
+  assert.equal(existsSync(path.join(stateDir, "build.marker.json")), false);
+  assert.equal(existsSync(path.join(stateDir, "web.marker.json")), false);
+  assert.equal(existsSync(path.join(stateDir, "api.marker.json")), false);
+});
+
+test("failed database provisioning: launcher exits nonzero, nothing is spawned", { timeout: 30_000 }, async () => {
+  const dbFixtureOut = mkdtempSync(path.join(os.tmpdir(), "kindred-dev-db-test-"));
+  const { child, stateDir } = await startCli({
+    KINDRED_DEV_DB_FIXTURE: dbFixturePath,
+    FAKE_DB_MODE: "failed",
+    KINDRED_DEV_DB_FIXTURE_OUT: dbFixtureOut,
+  });
+
+  const code = await waitForExit(child);
+  assert.equal(code, 1);
+  assert.equal(existsSync(path.join(dbFixtureOut, "db-failed.started")), true);
+  assert.equal(existsSync(path.join(stateDir, "build.marker.json")), false);
+  assert.equal(existsSync(path.join(stateDir, "web.marker.json")), false);
+  assert.equal(existsSync(path.join(stateDir, "api.marker.json")), false);
 });

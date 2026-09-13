@@ -8,13 +8,21 @@
 // Design rules implemented here:
 //   - Each child runs the existing workspace package command (Vite/API) so the
 //     real product is tested, never a stand-in.
-//   - Every owned child is spawned detached (its own process group) so cleanup
-//     signals reach pnpm wrappers and their descendants, without ever using
-//     `pkill`/`killall` or port-based process killing.
-//   - A build phase runs to completion first; a failure aborts startup.
+//   - Every owned child — including build-phase wrappers — is spawned detached
+//     (its own process group) so cleanup signals reach pnpm wrappers and their
+//     descendants, without ever using `pkill`/`killall`, port-based process
+//     killing, or signalling the invoking shell's group.
+//   - Signal handling (SIGINT/SIGTERM) is installed before *any* work begins so
+//     interruption covers database provisioning, the build phase, spawns, and
+//     runtime children. An interruption cancels further startup.
 //   - Port preflight is a courtesy check; the supervisor still reacts to an
 //     actual bind failure that turns into a nonzero child exit.
-//   - SIGINT/SIGTERM only affects children owned by this invocation.
+//   - Cleanup is scoped to owned process groups and is bounded: a graceful
+//     window (SIGTERM), then a bounded force window (SIGKILL), then it resolves.
+//     It also stops any registered shutdown services (e.g. a disposable DB).
+//   - A child process group is considered stopped only when every member has
+//     exited — not merely when its direct child exits. Cleanup therefore waits
+//     for lingering descendants (wrappers that exit while a grandchild stays).
 
 import { spawn } from "node:child_process";
 import net from "node:net";
@@ -133,6 +141,12 @@ export function mergeDevEnv({ processEnv, fileEnv }) {
   return { ...fileEnv, ...processEnv };
 }
 
+// A value is "blank" when it is empty or whitespace-only. Blank VITE_* values
+// are intentionally treated as unset (see parseDevConfig).
+function isBlank(value) {
+  return typeof value !== "string" || value.trim() === "";
+}
+
 export function parseDevConfig({ processEnv, fileEnv }) {
   const env = mergeDevEnv({ processEnv, fileEnv });
 
@@ -192,10 +206,15 @@ export function parseDevConfig({ processEnv, fileEnv }) {
 
   // The browser child only ever receives public VITE_* values plus the
   // launcher-provided launch keys; server secrets never cross into Vite.
-  const publicKeys = Object.keys(env).filter((key) => key.startsWith("VITE_"));
-  const webEnv = Object.fromEntries(
-    publicKeys.map((key) => [key, env[key]]),
-  );
+  // Blank VITE_* values are deliberate "not set" values: they are not forwarded
+  // as empty strings. That way Vite (whose process environment wins over its
+  // package `.env.local`) falls back to the package-level Auth0 onboarding file
+  // instead of seeing an empty string, and the shell can still override a file
+  // value with an explicit nonblank assignment.
+  const webEnv = {};
+  for (const key of Object.keys(env)) {
+    if (key.startsWith("VITE_") && !isBlank(env[key])) webEnv[key] = env[key];
+  }
 
   // The API child inherits the whole development configuration so the API can
   // reach its database, Auth0 resource guard and any documented integrations.
@@ -294,7 +313,9 @@ export function createJobs(config, { cwd }) {
     cwd,
     env: config.apiEnv,
     stdio: "inherit",
-    detached: false,
+    // Builds are owned process groups too: interrupting them mid-build must
+    // stop the whole build tree without touching anything else.
+    detached: true,
     build: true,
   };
 
@@ -356,198 +377,469 @@ export async function waitForReadiness(job, options = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// Process supervision
+// Process-group supervision
 // ---------------------------------------------------------------------------
 
-function runBuild(job, logger) {
-  return new Promise((resolve) => {
-    const child = spawn(job.command, job.args, {
-      cwd: job.cwd,
-      env: job.env,
-      stdio: job.stdio ?? "inherit",
-      detached: false,
-    });
-    child.once("error", (err) => {
-      logger.error(`[dev] failed to start ${job.name}: ${err.message}`);
-      resolve(1);
-    });
-    child.once("exit", (code) => resolve(typeof code === "number" ? code : 1));
-  });
+// A process group exists when signalling it with signal 0 does not report
+// ESRCH. EPERM ("exists but not signallable") also means it exists.
+function groupExists(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === "EPERM";
+  }
 }
 
 // Signal every process in the child's group (spawned detached => the child is
 // its own process-group leader, so pnpm wrappers and their descendants are all
-// covered). Scoped strictly to children owned by this invocation.
+// covered). Scoped strictly to children owned by this invocation; never the
+// invoking shell's group (we always use the negative "group" form, and only
+// for PIDs we successfully spawned).
 function signalGroup(child, signal) {
+  const pid = child?.pid;
+  if (!Number.isInteger(pid) || pid <= 0) {
+    debugLog(`skip signal pid=${String(pid)} signal=${signal} invalid-pid`);
+    return;
+  }
   debugLog(
-    `signal pid=${child.pid} name=${child.job.name} signal=${signal} ` +
-      `pgidCheck=${(() => {
+    `signal pid=${pid} signal=${signal} ` +
+      `groupExists=${groupExists(pid)} ` +
+      `groupCheck=${(() => {
         try {
-          process.kill(-child.pid, 0);
+          process.kill(-pid, 0);
           return "group-exists";
         } catch (err) {
           return err.code;
         }
       })()}`,
   );
+  // Only act on a group that exists right now; never signal an absent group.
+  if (!groupExists(pid)) return;
   try {
-    process.kill(-child.pid, signal);
+    process.kill(-pid, signal);
   } catch (err) {
     if (err?.code !== "ESRCH") {
       // eslint-disable-next-line no-console
-      console.error(`[dev] failed to signal ${child.job.name}: ${err.message}`);
+      console.error(
+        `[dev] failed to signal ${child?.job?.name ?? "child"}: ${err.message}`,
+      );
     }
   }
 }
 
-// Run a set of jobs ({ build } jobs run to completion first) and resolve with
-// the process group's final { code, reason } once everything has stopped.
-export async function runDevelopment(jobs, options = {}) {
-  const {
-    logger = console,
-    graceMs = 8000,
-    pollMs = 200,
-    readyTimeoutMs = 60_000,
-  } = options;
-  const buildJobs = jobs.filter((job) => job.build);
-  const runtimeJobs = jobs.filter((job) => !job.build);
-
-  // 1. Build phase: run to completion; a failure aborts before any child starts.
-  for (const job of buildJobs) {
-    const code = await runBuild(job, logger);
-    if (code !== 0) {
-      return { code, reason: `${job.name} failed` };
-    }
-  }
-  if (runtimeJobs.length === 0) return { code: 0 };
-
-  const children = new Map();
-  let settled = false;
-  let resolveOuter;
-  const outer = new Promise((resolve) => {
-    resolveOuter = resolve;
-  });
-
-  const cleanup = () =>
-    new Promise((resolveCleanup) => {
-      for (const child of children.values()) signalGroup(child, "SIGTERM");
-      const deadline = Date.now() + graceMs;
-      const tick = () => {
-        const alive = [...children.values()].filter(
-          (child) =>
-            child.exitCode === null && child.signalCode === null && !child.killed,
-        );
-        if (alive.length === 0) {
-          debugLog("cleanup complete (no alive owned children)");
-          resolveCleanup();
-          return;
-        }
-        if (Date.now() >= deadline) {
-          const names = alive.map((child) => child.job.name).join(", ");
-          debugLog(
-            `cleanup force-stop names=${names} ` +
-              `pids=${alive.map((child) => `${child.job.name}=${child.pid}/exitCode=${child.exitCode}/killed=${child.killed}`).join(",")}`,
-          );
-          logger.error(
-            `[dev] graceful shutdown timed out; force-stopping: ${names}`,
-          );
-          for (const child of alive) signalGroup(child, "SIGKILL");
-          setTimeout(resolveCleanup, 750);
-          return;
-        }
-        setTimeout(tick, 100);
-      };
-      tick();
-    });
-
-  const settle = async (result) => {
-    if (settled) return;
-    settled = true;
-    await cleanup();
-    resolveOuter(result);
-  };
-
-  const onSignal = (signal) => {
-    logger.log(`[dev] received ${signal}; stopping dev servers...`);
-    void settle({ code: 0, reason: signal });
-  };
-  process.once("SIGINT", onSignal);
-  process.once("SIGTERM", onSignal);
-
-  let spawnFailed = false;
-  for (const job of runtimeJobs) {
+// Run a child as an owned process group and resolve when its *direct* child
+// exits. Group-completion (descendants) is handled by the shutdown coordinator.
+function spawnOwned(job, coordinator, logger) {
+  return new Promise((resolve) => {
     const child = spawn(job.command, job.args, {
       cwd: job.cwd,
       env: job.env,
       stdio: job.stdio ?? "inherit",
       detached: true,
     });
-    child.job = job;
-    children.set(job.name, child);
-    debugLog(`spawn name=${job.name} pid=${child.pid} cmd=${job.command} args=${JSON.stringify(job.args)}`);
+    const group = {
+      job,
+      child,
+      spawnError: null,
+      // Once the direct child exits we must still confirm the *group* is gone
+      // before considering this group stopped. If we ever observe the group as
+      // absent we treat it as permanently stopped (a later "exists" can only be
+      // an unrelated reuse of the pgid, which we must never signal).
+      postExitGoneObserved: false,
+    };
+    coordinator.groups.set(job.name, group);
+    debugLog(
+      `spawn name=${job.name} pid=${child.pid} detached=${true} ` +
+        `cmd=${job.command} args=${JSON.stringify(job.args)}`,
+    );
     child.once("error", (err) => {
+      group.spawnError = err;
+      coordinator.groups.delete(job.name);
       logger.error(`[dev] failed to start ${job.name}: ${err.message}`);
       debugLog(`error name=${job.name} pid=${child.pid} message=${err.message}`);
-      spawnFailed = true;
-      void settle({ code: 1, reason: `spawn error: ${job.name}` });
+      resolve({ code: 1, reason: `spawn error: ${job.name}`, error: err });
     });
     child.once("exit", (code, signal) => {
-      debugLog(`exit name=${job.name} pid=${child.pid} code=${code} signal=${signal}`);
+      debugLog(
+        `exit name=${job.name} pid=${child.pid} code=${code} signal=${signal}`,
+      );
+      resolve({
+        code: typeof code === "number" ? code : 1,
+        signal: signal ?? null,
+      });
+    });
+  });
+}
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
+// Coordinates SIGINT/SIGTERM handling, owned process groups and shutdown
+// services (such as a disposable database) for one launcher invocation.
+//
+// Signal handlers are installed by the coordinator, so interruption covers the
+// full startup lifecycle: database provisioning, builds, spawns and runtime.
+export function createShutdownCoordinator(options = {}) {
+  const {
+    logger = console,
+    graceMs = 8000,
+    forceGraceMs = 4000,
+    gracefulPollMs = 100,
+  } = options;
+
+  const groups = new Map();
+  const services = new Map();
+
+  let stopping = null;
+  let stopped = false;
+  const stopWaiters = [];
+  const onStopCallbacks = [];
+
+  const markStopped = () => {
+    if (stopped) return;
+    stopped = true;
+    for (const waiter of stopWaiters) waiter();
+    stopWaiters.length = 0;
+    for (const callback of onStopCallbacks) callback();
+  };
+
+  // A group is fully stopped when: its spawn never attached a group, OR its
+  // direct child has exited AND the process group no longer exists (or was
+  // observed absent once, so a later "exists" can only be pgid reuse).
+  const groupFullyStopped = (group) => {
+    if (group.spawnError) return true;
+    const { child } = group;
+    const directAlive =
+      child.exitCode === null && child.signalCode === null && !child.killed;
+    if (directAlive) return false;
+    if (group.postExitGoneObserved) return true;
+    if (!groupExists(child.pid)) {
+      group.postExitGoneObserved = true;
+      return true;
+    }
+    return false;
+  };
+
+  const aliveGroups = () =>
+    [...groups.values()].filter((group) => !groupFullyStopped(group));
+
+  const stopEverything = () => {
+    if (stopping) return stopping.promise;
+    stopping = deferred();
+
+    const serviceStops = [...services.entries()].map(async ([name, service]) => {
+      try {
+        debugLog(`service stop name=${name}`);
+        await service.stop();
+        debugLog(`service stopped name=${name}`);
+      } catch (err) {
+        logger.error(
+          `[dev] failed to stop service ${name}: ${err?.message ?? err}`,
+        );
+      }
+    });
+
+    // Graceful phase: SIGTERM every owned group.
+    for (const group of groups.values()) {
+      if (!group.spawnError) signalGroup(group.child, "SIGTERM");
+    }
+
+    const deadline = Date.now() + graceMs;
+    const tick = () => {
+      const alive = aliveGroups();
+      if (alive.length === 0) {
+        void Promise.allSettled(serviceStops).then(() => {
+          markStopped();
+          stopping.resolve();
+        });
+        return;
+      }
+      if (Date.now() >= deadline) {
+        const names = alive.map((group) => group.job.name).join(", ");
+        logger.error(
+          `[dev] graceful shutdown timed out; force-stopping: ${names}`,
+        );
+        const forceTick = () => {
+          const stillAlive = aliveGroups();
+          const forceDeadlineHit = Date.now() >= deadline + forceGraceMs;
+          if (stillAlive.length === 0 || forceDeadlineHit) {
+            void Promise.allSettled(serviceStops).then(() => {
+              markStopped();
+              stopping.resolve();
+            });
+            return;
+          }
+          for (const group of stillAlive) {
+            if (!group.spawnError) signalGroup(group.child, "SIGKILL");
+          }
+          debugLog(
+            `force-stopping names=${stillAlive.map((g) => g.job.name).join(",")}`,
+          );
+          setTimeout(forceTick, gracefulPollMs);
+        };
+        forceTick();
+        return;
+      }
+      setTimeout(tick, gracefulPollMs);
+    };
+    tick();
+
+    return stopping.promise;
+  };
+
+  const stopReasonHolder = { reason: null };
+
+  const requestStop = (signal) => {
+    if (!stopReasonHolder.reason) stopReasonHolder.reason = signal;
+    // Bounded idempotent cleanup; a second signal just re-joins the same run.
+    const promise = stopEverything();
+    promise.then(markStopped);
+    return promise;
+  };
+
+  const onSignal = (signal) => {
+    logger.log(`[dev] received ${signal}; stopping dev servers...`);
+    void requestStop(signal);
+  };
+
+  process.on("SIGINT", onSignal);
+  process.on("SIGTERM", onSignal);
+
+  // Hard-exit safety net: if this process is about to die without running the
+  // normal cleanup path (e.g. SIGKILL of the supervisor), still stop the owned
+  // detached groups best-effort.
+  const onHardExit = () => {
+    for (const group of groups.values()) {
+      if (!group.spawnError) signalGroup(group.child, "SIGKILL");
+    }
+  };
+  process.on("exit", onHardExit);
+
+  return {
+    groups,
+    services,
+    addService(name, service) {
+      services.set(name, service);
+      return service;
+    },
+    // True once a stop has been requested for any reason.
+    get stopReason() {
+      return stopReasonHolder.reason;
+    },
+    groupFullyStopped,
+    requestStop,
+    stopEverything,
+    // Resolves when the (first) stop has fully completed. Never resolves just
+    // because it was called; used to bound provisioning/startup on interruption.
+    whenStopped() {
+      if (stopped) return Promise.resolve();
+      if (stopping) return stopping.promise;
+      return new Promise((resolve) => stopWaiters.push(resolve));
+    },
+    // Register a callback invoked after a stop completes (used by runDevelopment
+    // to unblock its own outer promise on signal).
+    onStop(callback) {
+      onStopCallbacks.push(callback);
+    },
+    dispose() {
+      process.removeListener("SIGINT", onSignal);
+      process.removeListener("SIGTERM", onSignal);
+      process.removeListener("exit", onHardExit);
+    },
+  };
+}
+
+// Best-effort synchronous kill of owned groups on parent exit (e.g. hard
+// exits) so detached children do not outlive an invocation unexpectedly.
+export function forceKillOwnedGroups(runningGroups) {
+  for (const group of runningGroups) {
+    if (!group.spawnError) signalGroup(group.child, "SIGKILL");
+  }
+}
+
+// Run a set of jobs ({ build } jobs run to completion first) and resolve with
+// the process group's final { code, reason } once everything has stopped.
+//
+// `coordinator` is shared with the caller (so the disposable database can be
+// stopped on every exit path, including a signal during a build). Signal
+// handlers belong to the coordinator; interruption cancels further startup.
+export async function runDevelopment(jobs, options = {}) {
+  const {
+    logger = console,
+    pollMs = 200,
+    readyTimeoutMs = 60_000,
+    buildFlushMs = 5000,
+    onReady = null,
+    coordinator: providedCoordinator = null,
+  } = options;
+
+  const coordinator = providedCoordinator ?? createShutdownCoordinator({ logger });
+  const ownsCoordinator = !providedCoordinator;
+
+  const finish = async (result) => {
+    if (ownsCoordinator) {
+      await coordinator.stopEverything();
+      coordinator.dispose();
+    }
+    debugLog(
+      `runDevelopment resolved code=${result.code} reason=${result.reason ?? "none"}`,
+    );
+    return result;
+  };
+
+  const buildJobs = jobs.filter((job) => job.build);
+  const runtimeJobs = jobs.filter((job) => !job.build);
+  const interruptible = () => Boolean(coordinator.stopReason);
+
+  // Wait until a whole build group is gone (direct child AND descendants), so
+  // we never carry a live owned group forward after a "successful" build.
+  const flushGroup = (group) =>
+    new Promise((resolve) => {
+      const deadline = Date.now() + buildFlushMs;
+      const tick = () => {
+        if (interruptible() || coordinator.groupFullyStopped(group)) {
+          return resolve({ stopped: coordinator.groupFullyStopped(group) });
+        }
+        if (Date.now() >= deadline) {
+          signalGroup(group.child, "SIGKILL");
+          return resolve({ stopped: false });
+        }
+        setTimeout(tick, pollMs);
+      };
+      tick();
+    });
+
+  const runCore = async () => {
+    // 1. Build phase: run to completion; a failure aborts before any child
+    //    starts. Builds are owned process groups, so interruption stops them
+    //    too and no runtime child is spawned afterward.
+    for (const job of buildJobs) {
+      if (interruptible()) return { code: 0, reason: coordinator.stopReason };
+      const buildResult = await spawnOwned(job, coordinator, logger);
+      if (interruptible()) return { code: 0, reason: coordinator.stopReason };
+      if (buildResult.code !== 0) {
+        return { code: buildResult.code, reason: `${job.name} failed` };
+      }
+      const group = coordinator.groups.get(job.name);
+      const flush = await flushGroup(group);
+      if (interruptible()) return { code: 0, reason: coordinator.stopReason };
+      if (!flush.stopped) {
+        return {
+          code: 1,
+          reason: `${job.name} exited but left a running descendant`,
+        };
+      }
+    }
+    if (runtimeJobs.length === 0) return { code: 0, reason: "no runtime jobs" };
+
+    let settled = false;
+    let resolveOuter;
+    const outer = new Promise((resolve) => {
+      resolveOuter = resolve;
+    });
+
+    coordinator.onStop(() => {
       if (!settled) {
+        settled = true;
+        resolveOuter({
+          code: 0,
+          reason: coordinator.stopReason ?? "shutdown",
+        });
+      }
+    });
+
+    const settle = async (nextResult) => {
+      if (settled) return;
+      settled = true;
+      try {
+        await coordinator.stopEverything();
+      } finally {
+        resolveOuter(nextResult);
+      }
+    };
+
+    const running = () =>
+      settled || interruptible();
+
+    // 2. Spawn runtime children as owned process groups.
+    for (const job of runtimeJobs) {
+      if (running()) return { code: 0, reason: coordinator.stopReason };
+      const child = spawn(job.command, job.args, {
+        cwd: job.cwd,
+        env: job.env,
+        stdio: job.stdio ?? "inherit",
+        detached: true,
+      });
+      const group = {
+        job,
+        child,
+        spawnError: null,
+        postExitGoneObserved: false,
+      };
+      coordinator.groups.set(job.name, group);
+      debugLog(
+        `spawn name=${job.name} pid=${child.pid} detached=${true} ` +
+          `cmd=${job.command} args=${JSON.stringify(job.args)}`,
+      );
+      child.once("error", (err) => {
+        group.spawnError = err;
+        coordinator.groups.delete(job.name);
+        logger.error(`[dev] failed to start ${job.name}: ${err.message}`);
+        void settle({ code: 1, reason: `spawn error: ${job.name}` });
+      });
+      child.once("exit", (code, signal) => {
+        debugLog(
+          `exit name=${job.name} pid=${child.pid} code=${code} signal=${signal}`,
+        );
+        if (settled || interruptible()) return;
         const exitCode = typeof code === "number" ? code : 1;
         void settle({
           code: exitCode,
           reason: `${job.name} exited (code=${code ?? "null"}, signal=${signal ?? "none"})`,
         });
-      }
-    });
-  }
+      });
+    }
 
-  if (spawnFailed) {
-    process.removeListener("SIGINT", onSignal);
-    process.removeListener("SIGTERM", onSignal);
-    return { code: 1, reason: "spawn error" };
-  }
-
-  // 2. Readiness: wait until the frontend binds its port and the API answers
-  //    /api/healthz/db (which also verifies the development database).
-  void Promise.all(
-    runtimeJobs
-      .filter((job) => job.readiness)
-      .map((job) =>
+    // 3. Readiness: wait until the frontend binds its port and the API answers
+    //    /api/healthz/db (which also verifies the development database).
+    const runtimeWithReadiness = runtimeJobs.filter((job) => job.readiness);
+    if (runtimeWithReadiness.length === 0) return outer;
+    void Promise.all(
+      runtimeWithReadiness.map((job) =>
         waitForReadiness(job, {
           pollMs,
           timeoutMs: readyTimeoutMs,
-          cancelled: () => settled,
+          cancelled: running,
         }),
       ),
-  ).then((results) => {
-    const failed = results.filter((entry) => !entry.ok);
-    if (failed.length > 0 && !settled) {
-      logger.error(
-        `[dev] ${failed
-          .map((entry) => entry.job.name)
-          .join(", ")} did not become ready within ${readyTimeoutMs} ms.`,
-      );
-      void settle({ code: 1, reason: "readiness failed" });
-    }
-  });
+    ).then((results) => {
+      if (running()) return;
+      const failed = results.filter((entry) => !entry.ok);
+      if (failed.length > 0) {
+        logger.error(
+          `[dev] ${failed
+            .map((entry) => entry.job.name)
+            .join(", ")} did not become ready within ${readyTimeoutMs} ms.`,
+        );
+        void settle({ code: 1, reason: "readiness failed" });
+      } else if (onReady) {
+        onReady(results);
+      }
+    });
+    return outer;
+  };
 
-  // Hard-exit safety net: if this process is killed without running the normal
-  // cleanup path, still stop the owned detached groups.
-  const onHardExit = () => forceKillOwnedGroups([...children.values()]);
-  process.on("exit", onHardExit);
-
-  const result = await outer;
-  process.removeListener("SIGINT", onSignal);
-  process.removeListener("SIGTERM", onSignal);
-  process.removeListener("exit", onHardExit);
-  debugLog(`runDevelopment resolved code=${result.code} reason=${result.reason ?? "none"}`);
-  return result;
-}
-
-// Best-effort synchronous kill of owned groups on parent exit (e.g. hard
-// exits) so detached children do not outlive an invocation unexpectedly.
-export function forceKillOwnedGroups(runningChildren) {
-  for (const child of runningChildren) signalGroup(child, "SIGKILL");
+  try {
+    return await finish(await runCore());
+  } catch (err) {
+    logger.error(`[dev] unexpected launcher error: ${err?.message ?? err}`);
+    return finish({ code: 1, reason: "unexpected launcher error" });
+  }
 }
