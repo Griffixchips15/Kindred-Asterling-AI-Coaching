@@ -19,6 +19,7 @@ import {
   checkPortFree,
   checkPortInUse,
   createJobs,
+  createShutdownCoordinator,
   DEFAULT_DEV_DB_MODE,
   loadEnvFile,
   parseDevConfig,
@@ -818,6 +819,197 @@ test("failed database provisioning: launcher exits nonzero, nothing is spawned",
   const code = await waitForExit(child);
   assert.equal(code, 1);
   assert.equal(existsSync(path.join(dbFixtureOut, "db-failed.started")), true);
+  assert.equal(existsSync(path.join(stateDir, "build.marker.json")), false);
+  assert.equal(existsSync(path.join(stateDir, "web.marker.json")), false);
+  assert.equal(existsSync(path.join(stateDir, "api.marker.json")), false);
+});
+
+// ---------------------------------------------------------------------------
+// Coordinator: bounded service shutdown (shutdown deadlines for services)
+// ---------------------------------------------------------------------------
+
+describe("coordinator: service shutdown is bounded like process groups", () => {
+  const tinyWindows = { graceMs: 20, forceGraceMs: 20, gracefulPollMs: 5 };
+
+  test("a stop that never settles is bounded: force fallback releases the live resource and cleanup is reported incomplete (no runtime groups)", async () => {
+    const port = await getFreePort();
+    const server = net.createServer();
+    await new Promise((resolve) => server.listen(port, "127.0.0.1", resolve));
+    const keepAlive = setInterval(() => {}, 1000);
+    let forceCalls = 0;
+
+    const coordinator = createShutdownCoordinator(tinyWindows);
+    coordinator.addService("hanging-db", {
+      stop: () => new Promise(() => {}),
+      forceStop() {
+        forceCalls += 1;
+        clearInterval(keepAlive);
+        server.close(() => {});
+      },
+    });
+
+    const startedAt = Date.now();
+    try {
+      await coordinator.requestStop("SIGTERM");
+    } finally {
+      coordinator.dispose();
+    }
+    const elapsed = Date.now() - startedAt;
+
+    assert.ok(elapsed < 1000, `shutdown must be bounded (took ${elapsed} ms)`);
+    assert.equal(forceCalls, 1);
+    assert.equal(coordinator.cleanupIncomplete(), true);
+    await waitForPortState(port, false);
+  });
+
+  test("a rejecting service stop is bounded and reported as incomplete", async () => {
+    const coordinator = createShutdownCoordinator(tinyWindows);
+    coordinator.addService("bad", {
+      stop: () => Promise.reject(new Error("boom")),
+    });
+    try {
+      await coordinator.requestStop("SIGINT");
+    } finally {
+      coordinator.dispose();
+    }
+    assert.equal(coordinator.cleanupIncomplete(), true);
+  });
+
+  test("repeated signals re-join the same bounded cleanup and the force fallback runs once", async () => {
+    let forceCalls = 0;
+    const coordinator = createShutdownCoordinator(tinyWindows);
+    coordinator.addService("hang", {
+      stop: () => new Promise(() => {}),
+      forceStop() {
+        forceCalls += 1;
+      },
+    });
+    try {
+      const first = coordinator.requestStop("SIGINT");
+      const second = coordinator.requestStop("SIGTERM");
+      await Promise.all([first, second]);
+    } finally {
+      coordinator.dispose();
+    }
+    assert.equal(forceCalls, 1);
+    assert.equal(coordinator.cleanupIncomplete(), true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Integration: disposable database provisioning control flow with an injected
+// replica-set factory (defect 1 regression) and a hanging database stop
+// (defect 2 regression). KINDRED_DEV_DB_FACTORY swaps only the database
+// dependency; the production provisioning/shutdown logic runs unchanged.
+// ---------------------------------------------------------------------------
+
+test("SIGINT during disposable DB provisioning: launcher waits for the late-starting replica set, stops it, starts nothing; port freed; unrelated survives", { timeout: 30_000 }, async () => {
+  const [dbPort] = await getDistinctFreePorts(1);
+  const dbFactoryOut = mkdtempSync(path.join(os.tmpdir(), "kindred-dev-db-factory-"));
+  const { child, stateDir } = await startCli({
+    KINDRED_DEV_DB: "disposable",
+    KINDRED_DEV_DB_FACTORY: "scripts/dev-db-factory-fixture.mjs",
+    KINDRED_DEV_DB_FACTORY_OUT: dbFactoryOut,
+    FAKE_DB_FACTORY_MODE: "delayed-success",
+    FAKE_DB_FACTORY_DELAY_MS: "1500",
+    FAKE_DB_FACTORY_PORT: String(dbPort),
+  });
+
+  await waitForFile(path.join(dbFactoryOut, "db-factory.provisioning"));
+
+  const unrelated = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+    stdio: "ignore",
+  });
+  spawnedPids.add(unrelated.pid);
+  assert.ok(isAlive(unrelated.pid));
+
+  child.kill("SIGINT");
+  const code = await waitForExit(child);
+  assert.equal(code, 0);
+
+  // The replica set finished starting after the interruption and was still
+  // stopped: stop() was invoked and the owned port was released.
+  await waitForFile(path.join(dbFactoryOut, "db-factory.created"));
+  await waitForFile(path.join(dbFactoryOut, "db-factory.stopped"));
+  await waitForPortState(dbPort, false);
+
+  assert.equal(existsSync(path.join(stateDir, "build.marker.json")), false);
+  assert.equal(existsSync(path.join(stateDir, "web.marker.json")), false);
+  assert.equal(existsSync(path.join(stateDir, "api.marker.json")), false);
+  assert.ok(isAlive(unrelated.pid), "unrelated process must survive");
+});
+
+test("SIGTERM during disposable DB provisioning: same guarantees via SIGTERM", { timeout: 30_000 }, async () => {
+  const [dbPort] = await getDistinctFreePorts(1);
+  const dbFactoryOut = mkdtempSync(path.join(os.tmpdir(), "kindred-dev-db-factory-"));
+  const { child, stateDir } = await startCli({
+    KINDRED_DEV_DB: "disposable",
+    KINDRED_DEV_DB_FACTORY: "scripts/dev-db-factory-fixture.mjs",
+    KINDRED_DEV_DB_FACTORY_OUT: dbFactoryOut,
+    FAKE_DB_FACTORY_MODE: "delayed-success",
+    FAKE_DB_FACTORY_DELAY_MS: "1500",
+    FAKE_DB_FACTORY_PORT: String(dbPort),
+  });
+
+  await waitForFile(path.join(dbFactoryOut, "db-factory.provisioning"));
+  child.kill("SIGTERM");
+  const code = await waitForExit(child);
+  assert.equal(code, 0);
+
+  await waitForFile(path.join(dbFactoryOut, "db-factory.created"));
+  await waitForFile(path.join(dbFactoryOut, "db-factory.stopped"));
+  await waitForPortState(dbPort, false);
+
+  assert.equal(existsSync(path.join(stateDir, "build.marker.json")), false);
+  assert.equal(existsSync(path.join(stateDir, "web.marker.json")), false);
+  assert.equal(existsSync(path.join(stateDir, "api.marker.json")), false);
+});
+
+test("SIGTERM during disposable DB provisioning with a late reject: launcher exits 0, nothing started, no stale stop", { timeout: 30_000 }, async () => {
+  const dbFactoryOut = mkdtempSync(path.join(os.tmpdir(), "kindred-dev-db-factory-"));
+  const { child, stateDir } = await startCli({
+    KINDRED_DEV_DB: "disposable",
+    KINDRED_DEV_DB_FACTORY: "scripts/dev-db-factory-fixture.mjs",
+    KINDRED_DEV_DB_FACTORY_OUT: dbFactoryOut,
+    FAKE_DB_FACTORY_MODE: "delayed-reject",
+    FAKE_DB_FACTORY_DELAY_MS: "1500",
+  });
+
+  await waitForFile(path.join(dbFactoryOut, "db-factory.provisioning"));
+  child.kill("SIGTERM");
+  const code = await waitForExit(child);
+  assert.equal(code, 0);
+
+  await waitForFile(path.join(dbFactoryOut, "db-factory.rejected"));
+  assert.equal(existsSync(path.join(dbFactoryOut, "db-factory.stopped")), false);
+  assert.equal(existsSync(path.join(stateDir, "build.marker.json")), false);
+  assert.equal(existsSync(path.join(stateDir, "web.marker.json")), false);
+  assert.equal(existsSync(path.join(stateDir, "api.marker.json")), false);
+});
+
+test("a hanging database stop is force-released and reported: launcher exits nonzero in bounded time, port freed, nothing spawned", { timeout: 30_000 }, async () => {
+  const [dbPort] = await getDistinctFreePorts(1);
+  const dbFactoryOut = mkdtempSync(path.join(os.tmpdir(), "kindred-dev-db-factory-"));
+  const { child, stateDir } = await startCli({
+    KINDRED_DEV_DB: "disposable",
+    KINDRED_DEV_DB_FACTORY: "scripts/dev-db-factory-fixture.mjs",
+    KINDRED_DEV_DB_FACTORY_OUT: dbFactoryOut,
+    FAKE_DB_FACTORY_MODE: "hanging-stop",
+    FAKE_DB_FACTORY_DELAY_MS: "1500",
+    FAKE_DB_FACTORY_PORT: String(dbPort),
+  });
+
+  await waitForFile(path.join(dbFactoryOut, "db-factory.provisioning"));
+  child.kill("SIGINT");
+  const startedAt = Date.now();
+  const code = await waitForExit(child);
+  const elapsed = Date.now() - startedAt;
+
+  assert.equal(code, 1);
+  assert.ok(elapsed < 15_000, `shutdown must stay bounded (took ${elapsed} ms)`);
+  await waitForFile(path.join(dbFactoryOut, "db-factory.force-stopped"));
+  await waitForPortState(dbPort, false);
+
   assert.equal(existsSync(path.join(stateDir, "build.marker.json")), false);
   assert.equal(existsSync(path.join(stateDir, "web.marker.json")), false);
   assert.equal(existsSync(path.join(stateDir, "api.marker.json")), false);

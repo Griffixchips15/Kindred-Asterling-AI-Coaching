@@ -106,9 +106,17 @@ frontend (Vite) hot-reloads on its own.
 Stop with `Ctrl+C` (or `SIGTERM`) — at *any* point, including during the build
 and database provisioning. The launcher signals only the processes it owns and
 waits briefly, then force-stops stragglers — nothing on the machine is touched
-that it did not start. An interruption cancels further startup, and the
-disposable database is always torn down. Exit code is `0` after a clean stop,
-non-zero after a startup or runtime failure.
+that it did not start. An interruption cancels further startup.
+
+The disposable database is stopped on every exit path: provisioning and shutdown
+share one lifecycle, so even a replica set that finishes starting *after* the
+interruption is stopped, and shutdown is never declared complete while it could
+still leave a database behind. Cleanup is bounded for process groups **and**
+services: if a stop cannot be verified in time, own resources are force-released
+through a supported fallback and the shutdown is reported as a failure. Exit
+code is `0` after a clean stop (including a database that finished starting
+during the interruption), non-zero after a startup or runtime failure, and
+non-zero when cleanup could not be verified.
 
 Partial startups (frontend crash, API crash, port conflict, build failure) are
 surfaced with a clear reason and the other child is cleaned up.
@@ -129,7 +137,12 @@ Spawns the real CLI against fake children to prove process-group shutdown:
 all owned children (and pnpm-style grandchildren) exit on SIGINT/SIGTERM and on
 child/build failure, unrelated processes survive, ports become reusable, a
 signal during a long build or during database provisioning leaves nothing
-behind, and descendants that ignore SIGTERM are force-stopped.
+behind, and descendants that ignore SIGTERM are force-stopped. Database tests
+swap only the `mongodb-memory-server` dependency via `KINDRED_DEV_DB_FACTORY` and
+run the real provisioning control flow: a replica set that finishes starting
+after SIGINT/SIGTERM is still stopped (late/absent rejections are handled, no
+runtime phase follows), and a hanging database `stop()` is force-released in
+bounded time with the failure reported and a non-zero exit.
 
 ## Troubleshooting
 

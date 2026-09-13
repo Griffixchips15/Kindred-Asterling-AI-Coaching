@@ -19,7 +19,11 @@
 //     actual bind failure that turns into a nonzero child exit.
 //   - Cleanup is scoped to owned process groups and is bounded: a graceful
 //     window (SIGTERM), then a bounded force window (SIGKILL), then it resolves.
-//     It also stops any registered shutdown services (e.g. a disposable DB).
+//     It also stops any registered shutdown services (e.g. a disposable DB),
+//     and those service stops are bounded too: each service's graceful stop may
+//     not exceed the force window, after which a supported force fallback
+//     releases its owned resources and failure is reported accurately if
+//     cleanup cannot be verified. A never-settling service cannot hang shutdown.
 //   - A child process group is considered stopped only when every member has
 //     exited — not merely when its direct child exits. Cleanup therefore waits
 //     for lingering descendants (wrappers that exit while a grandchild stays).
@@ -328,6 +332,36 @@ export function createJobs(config, { cwd }) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Resolve once `promise` settles, or within `ms` — whichever comes first. When
+// the deadline lapses `onTimeout()` runs (a synchronous, best-effort force
+// fallback that must not block), so a service whose graceful stop never settles
+// can never hang shutdown indefinitely.
+function withTimeout(promise, ms, onTimeout) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      onTimeout();
+      resolve({ timedOut: true });
+    }, ms);
+    promise.then(
+      () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ timedOut: false });
+      },
+      (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ timedOut: false, error: err });
+      },
+    );
+  });
+}
+
 async function waitForHttp(url, { pollMs, timeoutMs, cancelled }) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -499,6 +533,7 @@ export function createShutdownCoordinator(options = {}) {
 
   let stopping = null;
   let stopped = false;
+  let cleanupIncompleteFlag = false;
   const stopWaiters = [];
   const onStopCallbacks = [];
 
@@ -534,31 +569,73 @@ export function createShutdownCoordinator(options = {}) {
     if (stopping) return stopping.promise;
     stopping = deferred();
 
+    // Bounded service shutdown, decoupled from whether any process groups are
+    // alive. Each service's graceful stop gets its own force window; if it has
+    // not settled by then, a supported force fallback releases its owned
+    // resources and the service is reported as "unverified" (cleanup could not
+    // be verified). `Promise.all` over these bounded outcomes can no longer
+    // hang shutdown on a never-settling service stop.
     const serviceStops = [...services.entries()].map(async ([name, service]) => {
       try {
         debugLog(`service stop name=${name}`);
-        await service.stop();
-        debugLog(`service stopped name=${name}`);
+        const outcome = await withTimeout(service.stop(), forceGraceMs, () => {
+          if (typeof service.forceStop === "function") {
+            try {
+              debugLog(`service force-stop name=${name}`);
+              const forced = service.forceStop();
+              if (forced && typeof forced.then === "function") {
+                forced.catch(() => {});
+              }
+            } catch (err) {
+              logger.error(
+                `[dev] force stop for service ${name} failed: ${err?.message ?? err}`,
+              );
+            }
+          }
+        });
+        if (outcome.timedOut) {
+          cleanupIncompleteFlag = true;
+          logger.error(
+            `[dev] service ${name} did not stop within ${forceGraceMs} ms; ` +
+              "own resources were force-released if a supported fallback exists, " +
+              "but its cleanup could not be verified.",
+          );
+        } else if (outcome.error) {
+          cleanupIncompleteFlag = true;
+          logger.error(
+            `[dev] failed to stop service ${name}: ${outcome.error?.message ?? outcome.error}`,
+          );
+        } else {
+          debugLog(`service stopped name=${name}`);
+        }
       } catch (err) {
+        // Service itself threw outside the wrapped promise (e.g. force stop).
+        cleanupIncompleteFlag = true;
         logger.error(
           `[dev] failed to stop service ${name}: ${err?.message ?? err}`,
         );
       }
     });
+    const allServiceStops = Promise.all(serviceStops);
 
     // Graceful phase: SIGTERM every owned group.
     for (const group of groups.values()) {
       if (!group.spawnError) signalGroup(group.child, "SIGTERM");
     }
 
+    const finishStop = async () => {
+      // Wait for the (bounded) service stops; never declare the stop complete
+      // while an initialization that produced resources is still in flight.
+      await allServiceStops;
+      markStopped();
+      stopping.resolve();
+    };
+
     const deadline = Date.now() + graceMs;
     const tick = () => {
       const alive = aliveGroups();
       if (alive.length === 0) {
-        void Promise.allSettled(serviceStops).then(() => {
-          markStopped();
-          stopping.resolve();
-        });
+        void finishStop();
         return;
       }
       if (Date.now() >= deadline) {
@@ -570,10 +647,7 @@ export function createShutdownCoordinator(options = {}) {
           const stillAlive = aliveGroups();
           const forceDeadlineHit = Date.now() >= deadline + forceGraceMs;
           if (stillAlive.length === 0 || forceDeadlineHit) {
-            void Promise.allSettled(serviceStops).then(() => {
-              markStopped();
-              stopping.resolve();
-            });
+            void finishStop();
             return;
           }
           for (const group of stillAlive) {
@@ -636,6 +710,12 @@ export function createShutdownCoordinator(options = {}) {
     groupFullyStopped,
     requestStop,
     stopEverything,
+    // True once a stop has completed but a registered service could not be
+    // verified as stopped (its graceful stop failed or never settled). Callers
+    // use this to report the shutdown accurately.
+    cleanupIncomplete() {
+      return cleanupIncompleteFlag;
+    },
     // Resolves when the (first) stop has fully completed. Never resolves just
     // because it was called; used to bound provisioning/startup on interruption.
     whenStopped() {
