@@ -1,7 +1,7 @@
 # Phase 3 completion report
 
 Branch: `codex/phase-3a-dev-workflow`
-Final SHA: `FINAL_SHA`
+Final SHA: `b4d7f84`
 Baseline (merge-base with `origin/main`): `2205b98`
 Local worktree: `/tmp/kindred-phase-3a` (git worktree of the shared repository).
 
