@@ -1,5 +1,9 @@
 # Kindred Next.js Frontend
 
+> **Experiment — not part of the production stack.** The production frontend is
+> the React/Vite app in `artifacts/kindred-coach/`; this Next.js app is an
+> isolated experiment that production CI does not build or test.
+
 This Next.js App Router project is the isolated target for features specified by Antigravity and implemented through the local Codex CLI. It does not replace the existing Vite application in `artifacts/kindred-coach/`.
 
 ## Development

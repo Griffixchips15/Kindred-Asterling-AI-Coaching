@@ -121,7 +121,53 @@ non-zero when cleanup could not be verified.
 Partial startups (frontend crash, API crash, port conflict, build failure) are
 surfaced with a clear reason and the other child is cleaned up.
 
-## Verification
+## Full verification: `pnpm verify`
+
+When you are unsure whether your local change is releasable, run the full gate —
+it executes the same components as GitLab CI, in the same order, from a
+sanitized child environment (no secrets or `VITE_*` build values are forwarded,
+so applications resolve their own committed dev values):
+
+```sh
+pnpm verify
+```
+
+Components: `format:check`, `typecheck:production`, `test:dev-supervisor`,
+`test:frontend`, `test:api`, `test:journey`, `generate:check`, `build:api`,
+`build:frontend`. The run fails fast (stops at the first failing component) and
+a full pass records `.verify-evidence.json` (git-ignored) keyed to your exact
+commit + working-tree state.
+
+Focused checks you can run on their own:
+
+```sh
+pnpm run format              # rewrite formatting on the maintained boundary
+pnpm run format:check        # verify formatting only
+pnpm run test:verify         # unit tests for the verify/format machinery
+pnpm run test:release-check  # unit tests for the release gate
+pnpm run generate:check      # generated-client drift check (no file writes)
+pnpm run test:dev-supervisor # unit tests for this launcher
+pnpm --filter @workspace/kindred-coach run test
+pnpm --filter @workspace/db run test:api
+pnpm --filter @workspace/db run test:journey
+```
+
+`generate:check` reproduces the committed orval invocation inside a throwaway
+sandbox copy and byte-compares the generated clients with the tracked trees; it
+never mutates your working tree.
+
+## Release gate: `pnpm run release:check`
+
+A read-only evidence report for release decisions — never runs builds, tests or
+installs, never writes anything, never calls a remote. It reports the exact
+candidate SHA/branch and working-tree state, whether the last `pnpm verify`
+evidence matches that candidate, which required public Auth0 variables are
+present and whether the web/API issuer + audience are consistent (values are
+never printed), plus push / CI / merge / deploy / acceptance / rollback status.
+Local proof is distinct from CI proof and production proof; anything it cannot
+observe is marked unverified. See `docs/release-rollback.md`.
+
+## Manual spot checks against the running dev stack
 
 - API health through the Vite proxy: `curl http://localhost:8080/api/healthz/db`
 - Both processes exit: `ps -ef | grep -E "kindred-coach|api-server"` after
