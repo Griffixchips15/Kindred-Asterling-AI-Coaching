@@ -18,9 +18,12 @@
     "dev:experiment": "pnpm --filter frontend dev",
     "test:dev-supervisor": "node --check scripts/dev.mjs && node --check scripts/dev-supervisor.mjs && node --test scripts/dev-supervisor.test.mjs",
     "test:verify": "node --test scripts/verify.test.mjs",
+    "test:release-check": "node --test scripts/release-check.test.mjs",
     "format": "node scripts/format-check.mjs --write",
     "format:check": "node scripts/format-check.mjs",
     "verify": "node scripts/verify.mjs",
+    "generate:check": "node scripts/verify-generated.mjs",
+    "release:check": "node scripts/release-check.mjs",
     "frontend:build": "pnpm --filter frontend build",
     "frontend:start": "pnpm --filter frontend start",
     "codex:nextjs": "node scripts/run_codex_nextjs.js"

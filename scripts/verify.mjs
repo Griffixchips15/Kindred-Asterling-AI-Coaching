@@ -8,6 +8,7 @@
 
 import { spawn } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { candidateState, writeEvidence } from "./verify-evidence.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
@@ -145,6 +146,18 @@ async function main() {
       process.exitCode = 1;
     } else {
       console.log(`\n[verify] all ${result.passed.length} components passed`);
+      try {
+        const state = candidateState();
+        writeEvidence({
+          head: state.head,
+          branch: state.branch,
+          fingerprint: state.fingerprint,
+          components: result.passed,
+        });
+        console.log(`[verify] verification evidence recorded for ${state.head}`);
+      } catch (err) {
+        console.warn(`[verify] could not record verification evidence: ${err.message}`);
+      }
     }
   } finally {
     if (interruptedSignal) process.exit(interruptedSignal === "SIGINT" ? 130 : 143);
