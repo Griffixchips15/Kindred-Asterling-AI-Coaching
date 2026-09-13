@@ -49,7 +49,6 @@ const LEGACY_FORMAT_BASELINE = new Set([
   "scripts/dev.mjs",
   "scripts/dev-supervisor.mjs",
   "scripts/dev-supervisor.test.mjs",
-  "scripts/dev-db-fixture.mjs",
   "scripts/dev-db-factory-fixture.mjs",
   "scripts/dev-supervisor-fixture.mjs",
   "scripts/generate-docs.mjs",

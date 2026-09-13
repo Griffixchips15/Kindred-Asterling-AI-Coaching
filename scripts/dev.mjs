@@ -11,18 +11,26 @@
 //
 // Signal coverage spans the entire startup lifecycle. The shutdown coordinator
 // (and its SIGINT/SIGTERM handlers) is created before any async work, and the
-// disposable database is registered as a shutdown service before it is
-// provisioned, so a stop request during an in-flight provisioning waits for it
-// to settle and stops whatever resource appears late. Cleanup is bounded and
-// idempotent for both process groups and services. Interruption at any point
-// cancels further startup. There are no `process.exit()` calls: the process
-// exits with the reported exit code after cleanup completes, and a shutdown
-// whose cleanup could not be verified is reported as a failure.
+// disposable database is registered as an OWNED PROCESS GROUP before it is
+// provisioned, so a stop request during an in-flight provisioning is handled
+// by the DB worker and the owned group is stopped on every exit path. Cleanup
+// is bounded and idempotent for both process groups and services. Interruption
+// at any point cancels further startup. There are no `process.exit()` calls:
+// the process exits with the reported exit code after cleanup completes, and a
+// shutdown whose cleanup could not be verified is reported as a failure.
+//
+// The disposable MongoDB replica set runs inside the dedicated worker script
+// scripts/dev-db-worker.mjs using the REAL mongodb-memory-server
+// MongoMemoryReplSet interface. Shutdown is bounded with only real, supported
+// mechanisms: SIGTERM reaches the worker's own graceful stop() (the worker is
+// an owned process group), and a stop that never settles is released by
+// SIGKILLing that owned group — never by relying on an invented library
+// "forceStop" method (MongoMemoryReplSet does not expose one).
 
-import { pathToFileURL } from "node:url";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  createDatabaseWorker,
   createJobs,
   createShutdownCoordinator,
   DEV_ENV_FILE,
@@ -56,39 +64,7 @@ const coordinator = createShutdownCoordinator({
 
 const interrupted = () => Boolean(coordinator.stopReason);
 
-// Load the replica-set factory that provisions the disposable development
-// database. Production uses mongodb-memory-server's MongoMemoryReplSet.create;
-// tests may inject a synthetic stand-in with KINDRED_DEV_DB_FACTORY (the module
-// must export createReplicaSet(options) returning the same shape as
-// MongoMemoryReplSet.create: a Promise of { getUri(), stop() }).
-async function loadReplicaSetFactory() {
-  const injected = process.env.KINDRED_DEV_DB_FACTORY;
-  if (injected) {
-    const mod = await import(
-      pathToFileURL(path.resolve(repoRoot, injected)).href
-    );
-    if (typeof mod.createReplicaSet !== "function") {
-      throw new Error(
-        `KINDRED_DEV_DB_FACTORY module must export createReplicaSet() (${injected})`,
-      );
-    }
-    return mod.createReplicaSet;
-  }
-  const { MongoMemoryReplSet } = await import("mongodb-memory-server");
-  return (options) => MongoMemoryReplSet.create(options);
-}
-
 async function provisionDatabase(config) {
-  const fixturePath = process.env.KINDRED_DEV_DB_FIXTURE;
-  if (fixturePath) {
-    // Test-only stand-in for disposable database provisioning. May register
-    // shutdown services on the coordinator and throw on configured failures.
-    const fixture = await import(
-      pathToFileURL(path.resolve(repoRoot, fixturePath)).href
-    );
-    return fixture.provisionDatabase(config, { coordinator, repoRoot });
-  }
-
   if (config.dbMode !== "disposable") return { code: 0, reason: null };
   if (config.apiEnv.MONGODB_URI) {
     console.error(
@@ -96,85 +72,62 @@ async function provisionDatabase(config) {
     );
   }
 
-  // Provisioning and shutdown share one lifecycle:
+  // Provisioning owns one resource: a disposable MongoDB replica set running
+  // in the dedicated (detached, own-process-group) worker. The worker resolves
+  // `workerGroup.ready` with the real URI only after the real
+  // MongoMemoryReplSet.create() has started. The worker is registered as an
+  // owned group BEFORE readiness so a stop request during the (possibly long)
+  // start is covered from the very first millisecond:
   //
-  //   - The database is registered as a shutdown service BEFORE create()
-  //     starts, so a signal during the (possibly long) download/start is still
-  //     cleaned up on every exit path.
-  //   - A stop request must never declare shutdown complete while a replica
-  //     set that finished starting afterwards still exists, so the service's
-  //     stop() waits for provisioning to settle and then stops whatever
-  //     appeared. If provisioning failed or was interrupted, there is nothing
-  //     to stop and stop() resolves.
-  //   - create() is awaited with the stopReason checked right after it
-  //     resolves, so a late-finishing replica set is stopped rather than
-  //     started up, and no MONGODB_URI/startup follows an interruption.
-  //   - forceStop() is the supported bounded fallback for a stop() that never
-  //     settles: it releases owned resources synchronously when the factory
-  //     provides one, otherwise it re-issues stop() best-effort and never
-  //     blocks shutdown.
-  const lifecycle = {
-    replicaSet: null,
-    settled: false,
-    settledWaiters: [],
-    markSettled() {
-      this.settled = true;
-      for (const waiter of this.settledWaiters) waiter();
-      this.settledWaiters.length = 0;
-    },
-    whenSettled() {
-      if (this.settled) return Promise.resolve();
-      return new Promise((resolve) => this.settledWaiters.push(resolve));
-    },
+  //   - A swift stop during create(): the worker waits for the creation to
+  //     settle and then stops whatever replica set appeared; the owned group's
+  //     exit ends the stop. No MONGODB_URI or startup follows an interruption.
+  //   - A create() or stop() that never settles: the owned group is
+  //     force-released with SIGKILL after the coordinator's grace window — a
+  //     real, supported OS-level release that frees the port and terminates any
+  //     mongod descendant. Shutdown can never hang on the database, and there
+  //     is no fixture-only or invented forceStop() anywhere.
+  const workerEnv = {
+    KINDRED_DEV_DB_VERSION: "8.0.12",
+    KINDRED_DEV_DB_REPLSET_COUNT: "1",
   };
-  let stopOnce = null;
-  coordinator.addService("database", {
-    stop: () =>
-      (stopOnce ??= (async () => {
-        await lifecycle.whenSettled();
-        if (lifecycle.replicaSet) await lifecycle.replicaSet.stop();
-      })()),
-    forceStop: () => {
-      const rs = lifecycle.replicaSet;
-      if (!rs) return;
-      if (typeof rs.forceStop === "function") {
-        try {
-          rs.forceStop();
-        } catch (err) {
-          console.error(
-            `[dev] failed to force-stop the disposable database: ${err?.message ?? err}`,
-          );
-        }
-      } else {
-        // mongodb-memory-server does not expose a hard kill; a second stop()
-        // is its supported (idempotent) fallback and never blocks shutdown.
-        void rs.stop().catch(() => {});
-      }
-    },
+  for (const key of [
+    "KINDRED_DEV_DB_FACTORY",
+    "KINDRED_DEV_DB_FACTORY_OUT",
+    "KINDRED_DEV_DEBUG_LOG",
+    "FAKE_DB_FACTORY_MODE",
+    "FAKE_DB_FACTORY_DELAY_MS",
+    "FAKE_DB_FACTORY_PORT",
+  ]) {
+    if (process.env[key] !== undefined) workerEnv[key] = process.env[key];
+  }
+
+  const worker = createDatabaseWorker({
+    coordinator,
+    repoRoot,
+    logger: console,
+    extraEnv: workerEnv,
   });
 
   try {
-    const createReplicaSet = await loadReplicaSetFactory();
-    const replicaSet = await createReplicaSet({
-      binary: { version: "8.0.12" },
-      replSet: { count: 1, storageEngine: "wiredTiger" },
-    });
-    lifecycle.replicaSet = replicaSet;
-    if (coordinator.stopReason) {
-      // A stop request arrived while the replica set was being created. The
-      // shutdown service stops it; do not assign the URI or continue startup.
-      console.error(
-        "[dev] Interrupted while provisioning the disposable development database; stopping it.",
-      );
-      return { code: 0, reason: coordinator.stopReason };
+    const uri = await Promise.race([
+      worker.ready,
+      coordinator.whenStopped().then(() => null),
+    ]);
+    // whenStopped() resolves only after every owned process group (including
+    // the database worker) is actually gone, so a mid-provision interruption
+    // stops here without starting anything and without a stale resource.
+    if (interrupted() || uri === null || uri === undefined) {
+      return { code: 0, reason: coordinator.stopReason ?? "shutdown" };
     }
-    config.apiEnv.MONGODB_URI = replicaSet.getUri();
+    config.apiEnv.MONGODB_URI = uri;
     config.apiEnv.MONGODB_DATABASE = DEFAULT_DEV_DB_NAME;
     console.error(
       "[dev] Provisioned a disposable MongoDB replica set for development (data is lost when this command exits).",
     );
     return { code: 0, reason: null };
   } catch (err) {
+    if (interrupted()) return { code: 0, reason: coordinator.stopReason };
     console.error(
       `[dev] Unable to provision the disposable development database: ${err?.message ?? err}`,
     );
@@ -182,10 +135,6 @@ async function provisionDatabase(config) {
       "[dev] Set KINDRED_DEV_DB=external and point MONGODB_URI at a dedicated development MongoDB (see docs/local-development.md).",
     );
     return { code: 1, reason: "database provisioning failed" };
-  } finally {
-    // Release any stop() that is waiting on the in-flight provisioning so it
-    // can dispose of whatever resource did (or did not) appear.
-    lifecycle.markSettled();
   }
 }
 

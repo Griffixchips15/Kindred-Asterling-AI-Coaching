@@ -4,7 +4,13 @@
 // `dev.mjs` CLI with the fake-children fixture and verify process-group
 // shutdown: all owned children (and wrappers/grandchildren) exit on
 // SIGINT/SIGTERM and on child/build failure, unrelated processes survive, and
-// ports become reusable. No real ports or real product processes are used.
+// ports become reusable. The disposable database is exercised as an OWNED DB
+// WORKER process group (scripts/dev-db-worker.mjs) — bounded cancellation uses
+// only real, supported mechanisms (SIGTERM → the worker's real
+// MongoMemoryReplSet.stop(); SIGKILL of the owned group as the force path). No
+// fixture-only forceStop() exists. An opt-in test (KINDRED_RUN_DB_WORKER_INTEGRATION=1)
+// runs the real mongodb-memory-server worker holding a live replica set.
+// No real product ports/processes are used by the default suite.
 
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
@@ -74,7 +80,6 @@ describe("parseDevConfig: blank VITE_* values", () => {
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
 const fixturePath = path.join(here, "dev-supervisor-fixture.mjs");
-const dbFixturePath = path.join(here, "dev-db-fixture.mjs");
 
 // ---------------------------------------------------------------------------
 // Unit: env parsing / ports / config / jobs
@@ -428,12 +433,12 @@ async function waitForPortState(port, expectedInUse, timeoutMs = 10_000) {
   assert.fail(`port ${port} did not become ${expectedInUse ? "in use" : "free"}`);
 }
 
-function waitFor(condition, timeoutMs = 10_000) {
+function waitFor(condition, timeoutMs = 10_000, message = "condition timed out") {
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + timeoutMs;
     const tick = () => {
       if (condition()) return resolve();
-      if (Date.now() >= deadline) return reject(new Error("condition timed out"));
+      if (Date.now() >= deadline) return reject(new Error(message));
       setTimeout(tick, 100);
     };
     tick();
@@ -790,38 +795,25 @@ test("failed spawn: launcher reports the error without touching unrelated proces
   unrelated.kill("SIGKILL");
 });
 
-test("SIGINT during database provisioning: stops the DB service, exits 0, nothing is spawned", { timeout: 30_000 }, async () => {
-  const dbFixtureOut = mkdtempSync(path.join(os.tmpdir(), "kindred-dev-db-test-"));
-  const { child, stateDir } = await startCli({
-    KINDRED_DEV_DB_FIXTURE: dbFixturePath,
-    FAKE_DB_MODE: "interrupted",
-    KINDRED_DEV_DB_FIXTURE_OUT: dbFixtureOut,
-  });
-
-  await waitForFile(path.join(dbFixtureOut, "db-provisioning.started"));
-  child.kill("SIGINT");
-  const code = await waitForExit(child);
-  assert.equal(code, 0);
-  assert.equal(existsSync(path.join(dbFixtureOut, "db-fixture-stopped")), true);
-  assert.equal(existsSync(path.join(stateDir, "build.marker.json")), false);
-  assert.equal(existsSync(path.join(stateDir, "web.marker.json")), false);
-  assert.equal(existsSync(path.join(stateDir, "api.marker.json")), false);
-});
-
-test("failed database provisioning: launcher exits nonzero, nothing is spawned", { timeout: 30_000 }, async () => {
-  const dbFixtureOut = mkdtempSync(path.join(os.tmpdir(), "kindred-dev-db-test-"));
-  const { child, stateDir } = await startCli({
-    KINDRED_DEV_DB_FIXTURE: dbFixturePath,
-    FAKE_DB_MODE: "failed",
-    KINDRED_DEV_DB_FIXTURE_OUT: dbFixtureOut,
+test("failed database provisioning with no signal: launcher exits nonzero, nothing is spawned", { timeout: 30_000 }, async () => {
+  const dbFactoryOut = mkdtempSync(path.join(os.tmpdir(), "kindred-dev-db-factory-"));
+  const { child, stateDir, webPort, apiPort } = await startCli({
+    KINDRED_DEV_DB: "disposable",
+    KINDRED_DEV_DB_FACTORY: "scripts/dev-db-factory-fixture.mjs",
+    KINDRED_DEV_DB_FACTORY_OUT: dbFactoryOut,
+    FAKE_DB_FACTORY_MODE: "delayed-reject",
+    FAKE_DB_FACTORY_DELAY_MS: "300",
   });
 
   const code = await waitForExit(child);
   assert.equal(code, 1);
-  assert.equal(existsSync(path.join(dbFixtureOut, "db-failed.started")), true);
+  assert.equal(existsSync(path.join(dbFactoryOut, "db-factory.rejected")), true);
+  assert.equal(existsSync(path.join(dbFactoryOut, "db-factory.stopped")), false);
   assert.equal(existsSync(path.join(stateDir, "build.marker.json")), false);
   assert.equal(existsSync(path.join(stateDir, "web.marker.json")), false);
   assert.equal(existsSync(path.join(stateDir, "api.marker.json")), false);
+  assert.equal(await checkPortFree(webPort), true);
+  assert.equal(await checkPortFree(apiPort), true);
 });
 
 // ---------------------------------------------------------------------------
@@ -897,10 +889,12 @@ describe("coordinator: service shutdown is bounded like process groups", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Integration: disposable database provisioning control flow with an injected
-// replica-set factory (defect 1 regression) and a hanging database stop
-// (defect 2 regression). KINDRED_DEV_DB_FACTORY swaps only the database
-// dependency; the production provisioning/shutdown logic runs unchanged.
+// Integration: disposable database provisioning via the OWNED DB WORKER
+// (scripts/dev-db-worker.mjs). KINDRED_DEV_DB_FACTORY swaps only the replica-set
+// constructor inside the worker; the production worker provisioning/shutdown
+// control flow runs unchanged. No fixture exposes forceStop: a gracefully
+// hanging stop is released by the supervisor's real force path (SIGKILL of the
+// owned worker process group).
 // ---------------------------------------------------------------------------
 
 test("SIGINT during disposable DB provisioning: launcher waits for the late-starting replica set, stops it, starts nothing; port freed; unrelated survives", { timeout: 30_000 }, async () => {
@@ -987,7 +981,7 @@ test("SIGTERM during disposable DB provisioning with a late reject: launcher exi
   assert.equal(existsSync(path.join(stateDir, "api.marker.json")), false);
 });
 
-test("a hanging database stop is force-released and reported: launcher exits nonzero in bounded time, port freed, nothing spawned", { timeout: 30_000 }, async () => {
+test("a hanging database stop is bounded and released by the real force path: owned worker group is killed, port freed, exit 0, nothing spawned, unrelated survives", { timeout: 30_000 }, async () => {
   const [dbPort] = await getDistinctFreePorts(1);
   const dbFactoryOut = mkdtempSync(path.join(os.tmpdir(), "kindred-dev-db-factory-"));
   const { child, stateDir } = await startCli({
@@ -997,20 +991,138 @@ test("a hanging database stop is force-released and reported: launcher exits non
     FAKE_DB_FACTORY_MODE: "hanging-stop",
     FAKE_DB_FACTORY_DELAY_MS: "1500",
     FAKE_DB_FACTORY_PORT: String(dbPort),
+    KINDRED_DEV_GRACE_MS: "800",
+    KINDRED_DEV_FORCE_GRACE_MS: "1500",
   });
 
+  // Wait until the replica set is fully provisioned so the hanging stop is a
+  // genuine "stop() never settles" on a live resource, then interrupt.
   await waitForFile(path.join(dbFactoryOut, "db-factory.provisioning"));
+  const workerPid = Number(
+    readFileSync(path.join(dbFactoryOut, "db-factory.worker-pid"), "utf8"),
+  );
+  spawnedPids.add(workerPid);
+  await waitForFile(path.join(dbFactoryOut, "db-factory.created"));
+  await waitForPortState(dbPort, true);
+  assert.ok(isAlive(workerPid), "database worker must be alive while running");
+
+  const unrelated = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+    stdio: "ignore",
+  });
+  spawnedPids.add(unrelated.pid);
+  assert.ok(isAlive(unrelated.pid));
+
   child.kill("SIGINT");
   const startedAt = Date.now();
   const code = await waitForExit(child);
   const elapsed = Date.now() - startedAt;
 
-  assert.equal(code, 1);
-  assert.ok(elapsed < 15_000, `shutdown must stay bounded (took ${elapsed} ms)`);
-  await waitForFile(path.join(dbFactoryOut, "db-factory.force-stopped"));
+  // The owned worker's stop() never settles, so shutdown must force-release it
+  // by SIGKILLing the owned process group — exit 0 because cleanup is verified
+  // (group dead, port free), and bounded by the grace/force windows.
+  assert.equal(code, 0);
+  assert.ok(elapsed < 10_000, `shutdown must stay bounded (took ${elapsed} ms)`);
+  assert.match(child.output().stderr, /force-stopping: database/);
+  await waitFor(() => !isAlive(workerPid));
   await waitForPortState(dbPort, false);
+  assert.equal(existsSync(path.join(dbFactoryOut, "db-factory.stopped")), false);
 
-  assert.equal(existsSync(path.join(stateDir, "build.marker.json")), false);
-  assert.equal(existsSync(path.join(stateDir, "web.marker.json")), false);
-  assert.equal(existsSync(path.join(stateDir, "api.marker.json")), false);
+  // The build/web/api jobs run normally while the replica set is live; the
+  // DB-specific force-release must still collect the whole owned set. Any job
+  // that was spawned before SIGINT must be dead after the CLI exits.
+  for (const name of ["build", "web", "api"]) {
+    const marker = path.join(stateDir, `${name}.marker.json`);
+    if (existsSync(marker)) {
+      const pid = JSON.parse(readFileSync(marker, "utf8")).pid;
+      await waitFor(
+        () => !isAlive(pid),
+        10_000,
+        `owned ${name} child must be dead`,
+      );
+    }
+  }
+  assert.ok(isAlive(unrelated.pid), "unrelated process must survive");
 });
+// ---------------------------------------------------------------------------
+// Integration (opt-in): the REAL mongodb-memory-server worker holds a live
+// replica set and verifies that graceful stop() releases it. Requires the
+// mongod binary (MongoMemoryReplSet downloads or resolves the cached
+// KINDRED_DEV_DB_VERSION binary), so it is not part of the default suite.
+// ---------------------------------------------------------------------------
+
+describe(
+  "real mongodb-memory-server DB worker",
+  { skip: process.env.KINDRED_RUN_DB_WORKER_INTEGRATION !== "1" },
+  () => {
+    test("SIGTERM stops a live replica set: worker exits 0, port freed, unrelated survives", { timeout: 120_000 }, async () => {
+      const workerPath = path.join(repoRoot, "scripts", "dev-db-worker.mjs");
+      const worker = spawn(process.execPath, [workerPath], {
+        cwd: repoRoot,
+        env: {
+          ...minimalWorkerEnv(),
+          KINDRED_DEV_DB_VERSION: "8.0.12",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      launchedClis.push(worker);
+
+      let stdout = "";
+      let stderr = "";
+      worker.stdout.on("data", (d) => (stdout += d));
+      worker.stderr.on("data", (d) => (stderr += d));
+
+      const readyLine = await waitForLine(stdout, () => {
+        const line = stdout
+          .split("\n")
+          .find((l) => l.startsWith("KINDRED_DB_WORKER_READY "));
+        assert.ok(line, `worker must become ready; stderr:\n${stderr}`);
+        return line;
+      }, 90_000);
+
+      const uri = readyLine.slice("KINDRED_DB_WORKER_READY ".length).trim();
+      const portMatch = String(uri).match(/127\.0\.0\.1:(\d+)/);
+      assert.ok(portMatch, `expected a 127.0.0.1:port URI, got "${uri}"`);
+      const port = Number(portMatch[1]);
+      await waitForPortState(port, true);
+
+      const unrelated = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+        stdio: "ignore",
+      });
+      spawnedPids.add(unrelated.pid);
+      assert.ok(isAlive(unrelated.pid));
+
+      worker.kill("SIGTERM");
+      const code = await waitForExit(worker, 60_000);
+      assert.equal(code, 0, `worker must stop cleanly; stderr:\n${stderr}`);
+      await waitForPortState(port, false);
+      assert.ok(isAlive(unrelated.pid), "unrelated process must survive");
+      unrelated.kill("SIGKILL");
+    });
+  },
+);
+
+function minimalWorkerEnv() {
+  const kept = {};
+  for (const key of ["PATH", "HOME", "TMPDIR", "TMP", "TERM", "LANG"]) {
+    if (process.env[key] !== undefined) kept[key] = process.env[key];
+  }
+  return kept;
+}
+
+function waitForLine(sharedBuffer, extract, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeoutMs;
+    const tick = () => {
+      if (Date.now() >= deadline) {
+        reject(new Error(`condition timed out reading worker output: ${sharedBuffer}`));
+        return;
+      }
+      try {
+        resolve(extract());
+        return;
+      } catch {}
+      setTimeout(tick, 100);
+    };
+    tick();
+  });
+}
