@@ -29,6 +29,8 @@ permissions:
 
 jobs:
   snyk:
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
     permissions:
       contents: read # for actions/checkout to fetch code
       security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
@@ -36,6 +38,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check Snyk credentials
+        run: |
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "::error::SNYK_TOKEN is not configured or is unavailable to this run. Add the repository Actions secret before running Snyk scans."
+            exit 1
+          fi
       - name: Set up Snyk CLI to check for security issues
         # Snyk can be used to break the build when it detects security issues.
         # In this case we want to upload the SAST issues to GitHub Code Scanning
@@ -46,10 +54,6 @@ jobs:
         #- uses: actions/setup-node@v4
         #  with:
         #    node-version: 20
-
-        env:
-          # This is where you will need to introduce the Snyk API token created with your Snyk account
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
         # Runs Snyk Code (SAST) analysis and uploads result into GitHub.
         # Use || true to not fail the pipeline
