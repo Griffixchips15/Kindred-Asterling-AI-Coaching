@@ -369,14 +369,23 @@ function documentId(table: Table, row: Row): unknown {
   );
 }
 
-function storedQueryId(value: unknown): string | number {
+function storedQueryIds(rows: readonly Row[], field: string): Array<string | number> {
   // Persisted data is not a query expression. In particular, MongoDB treats a
   // RegExp inside $in as a pattern, which could match another account's rows.
   // Kindred uses string (including composite) and integer primary keys.
-  // Convert only after validation; objects must never be coerced into IDs.
-  if (typeof value === "string" && value.length > 0) return String(value);
-  if (typeof value === "number" && Number.isSafeInteger(value)) return Number(value);
-  throw new Error("Invalid stored query identifier");
+  // Build a fresh list from validated primitives, never from raw documents.
+  const ids: Array<string | number> = [];
+  for (const row of rows) {
+    const value = row[field];
+    if (typeof value === "string" && value.length > 0) {
+      ids.push(String(value));
+    } else if (typeof value === "number" && Number.isSafeInteger(value)) {
+      ids.push(Number(value));
+    } else {
+      throw new Error("Invalid stored query identifier");
+    }
+  }
+  return ids;
 }
 
 async function nextSequenceValue(
@@ -690,7 +699,7 @@ class UpdateQuery<TableRow extends Row> implements PromiseLike<TableRow[]> {
         })
         .toArray();
       if (matches.length === 0) return [];
-      const ids = matches.map(({ _id }) => storedQueryId(_id));
+      const ids = storedQueryIds(matches, "_id");
       await target.updateMany(
         { _id: { $in: ids } },
         { $set: changes },
@@ -726,7 +735,7 @@ async function cascadeDelete(
   session: ClientSession,
 ): Promise<void> {
   const current = await getMongoDatabase();
-  const values = (field: string) => rows.map((row) => storedQueryId(row[field]));
+  const values = (field: string) => storedQueryIds(rows, field);
   if (table.collectionName === conversations.collectionName) {
     await current
       .collection(messages.collectionName)
@@ -766,7 +775,7 @@ async function cascadeDelete(
       .collection(conversations.collectionName)
       .find({ userId: { $in: userIds } }, { projection: { id: 1 }, session })
       .toArray();
-    const conversationIds = conversationRows.map((row) => storedQueryId(row.id));
+    const conversationIds = storedQueryIds(conversationRows, "id");
     await current
       .collection(messages.collectionName)
       .deleteMany(
