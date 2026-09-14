@@ -860,9 +860,9 @@ export const UnlogMedicationTakenResponse = zod.void()
 
 
 /**
- * The Google Calendar connector is project-scoped (OAuth credentials are tied to the application, not the requesting user). To prevent leaking the builder's schedule to other users, this endpoint is gated by CALENDAR_OWNER_USER_ID and returns 403 for any non-owner caller.
-
- * @summary Get upcoming Google Calendar events (today + 3 days)
+ * Calendar event retrieval is retired. Authenticated callers receive 410 calendar_retired. No Google API calls are made. The historical success schema remains documented for older generated clients only.
+ * @deprecated
+ * @summary Retired Google Calendar endpoint
  */
 export const GetUpcomingCalendarEventsResponseItem = zod.object({
   "date": zod.string(),
@@ -919,5 +919,3 @@ export const GetMoodTrendResponseItem = zod.object({
   "medicationEffectiveness": zod.number().int().nullish()
 })
 export const GetMoodTrendResponse = zod.array(GetMoodTrendResponseItem)
-
-

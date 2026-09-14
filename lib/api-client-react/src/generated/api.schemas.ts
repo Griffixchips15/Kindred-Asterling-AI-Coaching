@@ -497,6 +497,16 @@ export type GetMedicationWeeklyReportParams = {
 tzOffset?: number;
 };
 
+export type GetUpcomingCalendarEvents410Error = typeof GetUpcomingCalendarEvents410Error[keyof typeof GetUpcomingCalendarEvents410Error];
+
+
+export const GetUpcomingCalendarEvents410Error = {
+  calendar_retired: 'calendar_retired',
+} as const;
+
+export type GetUpcomingCalendarEvents410 = {
+  error: GetUpcomingCalendarEvents410Error;
+};
 
 export type GetTodaySummaryParams = {
 /**

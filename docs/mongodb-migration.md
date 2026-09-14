@@ -1,5 +1,10 @@
 # PostgreSQL to MongoDB migration
 
+> **Historical cutover record.** The PostgreSQL → MongoDB migration was completed
+> in a prior phase. This document is retained for audit, restoration of the
+> rollback tools, and future reference. The steps in it are one-time operational
+> procedures, not part of normal development or release flow.
+
 MongoDB is Kindred's runtime database. PostgreSQL is used only as the read-only
 source for the one-time migration and remains untouched until the cutover has
 been proven and its rollback window has closed.

@@ -1,5 +1,9 @@
 # Auth0 replacement and rollout
 
+> **Historical rollout record.** Documented and implemented in a prior phase;
+> production cutover and live Auth0 acceptance remain pending external gates.
+> This document records what was configured and retained rollback evidence.
+
 The React/Vite frontend and Express API on this branch use Auth0. Production cutover has not been performed. Internal `users.id` values remain the owner keys for coaching records, subscriptions, reminders, and other application data. The old Clerk mapping fields and offline migration helpers remain for audit/rollback; the Clerk webhook is no longer mounted and the production packages no longer depend on Clerk.
 
 ## Current cutover preparation

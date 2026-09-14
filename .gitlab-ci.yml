@@ -8,16 +8,29 @@ include:
   - template: Jobs/Dependency-Scanning.gitlab-ci.yml
   - template: Jobs/Secret-Detection.gitlab-ci.yml
 
+# Pipelines run for merge requests (the pipeline of record for feature
+# branches), the default branch, tags and scheduled runs. A push to a feature
+# branch that already has an MR does not create a second branch pipeline.
+# GitLab's CI_PIPELINE_SOURCE for a scheduled pipeline is "schedule" (not
+# "scheduled"); using the wrong value drops scheduled runs targeting non-default
+# branches. See https://docs.gitlab.com/ci/jobs/job_rules/.
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "schedule"
 
 variables:
   AST_ENABLE_MR_PIPELINES: "true"
   COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
   PNPM_STORE_DIR: "$CI_PROJECT_DIR/.pnpm-store"
 
+# Every job below runs exactly one command from the local `pnpm verify`
+# component list (scripts/verify.mjs) through the shared runner
+# (scripts/ci-run.mjs), which applies the same safe child environment as local
+# verify. Pinned Node/pnpm toolchain and a frozen, store-cached install.
+# Dependency cache only — never build output.
 .pnpm-job:
   image: node:24-bookworm-slim
   cache:
@@ -32,13 +45,10 @@ variables:
     - pnpm config set store-dir "$PNPM_STORE_DIR"
     - pnpm install --frozen-lockfile
 
-typecheck:
-  extends: .pnpm-job
-  stage: validate
-  script:
-    - pnpm run typecheck
-
-test-api-server:
+# Database test jobs need libcurl4 for the API server test environment and run
+# with the same safe defaults as `pnpm verify`. Replaces .pnpm-job
+# before_script with the same steps plus the system library.
+.db-test-job:
   extends: .pnpm-job
   stage: test
   before_script:
@@ -52,16 +62,69 @@ test-api-server:
   variables:
     NODE_ENV: test
     HELCIM_PAYMENTS_ENABLED: "false"
-  script:
-    - pnpm --filter @workspace/db run test:api
 
-test-kindred-coach:
+format:check:
+  extends: .pnpm-job
+  stage: validate
+  script:
+    - node scripts/ci-run.mjs format:check
+
+typecheck:production:
+  extends: .pnpm-job
+  stage: validate
+  script:
+    - node scripts/ci-run.mjs typecheck:production
+
+test:dev-supervisor:
+  extends: .pnpm-job
+  stage: validate
+  script:
+    - node scripts/ci-run.mjs test:dev-supervisor
+
+test:verify:
+  extends: .pnpm-job
+  stage: validate
+  script:
+    - node scripts/ci-run.mjs test:verify
+
+test:release-check:
+  extends: .pnpm-job
+  stage: validate
+  script:
+    - node scripts/ci-run.mjs test:release-check
+
+generate:check:
+  extends: .pnpm-job
+  stage: validate
+  script:
+    - node scripts/ci-run.mjs generate:check
+
+test:frontend:
   extends: .pnpm-job
   stage: test
+  variables:
+    NODE_ENV: test
+    HELCIM_PAYMENTS_ENABLED: "false"
   script:
-    - pnpm --filter @workspace/kindred-coach run test
+    - node scripts/ci-run.mjs test:frontend
 
-build-production-artifacts:
+test:api:
+  extends: .db-test-job
+  script:
+    - node scripts/ci-run.mjs test:api
+
+test:journey:
+  extends: .db-test-job
+  script:
+    - node scripts/ci-run.mjs test:journey
+
+build:api:
+  extends: .pnpm-job
+  stage: build
+  script:
+    - node scripts/ci-run.mjs build:api
+
+build:frontend:
   extends: .pnpm-job
   stage: build
   # Compile-only fixtures. Coolify must use the reviewed production values.
@@ -70,5 +133,4 @@ build-production-artifacts:
     VITE_AUTH0_CLIENT_ID: "synthetic-public-client"
     VITE_AUTH0_AUDIENCE: "https://api.example.invalid"
   script:
-    - pnpm --filter @workspace/kindred-coach run build:deployment
-    - pnpm --filter @workspace/api-server run build
+    - node scripts/ci-run.mjs build:frontend

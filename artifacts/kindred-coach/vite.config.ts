@@ -10,6 +10,10 @@ import path from "path";
 // correct production base.
 const rawPort = process.env.PORT;
 const basePath = process.env.BASE_PATH;
+// Local development only: the dev launcher injects KINDRED_API_ORIGIN so the
+// Vite dev server proxies same-origin /api requests to the Express API.
+const apiProxyTarget =
+  process.env.KINDRED_API_ORIGIN ?? "http://127.0.0.1:3000";
 
 export default defineConfig(({ command, mode }) => {
   const isServe = command === "serve";
@@ -76,6 +80,15 @@ export default defineConfig(({ command, mode }) => {
       allowedHosts: true,
       fs: {
         strict: true,
+      },
+      // Dev-server-only: forward /api to Express so the browser stays on one
+      // origin (keeps the Auth0 callback and CORS simple). Never applied to
+      // `vite build` or preview.
+      proxy: {
+        "/api": {
+          target: apiProxyTarget,
+          changeOrigin: true,
+        },
       },
     },
     preview: {

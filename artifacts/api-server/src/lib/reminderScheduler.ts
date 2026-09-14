@@ -440,9 +440,28 @@ export async function runReminderTick(now: Date = new Date()): Promise<void> {
 
 let task: ScheduledTask | null = null;
 
+// True when the once-a-minute scheduler must not run. Normal production
+// does not set REMINDER_SCHEDULER_DISABLED, so production scheduling is
+// unchanged; the local development launcher sets it to avoid accidental
+// background messages during development.
+export function reminderSchedulerDisabled(): boolean {
+  return (
+    process.env.NODE_ENV === "test" ||
+    process.env.REMINDER_SCHEDULER_DISABLED === "true"
+  );
+}
+
 // Start the once-a-minute scheduler. Idempotent. Skips entirely in test.
 export function startReminderScheduler(): void {
   if (process.env.NODE_ENV === "test") return;
+  if (reminderSchedulerDisabled()) {
+    logger.info(
+      process.env.REMINDER_SCHEDULER_DISABLED === "true"
+        ? "Reminder scheduler suppressed by REMINDER_SCHEDULER_DISABLED"
+        : "Reminder scheduler suppressed (test mode)",
+    );
+    return;
+  }
   if (task) return;
   task = cron.schedule("* * * * *", () => {
     void runReminderTick();
