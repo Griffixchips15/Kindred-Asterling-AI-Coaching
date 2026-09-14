@@ -11,12 +11,15 @@ include:
 # Pipelines run for merge requests (the pipeline of record for feature
 # branches), the default branch, tags and scheduled runs. A push to a feature
 # branch that already has an MR does not create a second branch pipeline.
+# GitLab's CI_PIPELINE_SOURCE for a scheduled pipeline is "schedule" (not
+# "scheduled"); using the wrong value drops scheduled runs targeting non-default
+# branches. See https://docs.gitlab.com/ci/jobs/job_rules/.
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG
-    - if: $CI_PIPELINE_SOURCE == "scheduled"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
 
 variables:
   AST_ENABLE_MR_PIPELINES: "true"
@@ -24,8 +27,10 @@ variables:
   PNPM_STORE_DIR: "$CI_PROJECT_DIR/.pnpm-store"
 
 # Every job below runs exactly one command from the local `pnpm verify`
-# component list (scripts/verify.mjs) with the same pinned Node/pnpm toolchain
-# and a frozen, store-cached install. Dependency cache only — never build output.
+# component list (scripts/verify.mjs) through the shared runner
+# (scripts/ci-run.mjs), which applies the same safe child environment as local
+# verify. Pinned Node/pnpm toolchain and a frozen, store-cached install.
+# Dependency cache only — never build output.
 .pnpm-job:
   image: node:24-bookworm-slim
   cache:
@@ -62,37 +67,37 @@ format:check:
   extends: .pnpm-job
   stage: validate
   script:
-    - node scripts/format-check.mjs
+    - node scripts/ci-run.mjs format:check
 
 typecheck:production:
   extends: .pnpm-job
   stage: validate
   script:
-    - pnpm run typecheck:production
+    - node scripts/ci-run.mjs typecheck:production
 
 test:dev-supervisor:
   extends: .pnpm-job
   stage: validate
   script:
-    - pnpm run test:dev-supervisor
+    - node scripts/ci-run.mjs test:dev-supervisor
 
 test:verify:
   extends: .pnpm-job
   stage: validate
   script:
-    - pnpm run test:verify
+    - node scripts/ci-run.mjs test:verify
 
 test:release-check:
   extends: .pnpm-job
   stage: validate
   script:
-    - pnpm run test:release-check
+    - node scripts/ci-run.mjs test:release-check
 
 generate:check:
   extends: .pnpm-job
   stage: validate
   script:
-    - node scripts/verify-generated.mjs
+    - node scripts/ci-run.mjs generate:check
 
 test:frontend:
   extends: .pnpm-job
@@ -101,26 +106,26 @@ test:frontend:
     NODE_ENV: test
     HELCIM_PAYMENTS_ENABLED: "false"
   script:
-    - pnpm --filter @workspace/kindred-coach run test
+    - node scripts/ci-run.mjs test:frontend
 
 test:api:
   extends: .db-test-job
   script:
-    - pnpm --filter @workspace/db run test:api
+    - node scripts/ci-run.mjs test:api
 
 test:journey:
   extends: .db-test-job
   script:
-    - pnpm --filter @workspace/db run test:journey
+    - node scripts/ci-run.mjs test:journey
 
 build:api:
   extends: .pnpm-job
   stage: build
   script:
-    - pnpm --filter @workspace/api-server run build
+    - node scripts/ci-run.mjs build:api
 
 build:frontend:
   extends: .pnpm-job
   stage: build
   script:
-    - pnpm --filter @workspace/kindred-coach run build
+    - node scripts/ci-run.mjs build:frontend

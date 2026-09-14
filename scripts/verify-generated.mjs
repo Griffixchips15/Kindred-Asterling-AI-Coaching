@@ -22,6 +22,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { normalizeGenerated } from "./generated-normalize.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
@@ -36,31 +37,50 @@ const GENERATED_TREES = [
   },
 ];
 
-const COPY_EXCLUDED_DIRS = new Set([
-  ".git",
-  ".next",
-  ".turbo",
-  "coverage",
-  "dist",
-  "node_modules",
-  "build",
-  "attached_assets",
-  "artifacts",
-  "docs",
-  "frontend",
-]);
-const COPY_EXCLUDED_FILES = new Set([".tsbuildinfo"]);
+// Minimal generator-input snapshot: only the files orval generation needs — the
+// api-spec contract/config, the generated-client packages' hand-authored
+// sources, and the root workspace/toolchain config. Secret/operational files
+// (any .env*, SECRET_INVENTORY.md, deploy/, infrastructure/, artifacts/, docs/,
+// frontend/, .github/, patch.diff, ...) are never copied into the sandbox.
+const SNAPSHOT_DIRS = ["lib/api-spec", "lib/api-client-react", "lib/api-zod"];
+const SNAPSHOT_FILES = [
+  "package.json",
+  "pnpm-workspace.yaml",
+  "pnpm-lock.yaml",
+  "tsconfig.json",
+  "tsconfig.base.json",
+  ".npmrc",
+  ".prettierrc.json",
+  ".prettierignore",
+];
 
+// Never copy into the snapshot: dependency stores (symlinked back), VCS
+// metadata, build metadata, and any environment/secret file regardless of
+// location.
 function shouldCopy(source) {
   const base = path.basename(source);
-  if (COPY_EXCLUDED_DIRS.has(base)) return false;
-  for (const suffix of COPY_EXCLUDED_FILES) {
-    if (base.endsWith(suffix)) return false;
-  }
+  if (base === "node_modules" || base === ".git") return false;
+  if (base.endsWith(".tsbuildinfo")) return false;
+  if (base.startsWith(".env")) return false;
   return true;
 }
 
-async function snapshotDir(dir) {
+export async function snapshotGeneratorInputs(root, harness) {
+  for (const rel of SNAPSHOT_FILES) {
+    const src = path.join(root, rel);
+    if (await fsp.stat(src).catch(() => null)) {
+      await fsp.cp(src, path.join(harness, rel), { recursive: true, filter: shouldCopy });
+    }
+  }
+  for (const rel of SNAPSHOT_DIRS) {
+    const src = path.join(root, rel);
+    if (await fsp.stat(src).catch(() => null)) {
+      await fsp.cp(src, path.join(harness, rel), { recursive: true, filter: shouldCopy });
+    }
+  }
+}
+
+async function snapshotDir(dir, { normalize = false } = {}) {
   const files = new Map();
   async function walk(abs, rel) {
     const entries = await fsp.readdir(abs, { withFileTypes: true });
@@ -68,7 +88,13 @@ async function snapshotDir(dir) {
       const childAbs = path.join(abs, entry.name);
       const childRel = rel ? `${rel}/${entry.name}` : entry.name;
       if (entry.isDirectory()) await walk(childAbs, childRel);
-      else files.set(childRel, await fsp.readFile(childAbs));
+      else {
+        const bytes = await fsp.readFile(childAbs);
+        files.set(
+          childRel,
+          normalize ? Buffer.from(normalizeGenerated(bytes.toString("utf8")), "utf8") : bytes,
+        );
+      }
     }
   }
   if ((await fsp.stat(dir).catch(() => null)) === null) return files;
@@ -115,9 +141,11 @@ async function linkNodeModules(copyRoot, realRoot) {
     withFileTypes: true,
   })) {
     if (!entry.isDirectory()) continue;
+    const destParent = path.join(copyRoot, "lib", entry.name);
+    if (!(await fsp.stat(destParent).catch(() => null))) continue;
     const real = path.join(realRoot, "lib", entry.name, "node_modules");
     if (await fsp.stat(real).catch(() => null)) {
-      await fsp.symlink(real, path.join(copyRoot, "lib", entry.name, "node_modules"), "dir");
+      await fsp.symlink(real, path.join(destParent, "node_modules"), "dir");
     }
   }
 }
@@ -156,13 +184,10 @@ export async function checkGeneratedDrift({
 } = {}) {
   const harness = await fsp.mkdtemp(path.join(os.tmpdir(), "kindred-verify-gen-"));
   try {
-    // Sandbox copy of the whole workspace. Exclude node_modules/.git/build
-    // artifacts; symlink the stores back so resolution matches a real run.
-    await fsp.cp(root, harness, {
-      recursive: true,
-      filter: shouldCopy,
-      force: false,
-    });
+    // Minimal sandbox copy of the generator inputs only. node_modules/.git and
+    // secret/operational files are never copied; the stores are symlinked back
+    // so resolution matches a real run.
+    await snapshotGeneratorInputs(root, harness);
     await linkNodeModules(harness, root);
 
     const orval = runCommand(
@@ -189,8 +214,8 @@ export async function checkGeneratedDrift({
       await normalizeWithNeutralPrettier(harness, [sandboxOut, tmpTracked]);
 
       const drift = compareGeneratedTrees(
-        await snapshotDir(tmpTracked),
-        await snapshotDir(sandboxOut),
+        await snapshotDir(tmpTracked, { normalize: true }),
+        await snapshotDir(sandboxOut, { normalize: true }),
       );
       const total = drift.added.length + drift.removed.length + drift.changed.length;
       if (total > 0) {

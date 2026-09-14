@@ -8,7 +8,7 @@
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
@@ -16,16 +16,20 @@ import assert from "node:assert/strict";
 
 import {
   buildChildEnv,
+  componentEnv,
   runComponent,
   verify,
   VerifyComponentError,
+  VerifyInterruptedError,
   COMPONENTS,
   componentsComplete,
   finalizeEvidence,
   settleRun,
+  SYNTHETIC_BUILD_CONFIG,
 } from "./verify.mjs";
-import { compareGeneratedTrees } from "./verify-generated.mjs";
+import { compareGeneratedTrees, snapshotGeneratorInputs } from "./verify-generated.mjs";
 import { candidateState, evidenceError, readEvidence, writeEvidence } from "./verify-evidence.mjs";
+import { normalizeGenerated } from "./generated-normalize.mjs";
 
 const formatCheck = await import("./format-check.mjs");
 
@@ -72,6 +76,32 @@ describe("buildChildEnv (safe configuration)", () => {
     assert.equal(env.CI, "1");
     assert.equal(env.NODE_ENV, "test");
     assert.equal(env.HELCIM_PAYMENTS_ENABLED, "false");
+  });
+
+  test("injects synthetic public build config only when requested", () => {
+    const base = buildChildEnv({ PATH: "/usr/bin:/bin" });
+    assert.equal("VITE_AUTH0_DOMAIN" in base, false);
+    const synthetic = buildChildEnv({ PATH: "/usr/bin:/bin" }, { synthetic: true });
+    assert.deepEqual(
+      {
+        VITE_AUTH0_DOMAIN: synthetic.VITE_AUTH0_DOMAIN,
+        VITE_AUTH0_CLIENT_ID: synthetic.VITE_AUTH0_CLIENT_ID,
+        VITE_AUTH0_AUDIENCE: synthetic.VITE_AUTH0_AUDIENCE,
+      },
+      SYNTHETIC_BUILD_CONFIG,
+    );
+  });
+
+  test("componentEnv injects synthetic config only for the frontend build", () => {
+    const buildFrontend = COMPONENTS.find((c) => c.name === "build:frontend");
+    const typecheck = COMPONENTS.find((c) => c.name === "typecheck:production");
+    assert.ok(buildFrontend.synthetic, "build:frontend must be marked synthetic");
+    assert.equal(typecheck.synthetic, undefined);
+    assert.equal(
+      componentEnv(buildFrontend).VITE_AUTH0_CLIENT_ID,
+      SYNTHETIC_BUILD_CONFIG.VITE_AUTH0_CLIENT_ID,
+    );
+    assert.equal("VITE_AUTH0_CLIENT_ID" in componentEnv(typecheck), false);
   });
 });
 
@@ -534,5 +564,168 @@ describe("componentsComplete and evidence schema", () => {
     assert.ok(evidenceError({ ...good, fingerprint: "" }));
     assert.ok(evidenceError({ ...good, components: "nope" }));
     assert.ok(evidenceError({ ...good, toolchain: {} }));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// interruption: cancel pending components and stop only the owned process group
+// ---------------------------------------------------------------------------
+
+async function waitForExit(pid, timeoutMs = 3000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return false;
+}
+
+describe("interruption cancels pending components and stops owned processes", () => {
+  test("abort during a long component kills it (and its descendant) and runs no later component", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kindred-verify-interrupt-"));
+    const pidFile = join(dir, "descendant.pid");
+    const laterMarker = join(dir, "later-ran");
+    const longComponent = {
+      name: "long",
+      cmd: process.execPath,
+      args: [
+        "-e",
+        [
+          "const { spawn } = require('node:child_process');",
+          "const fs = require('node:fs');",
+          "const c = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)'], { stdio: 'ignore' });",
+          "fs.writeFileSync(process.argv[1], String(c.pid));",
+          "setInterval(()=>{}, 1000);",
+        ].join("\n"),
+        pidFile,
+      ],
+    };
+    const laterComponent = {
+      name: "later",
+      cmd: process.execPath,
+      args: ["-e", `require('node:fs').writeFileSync(process.argv[1], 'ran')`, laterMarker],
+    };
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort("SIGINT"), 500);
+    try {
+      await assert.rejects(
+        verify({
+          components: [longComponent, laterComponent],
+          signal: controller.signal,
+          log: () => {},
+        }),
+        (err) => {
+          assert.ok(err instanceof VerifyInterruptedError, "must throw VerifyInterruptedError");
+          assert.equal(err.signal, "SIGINT");
+          return true;
+        },
+      );
+    } finally {
+      clearTimeout(timer);
+      rmSync(dir, { recursive: true, force: true });
+    }
+    assert.equal(existsSync(laterMarker), false, "later component must not run after interruption");
+    if (existsSync(pidFile)) {
+      const pid = Number(readFileSync(pidFile, "utf8"));
+      assert.equal(await waitForExit(pid), true, "owned descendant must be stopped");
+    }
+  });
+
+  test("an already-aborted signal rejects before spawning anything", async () => {
+    const controller = new AbortController();
+    controller.abort("SIGTERM");
+    await assert.rejects(
+      runComponent(
+        { name: "never", cmd: process.execPath, args: ["-e", "process.exit(0)"] },
+        { log: () => {}, signal: controller.signal },
+      ),
+      (err) => err instanceof VerifyInterruptedError,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// minimal generator-input snapshot: secret/operational files are never copied
+// ---------------------------------------------------------------------------
+
+describe("minimal generator-input snapshot", () => {
+  test("copies the contract/config and never copies secret or operational files", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kindred-snapshot-"));
+    const root = join(dir, "root");
+    const harness = join(dir, "harness");
+    mkdirSync(join(root, "lib", "api-spec"), { recursive: true });
+    mkdirSync(join(root, "lib", "api-client-react", "src"), { recursive: true });
+    mkdirSync(join(root, "deploy"), { recursive: true });
+    writeFileSync(join(root, "package.json"), "{}\n");
+    writeFileSync(join(root, "lib", "api-spec", "openapi.yaml"), "openapi: 3.0.0\n");
+    writeFileSync(join(root, "lib", "api-spec", "orval.config.ts"), "export default {};\n");
+    writeFileSync(join(root, "lib", "api-client-react", "src", "custom-fetch.ts"), "export {};\n");
+    // Sentinel secret/operational fixtures (fake values, never real secrets).
+    writeFileSync(join(root, ".env.local"), "VITE_AUTH0_CLIENT_ID=sentinel-secret\n");
+    writeFileSync(join(root, ".env.1password"), "DATABASE_URL=op://sentinel\n");
+    writeFileSync(join(root, "SECRET_INVENTORY.md"), "sentinel secret inventory\n");
+    writeFileSync(join(root, "deploy", "secrets.yaml"), "token: sentinel\n");
+
+    await snapshotGeneratorInputs(root, harness);
+
+    assert.equal(existsSync(join(harness, "lib", "api-spec", "openapi.yaml")), true);
+    assert.equal(existsSync(join(harness, "lib", "api-spec", "orval.config.ts")), true);
+    assert.equal(
+      existsSync(join(harness, "lib", "api-client-react", "src", "custom-fetch.ts")),
+      true,
+    );
+    assert.equal(existsSync(join(harness, "package.json")), true);
+    for (const forbidden of [".env.local", ".env.1password", "SECRET_INVENTORY.md", "deploy"]) {
+      assert.equal(existsSync(join(harness, forbidden)), false, `${forbidden} must not be copied`);
+    }
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generated output normalization
+// ---------------------------------------------------------------------------
+
+describe("generated output normalization", () => {
+  test("normalizeGenerated collapses trailing blank lines to a single newline", () => {
+    assert.equal(normalizeGenerated("export const a = 1;\n\n\n"), "export const a = 1;\n");
+    assert.equal(normalizeGenerated("export const a = 1;\n"), "export const a = 1;\n");
+    assert.equal(normalizeGenerated("export const a = 1;"), "export const a = 1;\n");
+    assert.equal(normalizeGenerated("export const a = 1;   \n\n"), "export const a = 1;\n");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CI rules and the shared safe execution path
+// ---------------------------------------------------------------------------
+
+describe("CI rules and shared safe execution path", () => {
+  test(".gitlab-ci.yml uses the correct 'schedule' source and never 'scheduled'", () => {
+    const yaml = readFileSync(join(ROOT, ".gitlab-ci.yml"), "utf8");
+    assert.match(yaml, /CI_PIPELINE_SOURCE\s*==\s*"schedule"/);
+    assert.doesNotMatch(yaml, /CI_PIPELINE_SOURCE\s*==\s*"scheduled"/);
+  });
+
+  test("every CI job runs through scripts/ci-run.mjs with a known component name", () => {
+    const yaml = readFileSync(join(ROOT, ".gitlab-ci.yml"), "utf8");
+    const names = [...yaml.matchAll(/node scripts\/ci-run\.mjs (\S+)/g)].map((m) => m[1]);
+    assert.ok(names.length >= COMPONENTS.length, "each component should have a CI job");
+    const known = new Set(COMPONENTS.map((c) => c.name));
+    for (const name of names) {
+      assert.ok(known.has(name), `unknown ci-run component: ${name}`);
+    }
+  });
+
+  test("ci-run rejects an unknown component with exit 2", () => {
+    const r = spawnSync(process.execPath, [join(ROOT, "scripts", "ci-run.mjs"), "bogus"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    });
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /unknown component/);
   });
 });
