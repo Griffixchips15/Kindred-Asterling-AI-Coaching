@@ -30,11 +30,19 @@ COPY lib/api-zod lib/api-zod
 COPY lib/db lib/db
 COPY tsconfig.base.json ./
 
-ARG VITE_CLERK_PUBLISHABLE_KEY
-ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
-RUN --mount=type=secret,id=VITE_CLERK_PUBLISHABLE_KEY,env=VITE_CLERK_PUBLISHABLE_KEY,required=false \
+ARG VITE_AUTH0_DOMAIN
+ARG VITE_AUTH0_CLIENT_ID
+ARG VITE_AUTH0_AUDIENCE
+ENV VITE_AUTH0_DOMAIN=$VITE_AUTH0_DOMAIN \
+    VITE_AUTH0_CLIENT_ID=$VITE_AUTH0_CLIENT_ID \
+    VITE_AUTH0_AUDIENCE=$VITE_AUTH0_AUDIENCE
+# These identifiers are public. Support both Coolify build arguments and its
+# existing Build Secrets mode; never pass a client secret to the browser build.
+RUN --mount=type=secret,id=VITE_AUTH0_DOMAIN,env=VITE_AUTH0_DOMAIN,required=false \
+    --mount=type=secret,id=VITE_AUTH0_CLIENT_ID,env=VITE_AUTH0_CLIENT_ID,required=false \
+    --mount=type=secret,id=VITE_AUTH0_AUDIENCE,env=VITE_AUTH0_AUDIENCE,required=false \
     export NODE_ENV=production \
- && pnpm --filter @workspace/kindred-coach run build \
+ && pnpm --filter @workspace/kindred-coach run build:deployment \
  && pnpm --filter @workspace/api-server run build \
  && pnpm --filter @workspace/api-server deploy --prod --legacy /app/runtime
 

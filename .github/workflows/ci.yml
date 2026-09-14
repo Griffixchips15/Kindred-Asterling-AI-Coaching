@@ -11,9 +11,8 @@ env:
   HELCIM_PAYMENTS_ENABLED: "false"
 
 jobs:
-  test:
+  typecheck:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -28,19 +27,74 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Run typecheck
+      - name: Typecheck
         run: pnpm run typecheck
 
-      - name: Run tests
+  test-api-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # The disposable MongoDB replica-set harness needs libcurl4 for the
+      # driver's native TLS on slim images.
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends libcurl4
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: API tests
         run: pnpm --filter @workspace/db run test:api
 
+  test-kindred-coach:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Frontend tests
+        run: pnpm --filter @workspace/kindred-coach run test
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Compile-only fixtures. Coolify must use the reviewed production values.
       - name: Build production artifacts
-        run: pnpm run build
         env:
-          MONGODB_URI: mongodb://build-placeholder:27017
-          MONGODB_DATABASE: kindred_test
-          PORT: 3000
-          APP_PUBLIC_URL: https://beta.example.test
-          SUBSCRIPTION_OWNER_IDS: ci-owner
-          RESEND_API_KEY: ci-placeholder
-          RESEND_FROM_EMAIL: beta@example.test
+          VITE_AUTH0_DOMAIN: tenant.example.invalid
+          VITE_AUTH0_CLIENT_ID: synthetic-public-client
+          VITE_AUTH0_AUDIENCE: https://api.example.invalid
+        run: |
+          pnpm --filter @workspace/kindred-coach run build:deployment
+          pnpm --filter @workspace/api-server run build

@@ -11,9 +11,12 @@ const value = (name: string) => {
 const file = value("--mapping");
 const expectedDatabase = value("--database");
 const apply = args.includes("--apply");
+// This flag is only for independently verified legacy accounts that predate Clerk.
+// A mapping must explicitly contain null; omission must never bypass identity checks.
+const allowLegacyWithoutClerk = args.includes("--allow-legacy-without-clerk");
 if (!file || !expectedDatabase)
   throw new Error(
-    "Usage: --mapping <reviewed.json> --database <expected-name> [--apply]",
+    "Usage: --mapping <reviewed.json> --database <expected-name> [--apply] [--allow-legacy-without-clerk]",
   );
 if (expectedDatabase !== process.env.MONGODB_DATABASE)
   throw new Error("Expected database does not match MONGODB_DATABASE");
@@ -28,8 +31,8 @@ const mappings = input.map((row: unknown) => {
   if (
     typeof record.userId !== "string" ||
     !record.userId ||
-    typeof record.clerkUserId !== "string" ||
-    !record.clerkUserId ||
+    !((typeof record.clerkUserId === "string" && record.clerkUserId.length > 0) ||
+      (record.clerkUserId === null && allowLegacyWithoutClerk)) ||
     typeof record.auth0UserId !== "string" ||
     !record.auth0UserId.includes("|")
   )
@@ -42,7 +45,7 @@ const mappings = input.map((row: unknown) => {
   subjects.add(record.auth0UserId);
   return {
     userId: record.userId,
-    clerkUserId: record.clerkUserId,
+    clerkUserId: record.clerkUserId as string | null,
     auth0UserId: record.auth0UserId,
   };
 });
@@ -59,7 +62,7 @@ try {
           { id: mapping.userId },
           { session },
         );
-        if (!user || user.clerkUserId !== mapping.clerkUserId)
+        if (!user || (user.clerkUserId ?? null) !== mapping.clerkUserId)
           throw new Error(
             "Application and legacy identity mapping do not match",
           );
@@ -78,13 +81,15 @@ try {
       }
       if (apply)
         for (const mapping of mappings) {
-          await collection.updateOne(
+          const result = await collection.updateOne(
             { id: mapping.userId, clerkUserId: mapping.clerkUserId },
             {
               $set: { auth0UserId: mapping.auth0UserId, updatedAt: new Date() },
             },
             { session },
           );
+          if (result.matchedCount !== 1)
+            throw new Error("Expected exactly one unchanged account per mapping");
         }
     });
   } finally {
