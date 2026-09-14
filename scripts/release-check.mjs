@@ -42,11 +42,14 @@ const ROLLBACK_DOC = join(ROOT, "docs", "release-rollback.md");
 
 // Public build/runtime variable names that must exist before a release can be
 // accepted. Values are never printed. VITE_* are public browser build values;
-// AUTH0_* are the API runtime equivalents in the deployment environment.
+// AUTH0_* are the API runtime equivalents in the deployment environment. The
+// frontend cannot sign in without a client id, so it is required alongside the
+// matching domain/audience pair rather than inferred from their coherence.
 export const REQUIRED_VARS = [
   "AUTH0_DOMAIN",
   "AUTH0_AUDIENCE",
   "VITE_AUTH0_DOMAIN",
+  "VITE_AUTH0_CLIENT_ID",
   "VITE_AUTH0_AUDIENCE",
 ];
 
@@ -64,8 +67,8 @@ function readFrontendEnvFile() {
   }
 }
 
-function frontendValue(envFile) {
-  return (name) => process.env[name] ?? envFile[name];
+function frontendValue(env, envFile) {
+  return (name) => env[name] ?? envFile[name];
 }
 
 function gitExists(args) {
@@ -85,12 +88,15 @@ function gitRevParseQuiet(ref) {
   }
 }
 
-export function collectConfig(env = process.env) {
-  const envFile = readFrontendEnvFile();
-  const frontend = frontendValue(envFile);
+export function collectConfig(env = process.env, envFile = readFrontendEnvFile()) {
+  const frontend = frontendValue(env, envFile);
   const presence = {};
   for (const name of REQUIRED_VARS) {
-    presence[name] = env[name] !== undefined && env[name] !== "";
+    // Whitespace-only values are treated as missing, so a value of spaces or an
+    // empty string cannot satisfy a required key. Presence is distinct from
+    // coherence: presence records whether each key has a real value, while
+    // coherence compares the API and web sides only when both are present.
+    presence[name] = typeof env[name] === "string" && env[name].trim() !== "";
   }
   const apiDomain = env.AUTH0_DOMAIN?.trim();
   const apiAudience = env.AUTH0_AUDIENCE?.trim();
@@ -101,15 +107,16 @@ export function collectConfig(env = process.env) {
     issuer: sides.api && sides.web ? apiDomain === webDomain : null,
     audience: sides.api && sides.web ? apiAudience === webAudience : null,
   };
+  const anyMissing = Object.values(presence).some((present) => !present);
   let status = "coherent";
   if (coherence.issuer === false || coherence.audience === false) status = "incoherent";
-  else if (!sides.api || !sides.web) status = "incomplete";
+  else if (anyMissing) status = "incomplete";
   return {
     presence,
     sides,
     coherence,
     status,
-    webSource: process.env.VITE_AUTH0_DOMAIN ? "shell" : "env.local",
+    webSource: env.VITE_AUTH0_DOMAIN ? "shell" : "env.local",
   };
 }
 

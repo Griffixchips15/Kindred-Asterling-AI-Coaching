@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { ROOT } from "./verify-evidence.mjs";
 import { COMPONENTS } from "./verify.mjs";
+import { collectConfig } from "./release-check.mjs";
 
 function gitRun(cwd, args) {
   return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
@@ -110,6 +111,7 @@ function runCheck({ dir, env = {} }) {
       AUTH0_DOMAIN: env.AUTH0_DOMAIN ?? "issuer.example.com",
       AUTH0_AUDIENCE: env.AUTH0_AUDIENCE ?? "https://api.example.com/api",
       VITE_AUTH0_DOMAIN: env.VITE_AUTH0_DOMAIN ?? "issuer.example.com",
+      VITE_AUTH0_CLIENT_ID: env.VITE_AUTH0_CLIENT_ID ?? "synthetic-client-id",
       VITE_AUTH0_AUDIENCE: env.VITE_AUTH0_AUDIENCE ?? "https://api.example.com/api",
     },
   });
@@ -222,6 +224,35 @@ describe("release:check (read-only)", () => {
       });
       assert.ok(status & 4, `expected config bit, got exit ${status}`);
       assert.match(stdout, /INCONSISTENT/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a missing VITE_AUTH0_CLIENT_ID is incomplete even with coherent domain/audience pairs (exit includes 4)", () => {
+    const { dir } = makeRepo();
+    try {
+      const { status, stdout } = runCheck({
+        dir,
+        env: { VITE_AUTH0_CLIENT_ID: "" },
+      });
+      assert.ok(status & 4, `expected config bit, got exit ${status}`);
+      assert.match(stdout, /MISSING\s+VITE_AUTH0_CLIENT_ID/);
+      assert.doesNotMatch(stdout, /INCONSISTENT/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("whitespace-only required values are reported missing, not present (exit includes 4)", () => {
+    const { dir } = makeRepo();
+    try {
+      const { status, stdout } = runCheck({
+        dir,
+        env: { AUTH0_DOMAIN: "   " },
+      });
+      assert.ok(status & 4, `expected config bit, got exit ${status}`);
+      assert.match(stdout, /MISSING\s+AUTH0_DOMAIN/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -355,5 +386,50 @@ describe("release:check (read-only)", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("collectConfig uses the supplied environment (synthetic only)", () => {
+  const SYNTHETIC = {
+    AUTH0_DOMAIN: "issuer.example.com",
+    AUTH0_AUDIENCE: "https://api.example.com/api",
+    VITE_AUTH0_DOMAIN: "issuer.example.com",
+    VITE_AUTH0_CLIENT_ID: "client-id",
+    VITE_AUTH0_AUDIENCE: "https://api.example.com/api",
+  };
+
+  test("coherent when every required key is present, including the client id", () => {
+    const config = collectConfig({ ...SYNTHETIC }, {});
+    assert.equal(config.status, "coherent");
+    assert.equal(config.presence.VITE_AUTH0_CLIENT_ID, true);
+    assert.equal(config.coherence.issuer, true);
+    assert.equal(config.coherence.audience, true);
+  });
+
+  test("web coherence reads the supplied env, not process.env", () => {
+    const prev = process.env.VITE_AUTH0_DOMAIN;
+    process.env.VITE_AUTH0_DOMAIN = "process-env-domain.example.com";
+    try {
+      const config = collectConfig({ ...SYNTHETIC }, {});
+      assert.equal(config.coherence.issuer, true, "must compare against the supplied env");
+      assert.equal(config.webSource, "shell");
+    } finally {
+      if (prev === undefined) delete process.env.VITE_AUTH0_DOMAIN;
+      else process.env.VITE_AUTH0_DOMAIN = prev;
+    }
+  });
+
+  test("a missing client id makes an otherwise coherent pair incomplete", () => {
+    const { VITE_AUTH0_CLIENT_ID, ...withoutClientId } = SYNTHETIC;
+    const config = collectConfig({ ...withoutClientId }, {});
+    assert.equal(config.presence.VITE_AUTH0_CLIENT_ID, false);
+    assert.equal(config.coherence.issuer, true);
+    assert.equal(config.status, "incomplete");
+  });
+
+  test("whitespace-only values are missing, not present", () => {
+    const config = collectConfig({ ...SYNTHETIC, AUTH0_DOMAIN: "   " }, {});
+    assert.equal(config.presence.AUTH0_DOMAIN, false);
+    assert.equal(config.status, "incomplete");
   });
 });
