@@ -373,8 +373,9 @@ function storedQueryId(value: unknown): string | number {
   // Persisted data is not a query expression. In particular, MongoDB treats a
   // RegExp inside $in as a pattern, which could match another account's rows.
   // Kindred uses string (including composite) and integer primary keys.
-  if (typeof value === "string" && value.length > 0) return value;
-  if (typeof value === "number" && Number.isSafeInteger(value)) return value;
+  // Convert only after validation; objects must never be coerced into IDs.
+  if (typeof value === "string" && value.length > 0) return String(value);
+  if (typeof value === "number" && Number.isSafeInteger(value)) return Number(value);
   throw new Error("Invalid stored query identifier");
 }
 
