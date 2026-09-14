@@ -132,8 +132,11 @@ async function main() {
     process.stdout.write(`${DB_WORKER_READY_PREFIX} ${rs.getUri()}\n`);
     console.error("[db-worker] disposable MongoDB replica set is ready");
     debugLog(`ready uri=${rs.getUri()}`);
-    // Stay alive until a stop signal arrives; the launcher owns this group.
-    await stopDatabase();
+    // Return and let the keepAlive timer hold the process: the launcher owns
+    // this group and signals SIGTERM/SIGINT, which handleSignal() turns into
+    // stopDatabase(). Never stop here: stopping right after readiness would
+    // tear the database down before the API connects.
+    return;
   } catch (err) {
     if (!stopRequested) {
       console.error(

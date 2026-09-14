@@ -1044,6 +1044,72 @@ test("a hanging database stop is bounded and released by the real force path: ow
   assert.ok(isAlive(unrelated.pid), "unrelated process must survive");
 });
 // ---------------------------------------------------------------------------
+// Regression (always run): a provisioned worker stays alive after READY.
+// ---------------------------------------------------------------------------
+
+test("a provisioned worker stays alive after READY and stops only on signal", { timeout: 30_000 }, async () => {
+  const [dbPort] = await getDistinctFreePorts(1);
+  const dbFactoryOut = mkdtempSync(path.join(os.tmpdir(), "kindred-dev-db-worker-ready-"));
+  const workerPath = path.join(repoRoot, "scripts", "dev-db-worker.mjs");
+  const worker = spawn(process.execPath, [workerPath], {
+    cwd: repoRoot,
+    env: {
+      ...minimalWorkerEnv(),
+      KINDRED_DEV_DB_FACTORY: "scripts/dev-db-factory-fixture.mjs",
+      KINDRED_DEV_DB_FACTORY_OUT: dbFactoryOut,
+      FAKE_DB_FACTORY_MODE: "delayed-success",
+      FAKE_DB_FACTORY_DELAY_MS: "200",
+      FAKE_DB_FACTORY_PORT: String(dbPort),
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  launchedClis.push(worker);
+
+  let stdout = "";
+  let stderr = "";
+  worker.stdout.on("data", (d) => (stdout += d));
+  worker.stderr.on("data", (d) => (stderr += d));
+
+  const readyLine = await waitForLine(stdout, () => {
+    const line = stdout.split("\n").find((l) => l.startsWith("KINDRED_DB_WORKER_READY "));
+    assert.ok(line, `worker must become ready; stderr:\n${stderr}`);
+    return line;
+  }, 30_000);
+
+  const uri = readyLine.slice("KINDRED_DB_WORKER_READY ".length).trim();
+  assert.ok(uri.includes(`127.0.0.1:${dbPort}`), `expected a URI for port ${dbPort}, got "${uri}"`);
+  await waitForPortState(dbPort, true);
+
+  // The worker must stay alive after READY rather than stopping the database
+  // immediately (which tore the database down before the API connected). A
+  // premature stop would free the port and write the stopped marker.
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  assert.ok(isAlive(worker.pid), "worker must stay alive after READY");
+  await waitForPortState(dbPort, true);
+  assert.equal(
+    existsSync(path.join(dbFactoryOut, "db-factory.stopped")),
+    false,
+    "database must not stop on its own after READY",
+  );
+
+  const unrelated = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+    stdio: "ignore",
+  });
+  spawnedPids.add(unrelated.pid);
+
+  worker.kill("SIGTERM");
+  const code = await waitForExit(worker, 30_000);
+  assert.equal(code, 0, `worker must stop cleanly; stderr:\n${stderr}`);
+  await waitForPortState(dbPort, false);
+  assert.equal(
+    existsSync(path.join(dbFactoryOut, "db-factory.stopped")),
+    true,
+    "stop() must release the live resource on signal",
+  );
+  assert.ok(isAlive(unrelated.pid), "unrelated process must survive");
+  unrelated.kill("SIGKILL");
+});
+// ---------------------------------------------------------------------------
 // Integration (opt-in): the REAL mongodb-memory-server worker holds a live
 // replica set and verifies that graceful stop() releases it. Requires the
 // mongod binary (MongoMemoryReplSet downloads or resolves the cached
