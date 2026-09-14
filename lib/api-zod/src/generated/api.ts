@@ -919,5 +919,3 @@ export const GetMoodTrendResponseItem = zod.object({
   "medicationEffectiveness": zod.number().int().nullish()
 })
 export const GetMoodTrendResponse = zod.array(GetMoodTrendResponseItem)
-
-

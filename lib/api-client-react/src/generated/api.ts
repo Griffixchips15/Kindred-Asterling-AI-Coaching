@@ -3083,10 +3083,3 @@ export function useGetMoodTrend<TData = Awaited<ReturnType<typeof getMoodTrend>>
 
   return withQueryKey(query, queryOptions.queryKey);
 }
-
-
-
-
-
-
-
