@@ -1,0 +1,1832 @@
+rules:
+  - name: auth0-authorization-extension
+    script: ./rules/auth0-authorization-extension.js
+    stage: login_success
+    enabled: true
+    order: 1
+rulesConfigs: []
+pages:
+  - name: error_page
+    url: https://500.custom.cloudflarepreview.com
+  - name: login
+    enabled: true
+    html: ./pages/login.html
+resourceServers:
+  - name: Auth0 My Account API
+    identifier: https://dev-4c281gnuylq4hccq.ca.auth0.com/me/
+    authorization_policy:
+      policy_id: 019b76da-a800-73c9-b656-b349ae415c17
+    is_system: true
+    proof_of_possession:
+      mechanism: dpop
+      required: false
+    skip_consent_for_verifiable_first_party_clients: true
+    token_lifetime: 600
+  - name: Auth0 My Organization API
+    identifier: https://dev-4c281gnuylq4hccq.ca.auth0.com/my-org/
+    is_system: true
+    proof_of_possession:
+      mechanism: dpop
+      required: false
+    skip_consent_for_verifiable_first_party_clients: true
+    token_lifetime: 600
+  - name: Kindred Coaching API
+    client_id: Kindred Coaching API
+    identifier: https://kindred-asterling-ai-coaching.com/api
+    allow_offline_access: true
+    enforce_policies: true
+    signing_alg: RS256
+    skip_consent_for_verifiable_first_party_clients: true
+    subject_type_authorization:
+      user:
+        policy: allow_all
+      client:
+        policy: require_client_grant
+    token_dialect: access_token_authz
+    token_lifetime: 86400
+    token_lifetime_for_web: 7200
+  - name: Okta OIN Express Configuration API
+    identifier: urn:auth0:express-configure
+    is_system: true
+    skip_consent_for_verifiable_first_party_clients: false
+    token_lifetime: 300
+  - name: auth0-authorization-extension-api
+    identifier: urn:auth0-authz-api
+    allow_offline_access: false
+    scopes:
+      - value: read:users
+      - value: read:applications
+      - value: read:connections
+      - value: read:configuration
+      - value: update:configuration
+      - value: read:groups
+      - value: create:groups
+      - value: update:groups
+      - value: delete:groups
+      - value: read:roles
+      - value: create:roles
+      - value: update:roles
+      - value: delete:roles
+      - value: read:permissions
+      - value: create:permissions
+      - value: update:permissions
+      - value: delete:permissions
+      - value: read:resource-server
+      - value: create:resource-server
+      - value: update:resource-server
+      - value: delete:resource-server
+    signing_alg: RS256
+    skip_consent_for_verifiable_first_party_clients: false
+    subject_type_authorization:
+      client:
+        policy: require_client_grant
+      user:
+        policy: allow_all
+    token_lifetime: 86400
+    token_lifetime_for_web: 7200
+clients:
+  - name: API Explorer Application
+    app_type: non_interactive
+    created_at: '2026-09-16T06:28:00.670Z'
+    cross_origin_authentication: false
+    custom_login_page_on: true
+    grant_types:
+      - client_credentials
+    is_first_party: true
+    is_token_endpoint_ip_header_trusted: false
+    jwt_configuration:
+      alg: RS256
+      lifetime_in_seconds: 36000
+      secret_encoded: false
+    my_organization_configuration:
+      allowed_strategies:
+        - pingfederate
+        - adfs
+        - waad
+        - google-apps
+        - okta
+        - oidc
+        - samlp
+      connection_deletion_behavior: allow_if_empty
+      connection_profile_id: Default Connection Profile
+      user_attribute_profile_id: Default User Attribute Profile
+      third_party_client_access:
+        default_value: block
+        allowed_values:
+          - allow
+          - block
+    oidc_conformant: true
+    refresh_token:
+      expiration_type: non-expiring
+      leeway: 0
+      infinite_token_lifetime: true
+      infinite_idle_token_lifetime: true
+      token_lifetime: 31557600
+      idle_token_lifetime: 2592000
+      rotation_type: non-rotating
+    sso_disabled: false
+    token_endpoint_auth_method: client_secret_post
+    updated_at: '2026-09-16T06:36:15.271Z'
+  - name: Auth0 Management API (Test Application)
+    app_type: non_interactive
+    created_at: '2026-09-15T01:15:11.413Z'
+    cross_origin_authentication: false
+    custom_login_page_on: true
+    grant_types:
+      - client_credentials
+    is_first_party: true
+    is_token_endpoint_ip_header_trusted: false
+    jwt_configuration:
+      alg: RS256
+      lifetime_in_seconds: 36000
+      secret_encoded: false
+    oidc_conformant: true
+    refresh_token:
+      expiration_type: non-expiring
+      leeway: 0
+      infinite_token_lifetime: true
+      infinite_idle_token_lifetime: true
+      token_lifetime: 31557600
+      idle_token_lifetime: 2592000
+      rotation_type: non-rotating
+    sso_disabled: false
+    token_endpoint_auth_method: client_secret_post
+    updated_at: '2026-09-15T01:19:19.366Z'
+  - name: Kindred Coaching API
+    allowed_clients: []
+    app_type: resource_server
+    callbacks: []
+    client_aliases: []
+    created_at: '2026-09-16T05:37:19.115Z'
+    cross_origin_authentication: false
+    custom_login_page_on: true
+    grant_types:
+      - >-
+        urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token
+      - client_credentials
+    is_first_party: true
+    is_token_endpoint_ip_header_trusted: false
+    jwt_configuration:
+      alg: RS256
+      lifetime_in_seconds: 36000
+      secret_encoded: false
+    my_organization_configuration:
+      allowed_strategies:
+        - pingfederate
+        - adfs
+        - waad
+        - google-apps
+        - okta
+        - oidc
+        - samlp
+      connection_deletion_behavior: allow_if_empty
+      connection_profile_id: Default Connection Profile
+      user_attribute_profile_id: Default User Attribute Profile
+      third_party_client_access:
+        default_value: block
+        allowed_values:
+          - allow
+          - block
+    oidc_conformant: true
+    refresh_token:
+      expiration_type: non-expiring
+      leeway: 0
+      infinite_token_lifetime: true
+      infinite_idle_token_lifetime: true
+      token_lifetime: 31557600
+      idle_token_lifetime: 2592000
+      rotation_type: non-rotating
+    resource_server_identifier: https://kindred-asterling-ai-coaching.com/api
+    sso_disabled: false
+    token_endpoint_auth_method: client_secret_basic
+    token_exchange:
+      allow_any_profile_of_type:
+        - on_behalf_of_token_exchange
+    updated_at: '2026-09-16T07:12:11.745Z'
+  - name: Kindred Coaching API (Test Application)
+    app_type: non_interactive
+    created_at: '2026-09-12T14:31:37.394Z'
+    cross_origin_authentication: false
+    custom_login_page_on: true
+    grant_types:
+      - client_credentials
+    is_first_party: true
+    is_token_endpoint_ip_header_trusted: false
+    jwt_configuration:
+      alg: RS256
+      lifetime_in_seconds: 36000
+      secret_encoded: false
+    oidc_conformant: true
+    refresh_token:
+      expiration_type: non-expiring
+      leeway: 0
+      infinite_token_lifetime: true
+      infinite_idle_token_lifetime: true
+      token_lifetime: 31557600
+      idle_token_lifetime: 2592000
+      rotation_type: non-rotating
+    sso_disabled: false
+    token_endpoint_auth_method: client_secret_post
+    updated_at: '2026-09-15T01:18:55.831Z'
+  - name: Kindred-Coach
+    allowed_clients:
+      - https://kindred-asterling-ai-coaching.com/api
+    allowed_logout_urls:
+      - https://kindred-asterling-ai-coaching.com/
+      - http://localhost:4000
+      - http://localhost:5173
+      - http://localhost:8080
+    allowed_origins: []
+    app_type: spa
+    callbacks:
+      - https://kindred-asterling-ai-coaching.com/
+      - https://kindred-asterling-ai-coaching.com/login
+      - http://localhost:4000
+      - http://localhost:4000/login
+      - http://localhost:5173
+      - http://localhost:5173/login
+      - http://localhost:8080
+      - http://localhost:8080/login
+    client_aliases: []
+    created_at: '2026-09-12T13:43:27.554Z'
+    cross_origin_authentication: false
+    custom_login_page_on: true
+    description: >-
+      Kindred Asterling AI Coaching web application using Canadian Auth0
+      authentication.
+    fedcm_login:
+      google:
+        is_enabled: true
+    grant_types:
+      - authorization_code
+      - implicit
+      - refresh_token
+    initiate_login_uri: https://kindred-asterling-ai-coaching.com/login
+    is_first_party: true
+    is_token_endpoint_ip_header_trusted: false
+    jwt_configuration:
+      alg: RS256
+      lifetime_in_seconds: 36000
+      secret_encoded: false
+    my_organization_configuration:
+      allowed_strategies:
+        - pingfederate
+        - adfs
+        - waad
+        - google-apps
+        - okta
+        - oidc
+        - samlp
+      connection_deletion_behavior: allow_if_empty
+      connection_profile_id: Default Connection Profile
+      user_attribute_profile_id: Default User Attribute Profile
+      third_party_client_access:
+        default_value: block
+        allowed_values:
+          - allow
+          - block
+    native_social_login:
+      apple:
+        enabled: false
+      facebook:
+        enabled: false
+    oidc_conformant: true
+    refresh_token:
+      expiration_type: expiring
+      leeway: 0
+      infinite_token_lifetime: false
+      infinite_idle_token_lifetime: false
+      token_lifetime: 604800
+      idle_token_lifetime: 86400
+      policies:
+        - audience: https://dev-4c281gnuylq4hccq.ca.auth0.com/me/
+          scope:
+            - create:me:connected_accounts
+            - read:me:connected_accounts
+            - delete:me:connected_accounts
+            - read:me:authentication_methods
+            - delete:me:authentication_methods
+            - update:me:authentication_methods
+            - read:me:factors
+            - create:me:authentication_methods
+        - audience: https://kindred-asterling-ai-coaching.com/api
+          scope: []
+      rotation_type: rotating
+    sso_disabled: false
+    token_endpoint_auth_method: none
+    updated_at: '2026-09-16T06:37:03.795Z'
+    web_origins:
+      - https://kindred-asterling-ai-coaching.com
+      - http://localhost:4000
+      - http://localhost:5173
+      - http://localhost:8080
+  - name: My App
+    app_type: non_interactive
+    created_at: '2026-09-16T08:41:01.469Z'
+    cross_origin_authentication: false
+    custom_login_page_on: true
+    grant_types:
+      - client_credentials
+    is_first_party: true
+    is_token_endpoint_ip_header_trusted: false
+    jwt_configuration:
+      alg: RS256
+      lifetime_in_seconds: 36000
+      secret_encoded: false
+    oidc_conformant: true
+    refresh_token:
+      expiration_type: non-expiring
+      leeway: 0
+      infinite_token_lifetime: true
+      infinite_idle_token_lifetime: true
+      token_lifetime: 31557600
+      idle_token_lifetime: 2592000
+      rotation_type: non-rotating
+    sso_disabled: false
+    token_endpoint_auth_method: client_secret_post
+    updated_at: '2026-09-16T08:41:01.469Z'
+databases:
+  - name: Username-Password-Authentication
+    strategy: auth0
+    authentication:
+      active: true
+    connected_accounts:
+      active: false
+    enabled_clients:
+      - Kindred-Coach
+    is_domain_connection: true
+    options:
+      mfa:
+        active: true
+        return_enroll_settings: true
+      import_mode: false
+      passkey_options:
+        challenge_ui: both
+        local_enrollment_enabled: true
+        progressive_enrollment_enabled: true
+      password_options:
+        history:
+          size: 5
+          active: false
+        complexity:
+          min_length: 15
+          character_types: []
+          character_type_rule: all
+          max_length_exceeded: error
+          identical_characters: allow
+          sequential_characters: allow
+        dictionary:
+          active: false
+          custom: []
+          default: en_10k
+        profile_data:
+          active: false
+          blocked_fields: []
+      strategy_version: 2
+      enable_script_context: true
+      authentication_methods:
+        passkey:
+          enabled: true
+        password:
+          enabled: true
+          api_behavior: required
+          signup_behavior: allow
+      brute_force_protection: true
+      enabledDatabaseCustomization: false
+      disable_self_service_change_password: false
+    realms:
+      - Username-Password-Authentication
+connections:
+  - name: google-oauth2
+    strategy: google-oauth2
+    authentication:
+      active: true
+    connected_accounts:
+      active: false
+    enabled_clients:
+      - Kindred Coaching API
+      - Kindred-Coach
+    is_domain_connection: true
+    options:
+      drive: false
+      email: true
+      gmail: false
+      orkut: false
+      scope:
+        - email
+        - profile
+      sites: false
+      tasks: false
+      sheets: false
+      slides: false
+      blogger: false
+      profile: true
+      youtube: false
+      calendar: false
+      contacts: false
+      analytics: false
+      client_id: >-
+        1023935729471-db3g8i7l58nb2mcn04hj33olr114df4t.apps.googleusercontent.com
+      gmail_new: false
+      moderator: false
+      coordinate: false
+      drive_file: false
+      gmail_send: false
+      picasa_web: false
+      google_plus: false
+      youtube_new: false
+      contacts_new: false
+      gmail_insert: false
+      gmail_labels: false
+      gmail_modify: false
+      google_books: false
+      google_drive: false
+      spreadsheets: false
+      client_secret: '##CONNECTIONS_GOOGLE_OAUTH2_SECRET##'
+      document_list: false
+      drive_appdata: false
+      drive_scripts: false
+      gmail_compose: false
+      latitude_best: false
+      latitude_city: false
+      url_shortener: false
+      drive_activity: false
+      drive_metadata: false
+      drive_readonly: false
+      gmail_metadata: false
+      gmail_readonly: false
+      offline_access: true
+      tasks_readonly: false
+      youtube_upload: false
+      youtubepartner: false
+      calendar_events: false
+      sheets_readonly: false
+      slides_readonly: false
+      upstream_params:
+        access_type:
+          value: offline
+      webmaster_tools: false
+      chrome_web_store: false
+      youtube_readonly: false
+      allowed_audiences:
+        - ''
+      calendar_readonly: false
+      contacts_readonly: false
+      youtube_force_ssl: false
+      adsense_management: false
+      directory_readonly: false
+      google_drive_files: false
+      coordinate_readonly: false
+      drive_apps_readonly: false
+      gmail_settings_basic: false
+      google_cloud_storage: false
+      drive_photos_readonly: false
+      gmail_settings_sharing: false
+      calendar_addons_execute: false
+      contacts_other_readonly: false
+      drive_activity_readonly: false
+      drive_metadata_readonly: false
+      calendar_events_readonly: false
+      content_api_for_shopping: false
+      google_affiliate_network: false
+      calendar_settings_readonly: false
+      youtubepartner_channel_audit: false
+      youtube_channelmemberships_creator: false
+  - name: okta-personal-social-connection
+    strategy: oauth2
+    authentication:
+      active: true
+    connected_accounts:
+      active: false
+    display_name: Okta Personal
+    enabled_clients:
+      - API Explorer Application
+      - Kindred-Coach
+    is_domain_connection: true
+    options:
+      scope: openid profile email
+      scripts:
+        fetchUserProfile: |-
+          function fetchUserProfile(accessToken, context, callback) {
+            request.get(
+              {
+                url: 'https://id.okta.com/userinfo',
+                headers: {
+                  'Authorization': 'Bearer ' + accessToken,
+                }
+              },
+              (err, resp, body) => {
+                if (err) {
+                  return callback(err);
+                }
+                if (resp.statusCode !== 200) {
+                  return callback(new Error('Error: We were unable to retrieve the user profile'));
+                }
+                let bodyParsed;
+                try {
+                  bodyParsed = JSON.parse(body);
+                } catch (jsonError) {
+                  return callback(new Error('Error: We were unable to retrieve the user profile'));
+                }
+                console.log(bodyParsed);
+                const profile = {
+                  user_id: bodyParsed.sub,
+                  email: bodyParsed.email
+                };
+                callback(null, profile);
+              }
+            );
+          }
+      icon_url: >-
+        https://cdn.auth0.com/marketplace/catalog/content/assets/creators/okta-personal/okta-personal-avatar.png
+      tokenURL: https://id.okta.com/oauth/token
+      client_id: 0oa17hx4tcvm7lDw9698
+      client_secret: '##CONNECTIONS_OAUTH2_SECRET##'
+      authorizationURL: https://id.okta.com/authorize
+      integration_name: okta-personal-social-connection
+      dashboard_icon_url: >-
+        https://cdn.auth0.com/marketplace/catalog/content/assets/creators/okta-personal/okta-personal-avatar.png
+tenant:
+  allowed_logout_urls:
+    - https://kindred-asterling-ai-coaching.com
+  authorization_response_iss_parameter_supported: true
+  client_id_metadata_document_supported: false
+  customize_mfa_in_postlogin_action: true
+  default_redirection_uri: https://kindred-asterling-ai-coaching.com/login
+  enabled_locales:
+    - en-CA
+    - en
+    - fr-CA
+  ephemeral_session_lifetime: 24
+  flags:
+    enable_client_connections: false
+    revoke_refresh_token_grant: false
+    mfa_show_factor_list_on_enrollment: true
+    disable_clickjack_protection_headers: false
+  friendly_name: Kindred Asterling AI Coaching
+  idle_ephemeral_session_lifetime: 24
+  idle_session_lifetime: 24
+  oidc_logout:
+    rp_logout_end_session_endpoint_discovery: true
+  picture_url: >-
+    https://raw.githubusercontent.com/Griffixchips15/Kindred-Asterling-AI-Coaching/main/artifacts/kindred-coach/src/assets/brand/logo-mark.png
+  resource_parameter_profile: compatibility
+  sandbox_version: '22'
+  session_lifetime: 168
+  sessions:
+    oidc_logout_prompt_enabled: true
+  support_email: kindred_support@kindred-asterling-ai-coaching.com
+  support_url: https://kindred-asterling-ai-coaching.com/
+  universal_login:
+    colors:
+      page_background: '#000000'
+      primary: '#635dff'
+emailProvider:
+  name: resend
+  credentials: {}
+  default_from_address: kindred_ai_spacemail@kindred-asterling-ai-coaching.com
+  enabled: true
+emailTemplates:
+  - template: welcome_email
+    body: ./emailTemplates/welcome_email.html
+    enabled: true
+    from: ''
+    subject: ''
+    syntax: liquid
+clientGrants:
+  - client_id: API Explorer Application
+    audience: urn:auth0:express-configure
+    scope:
+      - express_configure:sso
+      - express_configure:scim
+    subject_type: client
+  - client_id: API Explorer Application
+    audience: https://dev-4c281gnuylq4hccq.ca.auth0.com/my-org/
+    allow_any_organization: false
+    organization_usage: require
+    scope:
+      - read:my_org:configuration
+      - read:my_org:details
+      - update:my_org:details
+      - create:my_org:identity_providers
+      - read:my_org:identity_providers
+      - update:my_org:identity_providers
+      - delete:my_org:identity_providers
+      - update:my_org:identity_providers_detach
+      - create:my_org:identity_providers_domains
+      - delete:my_org:identity_providers_domains
+      - read:my_org:identity_providers_scim_tokens
+      - create:my_org:identity_providers_scim_tokens
+      - delete:my_org:identity_providers_scim_tokens
+      - create:my_org:identity_providers_provisioning
+      - read:my_org:identity_providers_provisioning
+      - update:my_org:identity_providers_provisioning
+      - delete:my_org:identity_providers_provisioning
+      - read:my_org:domains
+      - delete:my_org:domains
+      - create:my_org:domains
+      - update:my_org:domains
+    subject_type: client
+  - client_id: API Explorer Application
+    audience: https://kindred-asterling-ai-coaching.com/api
+    allow_all_scopes: false
+    scope: []
+    subject_type: client
+  - client_id: API Explorer Application
+    audience: https://dev-4c281gnuylq4hccq.ca.auth0.com/my-org/
+    allow_any_organization: false
+    organization_usage: require
+    scope:
+      - read:my_org:configuration
+      - read:my_org:details
+      - update:my_org:details
+      - create:my_org:identity_providers
+      - read:my_org:identity_providers
+      - update:my_org:identity_providers
+      - delete:my_org:identity_providers
+      - update:my_org:identity_providers_detach
+      - create:my_org:identity_providers_domains
+      - delete:my_org:identity_providers_domains
+      - read:my_org:identity_providers_scim_tokens
+      - create:my_org:identity_providers_scim_tokens
+      - delete:my_org:identity_providers_scim_tokens
+      - create:my_org:identity_providers_provisioning
+      - read:my_org:identity_providers_provisioning
+      - update:my_org:identity_providers_provisioning
+      - delete:my_org:identity_providers_provisioning
+      - read:my_org:domains
+      - delete:my_org:domains
+      - create:my_org:domains
+      - update:my_org:domains
+    subject_type: user
+  - client_id: API Explorer Application
+    audience: https://kindred-asterling-ai-coaching.com/api
+    allow_all_scopes: false
+    scope: []
+    subject_type: user
+  - client_id: Auth0 Management API (Test Application)
+    audience: https://dev-4c281gnuylq4hccq.ca.auth0.com/api/v2/
+    scope: []
+    subject_type: client
+  - client_id: Kindred Coaching API
+    audience: https://kindred-asterling-ai-coaching.com/api
+    allow_all_scopes: false
+    scope: []
+    subject_type: user
+  - client_id: Kindred Coaching API
+    audience: https://dev-4c281gnuylq4hccq.ca.auth0.com/my-org/
+    allow_any_organization: false
+    organization_usage: require
+    scope:
+      - read:my_org:configuration
+      - read:my_org:details
+      - update:my_org:details
+      - create:my_org:identity_providers
+      - read:my_org:identity_providers
+      - update:my_org:identity_providers
+      - delete:my_org:identity_providers
+      - update:my_org:identity_providers_detach
+      - create:my_org:identity_providers_domains
+      - delete:my_org:identity_providers_domains
+      - read:my_org:identity_providers_scim_tokens
+      - create:my_org:identity_providers_scim_tokens
+      - delete:my_org:identity_providers_scim_tokens
+      - create:my_org:identity_providers_provisioning
+      - read:my_org:identity_providers_provisioning
+      - update:my_org:identity_providers_provisioning
+      - delete:my_org:identity_providers_provisioning
+      - read:my_org:domains
+      - delete:my_org:domains
+      - create:my_org:domains
+      - update:my_org:domains
+    subject_type: user
+  - client_id: Kindred Coaching API
+    audience: https://kindred-asterling-ai-coaching.com/api
+    allow_all_scopes: false
+    scope: []
+    subject_type: client
+  - client_id: Kindred Coaching API
+    audience: urn:auth0-authz-api
+    allow_all_scopes: false
+    scope:
+      - read:users
+      - read:applications
+      - read:connections
+      - read:configuration
+      - update:configuration
+      - read:groups
+      - create:groups
+      - update:groups
+      - delete:groups
+      - read:roles
+      - create:roles
+      - update:roles
+      - delete:roles
+      - read:permissions
+      - create:permissions
+      - update:permissions
+      - delete:permissions
+      - read:resource-server
+      - create:resource-server
+      - update:resource-server
+      - delete:resource-server
+    subject_type: client
+  - client_id: Kindred Coaching API
+    audience: https://dev-4c281gnuylq4hccq.ca.auth0.com/my-org/
+    allow_any_organization: false
+    organization_usage: require
+    scope:
+      - read:my_org:configuration
+      - read:my_org:details
+      - update:my_org:details
+      - create:my_org:identity_providers
+      - read:my_org:identity_providers
+      - update:my_org:identity_providers
+      - delete:my_org:identity_providers
+      - update:my_org:identity_providers_detach
+      - create:my_org:identity_providers_domains
+      - delete:my_org:identity_providers_domains
+      - read:my_org:identity_providers_scim_tokens
+      - create:my_org:identity_providers_scim_tokens
+      - delete:my_org:identity_providers_scim_tokens
+      - create:my_org:identity_providers_provisioning
+      - read:my_org:identity_providers_provisioning
+      - update:my_org:identity_providers_provisioning
+      - delete:my_org:identity_providers_provisioning
+      - read:my_org:domains
+      - delete:my_org:domains
+      - create:my_org:domains
+      - update:my_org:domains
+    subject_type: client
+  - client_id: Kindred Coaching API
+    audience: https://dev-4c281gnuylq4hccq.ca.auth0.com/api/v2/
+    scope:
+      - read:client_grants
+      - create:client_grants
+      - delete:client_grants
+      - update:client_grants
+      - read:users
+      - update:users
+      - delete:users
+      - create:users
+      - read:users_app_metadata
+      - update:users_app_metadata
+      - delete:users_app_metadata
+      - create:users_app_metadata
+      - read:user_custom_blocks
+      - create:user_custom_blocks
+      - delete:user_custom_blocks
+      - create:user_tickets
+      - read:clients
+      - update:clients
+      - delete:clients
+      - create:clients
+      - read:client_keys
+      - update:client_keys
+      - delete:client_keys
+      - create:client_keys
+      - read:client_credentials
+      - update:client_credentials
+      - delete:client_credentials
+      - create:client_credentials
+      - read:connections
+      - update:connections
+      - delete:connections
+      - create:connections
+      - read:resource_servers
+      - update:resource_servers
+      - delete:resource_servers
+      - create:resource_servers
+      - read:device_credentials
+      - update:device_credentials
+      - delete:device_credentials
+      - create:device_credentials
+      - read:rules
+      - update:rules
+      - delete:rules
+      - create:rules
+      - read:rules_configs
+      - update:rules_configs
+      - delete:rules_configs
+      - read:hooks
+      - update:hooks
+      - delete:hooks
+      - create:hooks
+      - read:actions
+      - update:actions
+      - delete:actions
+      - create:actions
+      - read:email_provider
+      - update:email_provider
+      - delete:email_provider
+      - create:email_provider
+      - blacklist:tokens
+      - read:stats
+      - read:insights
+      - read:tenant_settings
+      - update:tenant_settings
+      - read:logs
+      - read:logs_users
+      - read:shields
+      - create:shields
+      - update:shields
+      - delete:shields
+      - read:anomaly_blocks
+      - delete:anomaly_blocks
+      - update:triggers
+      - read:triggers
+      - read:grants
+      - delete:grants
+      - read:guardian_factors
+      - update:guardian_factors
+      - read:guardian_enrollments
+      - delete:guardian_enrollments
+      - create:guardian_enrollment_tickets
+      - read:user_idp_tokens
+      - create:passwords_checking_job
+      - delete:passwords_checking_job
+      - read:custom_domains
+      - delete:custom_domains
+      - create:custom_domains
+      - update:custom_domains
+      - read:email_templates
+      - create:email_templates
+      - update:email_templates
+      - read:mfa_policies
+      - update:mfa_policies
+      - read:roles
+      - create:roles
+      - delete:roles
+      - update:roles
+      - read:prompts
+      - update:prompts
+      - read:branding
+      - update:branding
+      - delete:branding
+      - read:log_streams
+      - create:log_streams
+      - delete:log_streams
+      - update:log_streams
+      - create:signing_keys
+      - read:signing_keys
+      - update:signing_keys
+      - read:limits
+      - update:limits
+      - create:role_members
+      - read:role_members
+      - delete:role_members
+      - read:entitlements
+      - read:attack_protection
+      - update:attack_protection
+      - read:organizations_summary
+      - create:authentication_methods
+      - read:authentication_methods
+      - update:authentication_methods
+      - delete:authentication_methods
+      - read:organizations
+      - update:organizations
+      - create:organizations
+      - delete:organizations
+      - read:organization_discovery_domains
+      - update:organization_discovery_domains
+      - create:organization_discovery_domains
+      - delete:organization_discovery_domains
+      - create:organization_members
+      - read:organization_members
+      - delete:organization_members
+      - create:organization_connections
+      - read:organization_connections
+      - update:organization_connections
+      - delete:organization_connections
+      - create:organization_member_roles
+      - read:organization_member_roles
+      - delete:organization_member_roles
+      - create:organization_invitations
+      - read:organization_invitations
+      - delete:organization_invitations
+      - read:scim_config
+      - create:scim_config
+      - update:scim_config
+      - delete:scim_config
+      - create:scim_token
+      - read:scim_token
+      - delete:scim_token
+      - read:directory_provisionings
+      - create:directory_provisionings
+      - update:directory_provisionings
+      - delete:directory_provisionings
+      - delete:phone_providers
+      - create:phone_providers
+      - read:phone_providers
+      - update:phone_providers
+      - delete:phone_templates
+      - create:phone_templates
+      - read:phone_templates
+      - update:phone_templates
+      - create:encryption_keys
+      - read:encryption_keys
+      - update:encryption_keys
+      - delete:encryption_keys
+      - read:sessions
+      - update:sessions
+      - delete:sessions
+      - read:refresh_tokens
+      - update:refresh_tokens
+      - delete:refresh_tokens
+      - create:self_service_profiles
+      - read:self_service_profiles
+      - update:self_service_profiles
+      - delete:self_service_profiles
+      - create:sso_access_tickets
+      - delete:sso_access_tickets
+      - read:forms
+      - update:forms
+      - delete:forms
+      - create:forms
+      - read:flows
+      - update:flows
+      - delete:flows
+      - create:flows
+      - read:flows_vault
+      - read:flows_vault_connections
+      - update:flows_vault_connections
+      - delete:flows_vault_connections
+      - create:flows_vault_connections
+      - read:flows_executions
+      - delete:flows_executions
+      - read:connections_options
+      - update:connections_options
+      - read:self_service_profile_custom_texts
+      - update:self_service_profile_custom_texts
+      - create:network_acls
+      - update:network_acls
+      - read:network_acls
+      - delete:network_acls
+      - delete:vdcs_templates
+      - read:vdcs_templates
+      - create:vdcs_templates
+      - update:vdcs_templates
+      - create:custom_signing_keys
+      - read:custom_signing_keys
+      - update:custom_signing_keys
+      - delete:custom_signing_keys
+      - read:federated_connections_tokens
+      - delete:federated_connections_tokens
+      - create:user_attribute_profiles
+      - read:user_attribute_profiles
+      - update:user_attribute_profiles
+      - delete:user_attribute_profiles
+      - read:event_streams
+      - create:event_streams
+      - delete:event_streams
+      - update:event_streams
+      - read:event_deliveries
+      - update:event_deliveries
+      - create:connection_profiles
+      - read:connection_profiles
+      - update:connection_profiles
+      - delete:connection_profiles
+      - create:groups
+      - read:groups
+      - update:groups
+      - delete:groups
+      - read:group_members
+      - create:group_roles
+      - delete:group_roles
+      - read:user_effective_permissions
+      - read:user_effective_roles
+      - read:organization_member_effective_roles
+      - read:user_role_source_groups
+      - read:organization_member_role_source_groups
+      - read:user_permission_source_roles
+      - read:group_roles
+      - read:organization_groups
+      - create:organization_groups
+      - delete:organization_groups
+      - read:organization_group_roles
+      - create:organization_group_roles
+      - delete:organization_group_roles
+      - create:token_exchange_profiles
+      - read:token_exchange_profiles
+      - update:token_exchange_profiles
+      - delete:token_exchange_profiles
+      - read:organization_client_grants
+      - create:organization_client_grants
+      - delete:organization_client_grants
+      - read:organization_clients
+      - create:organization_clients
+      - update:organization_clients
+      - delete:organization_clients
+      - read:events
+      - create:rate_limit_policies
+      - read:rate_limit_policies
+      - update:rate_limit_policies
+      - delete:rate_limit_policies
+      - create:portals
+      - read:portals
+      - update:portals
+      - delete:portals
+      - create:network_acl_keys
+      - update:network_acl_keys
+      - read:network_acl_keys
+      - delete:network_acl_keys
+      - read:connections_keys
+      - update:connections_keys
+      - create:connections_keys
+    subject_type: client
+  - client_id: Kindred Coaching API (Test Application)
+    audience: https://kindred-asterling-ai-coaching.com/api
+    allow_all_scopes: true
+    subject_type: client
+  - client_id: Kindred Coaching API (Test Application)
+    audience: https://kindred-asterling-ai-coaching.com/api
+    allow_all_scopes: true
+    subject_type: user
+  - client_id: Kindred-Coach
+    audience: https://kindred-asterling-ai-coaching.com/api
+    allow_all_scopes: false
+    scope: []
+    subject_type: user
+  - client_id: Kindred-Coach
+    audience: https://kindred-asterling-ai-coaching.com/api
+    allow_all_scopes: true
+    subject_type: client
+  - client_id: Kindred-Coach
+    audience: urn:auth0-authz-api
+    allow_all_scopes: true
+    subject_type: client
+  - client_id: Kindred-Coach
+    audience: https://dev-4c281gnuylq4hccq.ca.auth0.com/my-org/
+    allow_any_organization: false
+    organization_usage: require
+    scope:
+      - read:my_org:configuration
+      - read:my_org:details
+      - update:my_org:details
+      - create:my_org:identity_providers
+      - read:my_org:identity_providers
+      - update:my_org:identity_providers
+      - delete:my_org:identity_providers
+      - update:my_org:identity_providers_detach
+      - create:my_org:identity_providers_domains
+      - delete:my_org:identity_providers_domains
+      - read:my_org:identity_providers_scim_tokens
+      - create:my_org:identity_providers_scim_tokens
+      - delete:my_org:identity_providers_scim_tokens
+      - create:my_org:identity_providers_provisioning
+      - read:my_org:identity_providers_provisioning
+      - update:my_org:identity_providers_provisioning
+      - delete:my_org:identity_providers_provisioning
+      - read:my_org:domains
+      - delete:my_org:domains
+      - create:my_org:domains
+      - update:my_org:domains
+    subject_type: user
+  - client_id: Kindred-Coach
+    audience: https://dev-4c281gnuylq4hccq.ca.auth0.com/my-org/
+    allow_any_organization: false
+    organization_usage: require
+    scope:
+      - read:my_org:configuration
+      - read:my_org:details
+      - update:my_org:details
+      - create:my_org:identity_providers
+      - read:my_org:identity_providers
+      - update:my_org:identity_providers
+      - delete:my_org:identity_providers
+      - update:my_org:identity_providers_detach
+      - create:my_org:identity_providers_domains
+      - delete:my_org:identity_providers_domains
+      - read:my_org:identity_providers_scim_tokens
+      - create:my_org:identity_providers_scim_tokens
+      - delete:my_org:identity_providers_scim_tokens
+      - create:my_org:identity_providers_provisioning
+      - read:my_org:identity_providers_provisioning
+      - update:my_org:identity_providers_provisioning
+      - delete:my_org:identity_providers_provisioning
+      - read:my_org:domains
+      - delete:my_org:domains
+      - create:my_org:domains
+      - update:my_org:domains
+    subject_type: client
+  - client_id: Kindred-Coach
+    audience: https://dev-4c281gnuylq4hccq.ca.auth0.com/me/
+    scope:
+      - read:me:authentication_methods
+      - delete:me:authentication_methods
+      - update:me:authentication_methods
+      - read:me:factors
+      - create:me:authentication_methods
+      - delete:me:connected_accounts
+    subject_type: user
+  - client_id: undefined_clientId
+    audience: https://kindred-asterling-ai-coaching.com/api
+    allow_all_scopes: true
+    default_for: third_party_clients
+    subject_type: user
+  - client_id: undefined_clientId
+    audience: https://kindred-asterling-ai-coaching.com/api
+    allow_all_scopes: true
+    default_for: third_party_clients
+    subject_type: client
+guardianFactors:
+  - name: duo
+    enabled: false
+  - name: email
+    enabled: false
+  - name: otp
+    enabled: true
+  - name: push-notification
+    enabled: true
+  - name: recovery-code
+    enabled: false
+  - name: sms
+    enabled: false
+  - name: webauthn-platform
+    enabled: true
+  - name: webauthn-roaming
+    enabled: false
+guardianPolicies:
+  policies:
+    - all-applications
+guardianPhoneFactorMessageTypes:
+  message_types: []
+roles: []
+phoneProviders:
+  - name: twilio
+    configuration:
+      sid: '##TWILIO_ACCOUNT_SID##'
+      default_from: '##TWILIO_DEFAULT_FROM##'
+      delivery_methods:
+        - text
+    credentials:
+      auth_token: '##TWILIO_AUTH_TOKEN##'
+    disabled: false
+phoneTemplates:
+  - content:
+      syntax: liquid
+      body:
+        text: >-
+          {{ code | escape }} is your verification code for {{ friendly_name |
+          escape }}
+        voice: >-
+          Hello. Your verification code for {{ friendly_name | escape }} is {{
+          pause }} {{ code | escape }}. I repeat, your verification code is {{
+          pause }} {{ code | escape }}
+    disabled: false
+    type: otp_verify
+  - content:
+      syntax: liquid
+      body:
+        text: >-
+          We detected suspicious activity on your account from the ip
+          {{user.source_ip}}{% if user.city %} from {{user.city}},
+          {{user.country}}{% elsif user.country %} from {{user.country}}{% endif
+          %}. Logins from this IP have been blocked on your account. If this is
+          your IP, please reset your password to unblock your account.
+          Otherwise, disregard this message.
+        voice: >-
+          We detected suspicious activity on your account from the ip
+          {{user.source_ip}}{% if user.city %} from {{user.city}},
+          {{user.country}}{% elsif user.country %} from {{user.country}}{% endif
+          %}. Logins from this IP have been blocked on your account. If this is
+          your IP, please reset your password to unblock your account.
+          Otherwise, disregard this message.
+      from: ''
+    disabled: false
+    type: blocked_account
+  - content:
+      syntax: liquid
+      body:
+        text: >-
+          {{ code | escape }} is your password change code for {{ friendly_name
+          | escape }}
+        voice: >-
+          Hello. Your password change code for {{ friendly_name | escape }} is
+          {{ pause }} {{ code | escape }}. I repeat, your password change code
+          is {{ pause }} {{ code | escape }}
+      from: ''
+    disabled: false
+    type: change_password
+  - content:
+      syntax: liquid
+      body:
+        text: >-
+          {{ code | escape }} is your verification code for {{ friendly_name |
+          escape }}. Please enter this code to verify your enrollment.
+        voice: >-
+          Hello. Your verification code for {{ friendly_name | escape }} is {{
+          pause }} {{ code | escape }}. I repeat, your verification code is {{
+          pause }} {{ code | escape }}
+      from: ''
+    disabled: false
+    type: otp_enroll
+prompts:
+  customText: {}
+  identifier_first: true
+  partials: {}
+  universal_login_experience: new
+  universal_login_iframe_allowed_origins:
+    - https://kindred-asterling-ai-coaching.com
+  universal_login_iframe_enabled: true
+  webauthn_platform_first_factor: false
+actions:
+  - name: Pass Reset
+    code: ./actions/Pass Reset/code.js
+    dependencies: []
+    deployed: true
+    runtime: node22
+    secrets: []
+    status: built
+    supported_triggers:
+      - id: password-reset-post-challenge
+        version: v1
+triggers: {}
+organizations: []
+attackProtection:
+  botDetection:
+    challenge_password_policy: never
+    challenge_passwordless_policy: never
+    challenge_password_reset_policy: never
+    allowlist: []
+    bot_detection_level: medium
+    monitoring_mode_enabled: false
+  breachedPasswordDetection:
+    enabled: true
+    shields: []
+    admin_notification_frequency: []
+    method: standard
+    stage:
+      pre-user-registration:
+        shields: []
+      pre-change-password:
+        shields: []
+  bruteForceProtection:
+    enabled: true
+    shields:
+      - block
+      - user_notification
+    mode: count_per_identifier_and_ip
+    allowlist: []
+    max_attempts: 10
+  captcha:
+    active_provider_id: auth_challenge
+    simple_captcha: {}
+    auth_challenge:
+      fail_open: false
+    recaptcha_v2:
+      site_key: ''
+      secret: '##CAPTCHA_RECAPTCHA_V2_SECRET##'
+    recaptcha_enterprise:
+      site_key: ''
+      project_id: '##CAPTCHA_RECAPTCHA_ENTERPRISE_PROJECT_ID##'
+      api_key: '##CAPTCHA_RECAPTCHA_ENTERPRISE_API_KEY##'
+    hcaptcha:
+      site_key: ''
+      secret: '##CAPTCHA_HCAPTCHA_SECRET##'
+    friendly_captcha:
+      site_key: ''
+      secret: '##CAPTCHA_FRIENDLY_CAPTCHA_SECRET##'
+    arkose:
+      site_key: ''
+      client_subdomain: client-api
+      verify_subdomain: verify-api
+      fail_open: false
+      secret: '##CAPTCHA_ARKOSE_SECRET##'
+  suspiciousIpThrottling:
+    enabled: true
+    shields:
+      - admin_notification
+      - block
+    allowlist: []
+    stage:
+      pre-login:
+        max_attempts: 100
+        rate: 864000
+      pre-user-registration:
+        max_attempts: 50
+        rate: 1200
+riskAssessment:
+  new_device:
+    remember_for: 30
+  settings:
+    enabled: false
+logStreams: []
+customDomains:
+  - certificate:
+      certificate_authority: letsencrypt
+      renews_before: '2026-12-13T03:58:36Z'
+      status: provisioned
+    created_at: '2026-09-14T04:51:17.536Z'
+    domain: auth.kindred-asterling-ai-coaching.com
+    is_default: true
+    primary: true
+    status: ready
+    tls_policy: recommended
+    type: auth0_managed_certs
+    verification:
+      methods:
+        - name: CNAME
+          record: dev-4c281gnuylq4hccq-cd-ax3j64btqgs0ppqr.edge.tenants.ca.auth0.com
+          domain: auth.kindred-asterling-ai-coaching.com
+      status: verified
+      last_verified_at: '2026-09-14T04:51:17Z'
+themes:
+  - borders:
+      button_border_weight: 1
+      buttons_style: rounded
+      button_border_radius: 3
+      input_border_weight: 1
+      inputs_style: rounded
+      input_border_radius: 3
+      widget_corner_radius: 5
+      widget_border_weight: 0
+      show_widget_shadow: true
+    colors:
+      primary_button: '#635dff'
+      primary_button_label: '#ffffff'
+      secondary_button_border: '#c9cace'
+      secondary_button_label: '#1e212a'
+      read_only_background: '#c2c8d0'
+      base_focus_color: '#635dff'
+      base_hover_color: '#000000'
+      links_focused_components: '#635dff'
+      header: '#1e212a'
+      body_text: '#1e212a'
+      widget_background: '#ffffff'
+      widget_border: '#c9cace'
+      input_labels_placeholders: '#65676e'
+      input_filled_text: '#000000'
+      input_border: '#c9cace'
+      input_background: '#ffffff'
+      icons: '#65676e'
+      error: '#d03c38'
+      success: '#13a688'
+      captcha_widget_theme: dark
+    displayName: Unnamed Theme
+    fonts:
+      font_url: ''
+      reference_text_size: 16
+      title:
+        bold: false
+        size: 150
+      subtitle:
+        bold: false
+        size: 87.5
+      body_text:
+        bold: false
+        size: 87.5
+      buttons_text:
+        bold: false
+        size: 100
+      input_labels:
+        bold: false
+        size: 100
+      links:
+        bold: true
+        size: 87.5
+      links_style: normal
+    page_background:
+      page_layout: center
+      background_color: '#000000'
+      background_image_url: ''
+    widget:
+      logo_position: center
+      logo_url: >-
+        https://raw.githubusercontent.com/Griffixchips15/Kindred-Asterling-AI-Coaching/main/artifacts/kindred-coach/src/assets/brand/logo-mark.png
+      logo_height: 52
+      header_text_alignment: center
+      social_buttons_layout: bottom
+forms: []
+flows: []
+flowVaultConnections: []
+selfServiceProfiles: []
+userAttributeProfiles:
+  - name: Default User Attribute Profile
+    user_attributes:
+      upn:
+        label: UPN
+        description: User Principal Name
+        saml_mapping:
+          - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn
+        auth0_mapping: upn
+        profile_required: false
+        strategy_overrides:
+          waad:
+            scim_mapping: userName
+      city:
+        label: City
+        description: City
+        scim_mapping: addresses[type eq "work"].locality
+        auth0_mapping: app_metadata.city
+        profile_required: false
+      name:
+        label: Name
+        description: Full name
+        oidc_mapping:
+          mapping: ${context.tokenset.name}
+          display_name: name
+        saml_mapping:
+          - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name
+        scim_mapping: displayName
+        auth0_mapping: name
+        profile_required: false
+      email:
+        label: Email
+        description: Email
+        oidc_mapping:
+          mapping: ${context.tokenset.email}
+          display_name: email
+        saml_mapping:
+          - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress
+        scim_mapping: emails[primary eq true].value
+        auth0_mapping: email
+        profile_required: true
+        strategy_overrides:
+          waad:
+            scim_mapping: emails[type eq "work"].value
+      state:
+        label: State
+        description: State or province
+        scim_mapping: addresses[type eq "work"].region
+        auth0_mapping: app_metadata.state
+        profile_required: false
+      title:
+        label: Title
+        description: Title
+        scim_mapping: title
+        auth0_mapping: app_metadata.title
+        profile_required: false
+      locale:
+        label: Locale
+        description: User locale
+        scim_mapping: locale
+        auth0_mapping: app_metadata.locale
+        profile_required: false
+      blocked:
+        label: Blocked
+        description: User blocked status
+        scim_mapping: active
+        auth0_mapping: blocked
+        profile_required: false
+      country:
+        label: Country
+        description: Country
+        scim_mapping: addresses[type eq "work"].country
+        auth0_mapping: app_metadata.country
+        profile_required: false
+      manager:
+        label: Manager
+        description: Manager
+        scim_mapping: urn:ietf:params:scim:schemas:extension:enterprise:2.0:User.manager
+        auth0_mapping: app_metadata.manager
+        profile_required: false
+      picture:
+        label: Picture
+        description: Profile picture URL
+        oidc_mapping:
+          mapping: ${context.tokenset.picture}
+          display_name: picture
+        scim_mapping: photos[type eq "photo"].value
+        auth0_mapping: picture
+        profile_required: false
+      division:
+        label: Division
+        description: Division
+        scim_mapping: urn:ietf:params:scim:schemas:extension:enterprise:2.0:User.division
+        auth0_mapping: app_metadata.division
+        profile_required: false
+      language:
+        label: Language
+        description: Preferred language
+        scim_mapping: preferredLanguage
+        auth0_mapping: app_metadata.language
+        profile_required: false
+      nickname:
+        label: Nickname
+        description: User nickname
+        oidc_mapping:
+          mapping: ${context.tokenset.nickname}
+          display_name: nickname
+        scim_mapping: nickName
+        auth0_mapping: nickname
+        profile_required: false
+      username:
+        label: Username
+        description: Username
+        oidc_mapping:
+          mapping: ${context.tokenset.preferred_username}
+          display_name: preferred_username
+        auth0_mapping: username
+        profile_required: false
+        strategy_overrides:
+          samlp:
+            scim_mapping: userName
+      role_saml:
+        label: Role
+        description: User role
+        saml_mapping:
+          - http://schemas.microsoft.com/ws/2008/06/identity/claims/role
+        auth0_mapping: role
+        profile_required: false
+      user_type:
+        label: User Type
+        description: User type
+        scim_mapping: userType
+        auth0_mapping: app_metadata.user_type
+        profile_required: false
+      department:
+        label: Department
+        description: Department
+        scim_mapping: urn:ietf:params:scim:schemas:extension:enterprise:2.0:User.department
+        auth0_mapping: app_metadata.department
+        profile_required: false
+      fax_number:
+        label: Fax Number
+        description: Fax number
+        auth0_mapping: app_metadata.fax_number
+        profile_required: false
+        strategy_overrides:
+          waad:
+            scim_mapping: phoneNumbers[type eq "fax"].value
+      given_name:
+        label: Given Name
+        description: First name
+        oidc_mapping:
+          mapping: ${context.tokenset.given_name}
+          display_name: given_name
+        saml_mapping:
+          - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname
+          - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name
+        scim_mapping: name.givenName
+        auth0_mapping: given_name
+        profile_required: false
+      roles_scim:
+        label: Roles
+        description: User roles
+        auth0_mapping: app_metadata.roles
+        profile_required: false
+        strategy_overrides:
+          oidc:
+            scim_mapping: roles
+          samlp:
+            scim_mapping: roles
+      cost_center:
+        label: Cost Center
+        description: Cost center
+        scim_mapping: urn:ietf:params:scim:schemas:extension:enterprise:2.0:User.costCenter
+        auth0_mapping: app_metadata.cost_center
+        profile_required: false
+      employee_id:
+        label: Employee ID
+        description: Employee identifier
+        scim_mapping: >-
+          urn:ietf:params:scim:schemas:extension:enterprise:2.0:User.employeeNumber
+        auth0_mapping: app_metadata.employee_id
+        profile_required: false
+      external_id:
+        label: External ID
+        description: External identifier
+        scim_mapping: externalId
+        auth0_mapping: app_metadata.external_id
+        profile_required: false
+      family_name:
+        label: Family Name
+        description: Last name
+        oidc_mapping:
+          mapping: ${context.tokenset.family_name}
+          display_name: family_name
+        saml_mapping:
+          - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname
+        scim_mapping: name.familyName
+        auth0_mapping: family_name
+        profile_required: false
+      groups_saml:
+        label: User's groups
+        description: User's groups
+        saml_mapping:
+          - http://schemas.xmlsoap.org/claims/Group
+        auth0_mapping: groups_saml
+        profile_required: false
+      postal_code:
+        label: Postal Code
+        description: Postal code
+        scim_mapping: addresses[type eq "work"].postalCode
+        auth0_mapping: app_metadata.postal_code
+        profile_required: false
+      profile_url:
+        label: Profile URL
+        description: Profile URL
+        scim_mapping: profileUrl
+        auth0_mapping: app_metadata.profile_url
+        profile_required: false
+      entitlements:
+        label: Entitlements
+        description: User entitlements
+        auth0_mapping: app_metadata.entitlements
+        profile_required: false
+        strategy_overrides:
+          oidc:
+            scim_mapping: entitlements
+          samlp:
+            scim_mapping: entitlements
+      organization:
+        label: Organization
+        description: Organization
+        scim_mapping: >-
+          urn:ietf:params:scim:schemas:extension:enterprise:2.0:User.organization
+        auth0_mapping: app_metadata.organization
+        profile_required: false
+      phone_number:
+        label: Mobile Phone Number
+        description: Mobile phone number
+        oidc_mapping:
+          mapping: ${context.tokenset.phone_number}
+          display_name: phone_number
+        saml_mapping:
+          - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/mobilephone
+          - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/homephone
+          - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/otherphone
+        auth0_mapping: phone_number
+        profile_required: false
+      timezone_oidc:
+        label: Timezone
+        description: User timezone
+        oidc_mapping:
+          mapping: ${context.tokenset.zoneinfo}
+          display_name: zoneinfo
+        auth0_mapping: timezone
+        profile_required: false
+      timezone_scim:
+        label: Timezone
+        description: User timezone
+        scim_mapping: timezone
+        auth0_mapping: app_metadata.timezone
+        profile_required: false
+      email_verified:
+        label: Email verified?
+        description: Is Email verified?
+        oidc_mapping:
+          mapping: ${context.tokenset.email_verified}
+          display_name: email_verified
+        auth0_mapping: email_verified
+        profile_required: false
+      postal_address:
+        label: Postal Address
+        description: Postal address
+        scim_mapping: addresses[type eq "work"].formatted
+        auth0_mapping: app_metadata.postal_address
+        profile_required: false
+      street_address:
+        label: Street Address
+        description: Street address
+        scim_mapping: addresses[type eq "work"].streetAddress
+        auth0_mapping: app_metadata.street_address
+        profile_required: false
+      federated_groups:
+        label: Federated groups
+        description: Federated groups
+        auth0_mapping: federated_groups
+        profile_required: false
+        strategy_overrides:
+          okta:
+            oidc_mapping:
+              mapping: ${context.userinfo.groups}
+              display_name: groups
+      federated_locale:
+        label: Federated locale
+        description: Federated locale
+        auth0_mapping: federated_locale
+        profile_required: false
+        strategy_overrides:
+          okta:
+            oidc_mapping:
+              mapping: ${context.userinfo.locale}
+              display_name: locale
+      honorific_prefix:
+        label: Honorific Prefix
+        description: Honorific prefix
+        auth0_mapping: app_metadata.honorific_prefix
+        profile_required: false
+        strategy_overrides:
+          okta:
+            scim_mapping: name.honorificPrefix
+      honorific_suffix:
+        label: Honorific Suffix
+        description: Honorific suffix
+        auth0_mapping: app_metadata.honorific_suffix
+        profile_required: false
+        strategy_overrides:
+          okta:
+            scim_mapping: name.honorificSuffix
+      middle_name_oidc:
+        label: Middle Name
+        description: Middle name
+        oidc_mapping:
+          mapping: ${context.tokenset.middle_name}
+          display_name: middle_name
+        auth0_mapping: middle_name
+        profile_required: false
+      middle_name_scim:
+        label: Middle Name
+        description: Middle name
+        auth0_mapping: app_metadata.middle_name
+        profile_required: false
+        strategy_overrides:
+          okta:
+            scim_mapping: name.middleName
+      home_phone_number:
+        label: Home Phone Number
+        description: Home phone number
+        auth0_mapping: app_metadata.home_phone_number
+        profile_required: false
+        strategy_overrides:
+          oidc:
+            scim_mapping: phoneNumbers[type eq "home"].value
+          samlp:
+            scim_mapping: phoneNumbers[type eq "home"].value
+      work_phone_number:
+        label: Work Phone Number
+        description: Work phone number
+        auth0_mapping: app_metadata.work_phone_number
+        profile_required: false
+        strategy_overrides:
+          oidc:
+            scim_mapping: phoneNumbers[type eq "work"].value
+          waad:
+            scim_mapping: phoneNumbers[type eq "work"].value
+          samlp:
+            scim_mapping: phoneNumbers[type eq "work"].value
+      federated_zoneinfo:
+        label: Federated zone info
+        description: Federated zone info
+        auth0_mapping: federated_zoneinfo
+        profile_required: false
+        strategy_overrides:
+          okta:
+            oidc_mapping:
+              mapping: ${context.userinfo.zoneinfo}
+      preferred_username:
+        label: Preferred username
+        description: Preferred username
+        oidc_mapping:
+          mapping: ${context.tokenset.preferred_username}
+          display_name: preferred_username
+        auth0_mapping: preferred_username
+        profile_required: false
+        strategy_overrides:
+          oidc:
+            scim_mapping: userName
+          okta:
+            scim_mapping: userName
+      primary_phone_number:
+        label: Primary Phone Number
+        description: Primary phone number
+        auth0_mapping: app_metadata.primary_phone_number
+        profile_required: false
+        strategy_overrides:
+          okta:
+            scim_mapping: phoneNumbers[primary eq true].value
+      mobile_phone_number_scim:
+        label: Mobile Phone Number
+        description: Mobile phone number
+        scim_mapping: phoneNumbers[type eq "mobile"].value
+        auth0_mapping: app_metadata.mobile_phone_number
+        profile_required: false
+    user_id:
+      oidc_mapping: sub
+      saml_mapping:
+        - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier
+        - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn
+        - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name
+      scim_mapping: externalId
+      strategy_overrides:
+        waad:
+          oidc_mapping: oid
+        samlp:
+          scim_mapping: userName
+        google-apps:
+          oidc_mapping: email
+connectionProfiles:
+  - name: Default Connection Profile
+    connection_name_prefix_template: ec-{org_id}-
+    enabled_features:
+      - scim
+      - universal_logout
+    organization:
+      show_as_button: none
+      assign_membership_on_login: none
+    provisioning:
+      scim:
+        tokens:
+          scopes:
+            - get:users
+            - post:users
+            - patch:users
+            - delete:users
+            - put:users
+          default_expiry: null
+          max_allowed_expiry: null
+tokenExchangeProfiles: []
+rateLimitPolicies: []
+eventStreams: []

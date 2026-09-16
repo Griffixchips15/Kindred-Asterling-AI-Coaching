@@ -1,0 +1,6 @@
+{
+  "AUTH0_DOMAIN": "dev-4c281gnuylq4hccq.ca.auth0.com",
+  "AUTH0_CLIENT_ID": "A2Lfwcg5yx0M3MfoYxnOaBpttlcCP9EA",
+  "AUTH0_ALLOW_DELETE": false,
+  "AUTH0_INCLUDED_ONLY": ["clients"]
+}
