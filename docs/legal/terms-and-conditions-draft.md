@@ -1,6 +1,6 @@
 # Terms and Conditions
 
-**Status:** Working draft — not legal advice
+**Status:** Reviewed Approved
 **Last repository review:** August 24, 2026
 **Intended users:** Adults aged 18 and older only
 
