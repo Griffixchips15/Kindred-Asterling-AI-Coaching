@@ -1,0 +1,9 @@
+resourceServers:
+  - name: Kindred Coaching API
+    identifier: https://kindred-asterling-ai-coaching.com/api
+    allow_offline_access: true
+    enforce_policies: true
+    signing_alg: RS256
+    skip_consent_for_verifiable_first_party_clients: true
+    token_lifetime: 86400
+    token_lifetime_for_web: 7200
